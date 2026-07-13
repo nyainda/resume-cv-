@@ -13,12 +13,18 @@ interface TemplateProps {
 
 // ─── constants ────────────────────────────────────────────────────────────────
 const SIDEBAR_BG   = '#1B2B4B';
-const SIDEBAR_TEXT = '#CBD5E1';   // slate-300
+const SIDEBAR_TEXT = '#CBD5E1';
 const SIDEBAR_HEAD = '#FFFFFF';
-const ACCENT       = '#1E40AF';   // blue-800 — used in white area for links / company names
+const ACCENT       = '#1E40AF';
+
+// ─── content caps — keeps everything on one A4 page ───────────────────────────
+const MAX_BULLETS_PER_ROLE = 4;   // clamp long experience entries
+const MAX_EXPERIENCE_ROLES = 4;   // never render more than 4 roles
+const MAX_PROJECTS         = 3;   // right column can hold ~3 projects comfortably
+const MAX_BULLETS_PROJECT  = 2;   // 2 bullets per project max
+const SUMMARY_MAX_CHARS    = 320; // ~3 lines at 9px
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
-
 function initials(name?: string) {
   if (!name) return '?';
   return name.split(/\s+/).filter(Boolean).slice(0, 2).map(n => n[0].toUpperCase()).join('');
@@ -41,9 +47,14 @@ function eduDateRange(startYear?: string, year?: string) {
   return year ?? '';
 }
 
-// ─── sidebar icons (white stroke on transparent) ──────────────────────────────
+function truncate(text: string, max: number) {
+  if (!text || text.length <= max) return text;
+  return text.slice(0, max).replace(/\s+\S*$/, '') + '…';
+}
+
+// ─── sidebar icons ────────────────────────────────────────────────────────────
 const ContactIcon: React.FC<{ type: 'email' | 'phone' | 'linkedin' | 'github' | 'web' | 'loc' }> = ({ type }) => {
-  const s: React.CSSProperties = { width: 12, height: 12, flexShrink: 0, display: 'inline-block', verticalAlign: 'middle' };
+  const s: React.CSSProperties = { width: 11, height: 11, flexShrink: 0, display: 'inline-block', verticalAlign: 'middle' };
   const stroke = '#CBD5E1';
   if (type === 'email')    return <svg style={s} viewBox="0 0 24 24" fill="none" stroke={stroke} strokeWidth="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M2 7l10 7 10-7"/></svg>;
   if (type === 'phone')    return <svg style={s} viewBox="0 0 24 24" fill="none" stroke={stroke} strokeWidth="2"><path d="M22 16.92v3a2 2 0 01-2.18 2A19.79 19.79 0 0112 18.72a19.5 19.5 0 01-4.9-4.9 19.79 19.79 0 01-3.07-8.63A2 2 0 015.82 4h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L10.09 11.8a16 16 0 006.11 6.11l1.06-1.06a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/></svg>;
@@ -55,21 +66,21 @@ const ContactIcon: React.FC<{ type: 'email' | 'phone' | 'linkedin' | 'github' | 
 
 // ─── Sidebar section heading ───────────────────────────────────────────────────
 const SidebarHeading: React.FC<{ title: string }> = ({ title }) => (
-  <div style={{ marginBottom: 10 }}>
-    <div style={{ fontSize: '9px', fontWeight: 800, color: SIDEBAR_HEAD, textTransform: 'uppercase', letterSpacing: '0.18em', fontFamily: "Georgia, 'Times New Roman', serif" }}>
+  <div style={{ marginBottom: 7 }}>
+    <div style={{ fontSize: '8.5px', fontWeight: 800, color: SIDEBAR_HEAD, textTransform: 'uppercase', letterSpacing: '0.18em', fontFamily: "Georgia, 'Times New Roman', serif" }}>
       {title}
     </div>
-    <div style={{ borderTop: '1px solid rgba(255,255,255,0.2)', marginTop: 5 }} />
+    <div style={{ borderTop: '1px solid rgba(255,255,255,0.2)', marginTop: 4 }} />
   </div>
 );
 
 // ─── Main area section heading ─────────────────────────────────────────────────
 const MainHeading: React.FC<{ title: string; accent: string }> = ({ title, accent }) => (
-  <div style={{ marginBottom: 10 }}>
-    <div style={{ fontSize: '10px', fontWeight: 800, color: accent, textTransform: 'uppercase', letterSpacing: '0.15em', fontFamily: "Georgia, 'Times New Roman', serif" }}>
+  <div style={{ marginBottom: 7 }}>
+    <div style={{ fontSize: '9px', fontWeight: 800, color: accent, textTransform: 'uppercase', letterSpacing: '0.15em', fontFamily: "Georgia, 'Times New Roman', serif" }}>
       {title}
     </div>
-    <div style={{ borderTop: `1.5px solid ${accent}`, marginTop: 4, opacity: 0.5 }} />
+    <div style={{ borderTop: `1.5px solid ${accent}`, marginTop: 3, opacity: 0.5 }} />
   </div>
 );
 
@@ -78,7 +89,7 @@ const DotBar: React.FC<{ filled: number; total?: number; color: string }> = ({ f
   <div style={{ display: 'flex', gap: 3, alignItems: 'center' }}>
     {Array.from({ length: total }).map((_, i) => (
       <div key={i} style={{
-        width: 7, height: 7, borderRadius: '50%',
+        width: 6, height: 6, borderRadius: '50%',
         background: i < filled ? color : 'transparent',
         border: `1.5px solid ${color}`,
         flexShrink: 0,
@@ -93,7 +104,6 @@ const TemplateExecutiveEditorial: React.FC<TemplateProps> = ({
 }) => {
   const userAccent = cvData.accentColor ?? ACCENT;
 
-  // ── Inline-edit helper ─────────────────────────────────────────────────────
   const handleUpdate = useCallback((updater: (d: CVData) => void) => {
     const d: CVData = JSON.parse(JSON.stringify(cvData));
     updater(d);
@@ -116,7 +126,7 @@ const TemplateExecutiveEditorial: React.FC<TemplateProps> = ({
     };
   };
 
-  // ── Parse contact items ────────────────────────────────────────────────────
+  // ── Contact items ──────────────────────────────────────────────────────────
   const contacts: { type: 'email' | 'phone' | 'linkedin' | 'github' | 'web' | 'loc'; label: string }[] = [
     ...(personalInfo.email    ? [{ type: 'email'    as const, label: personalInfo.email }]    : []),
     ...(personalInfo.phone    ? [{ type: 'phone'    as const, label: personalInfo.phone }]    : []),
@@ -126,7 +136,7 @@ const TemplateExecutiveEditorial: React.FC<TemplateProps> = ({
     ...(personalInfo.location ? [{ type: 'loc'      as const, label: personalInfo.location }] : []),
   ];
 
-  // ── Parse skills: grouped vs flat ─────────────────────────────────────────
+  // ── Skills ─────────────────────────────────────────────────────────────────
   const skills = cvData.skills ?? [];
   const groupRe = /^(.+?):\s*(.+)$/;
   const hasGroupedSkills = skills.some(s => groupRe.test(s));
@@ -134,13 +144,9 @@ const TemplateExecutiveEditorial: React.FC<TemplateProps> = ({
     ? skills.map(s => { const m = s.match(groupRe); return m ? { label: m[1].trim(), items: m[2].trim() } : { label: '', items: s }; })
     : [];
 
-  // ── Find interests custom section ──────────────────────────────────────────
-  const interestSection = (cvData.customSections ?? []).find(
-    s => /interest|hobb/i.test(s.label)
-  );
+  // ── Interests ──────────────────────────────────────────────────────────────
+  const interestSection = (cvData.customSections ?? []).find(s => /interest|hobb/i.test(s.label));
   const interests = interestSection?.items.filter(i => i.title?.trim()).map(i => i.title!) ?? [];
-
-  // Interesting icons for common interests
   const INTEREST_ICONS: Record<string, string> = {
     reading: '📚', hiking: '🥾', photography: '📷', traveling: '✈️', travel: '✈️',
     fitness: '🏋️', coffee: '☕', music: '🎵', cooking: '🍳', gaming: '🎮',
@@ -148,27 +154,24 @@ const TemplateExecutiveEditorial: React.FC<TemplateProps> = ({
     writing: '✍️', movies: '🎬', football: '⚽', tennis: '🎾', chess: '♟️',
   };
   function interestIcon(name: string) {
-    const key = name.toLowerCase().trim();
-    return INTEREST_ICONS[key] ?? '•';
+    return INTEREST_ICONS[name.toLowerCase().trim()] ?? '•';
   }
 
-  // ── Custom sections — non-interest ones — route by size ────────────────────
   const nonInterestCustom = (cvData.customSections ?? []).filter(
     s => !/interest|hobb/i.test(s.label) && s.items.some(i => i.title?.trim())
   );
 
   // ─────────────────────────────────────────────────────────────────────────
-  // SIDEBAR SUB-COMPONENTS
+  // SIDEBAR SECTIONS
   // ─────────────────────────────────────────────────────────────────────────
-
   const SidebarContact = () => !contacts.length ? null : (
-    <div style={{ marginBottom: 20 }}>
+    <div style={{ marginBottom: 14 }}>
       <SidebarHeading title="Contact" />
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
         {contacts.map((c, i) => (
-          <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+          <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 6 }}>
             <span style={{ marginTop: 1, flexShrink: 0 }}><ContactIcon type={c.type} /></span>
-            <span style={{ fontSize: '9.5px', color: SIDEBAR_TEXT, lineHeight: 1.4, wordBreak: 'break-all', fontFamily: "Georgia, 'Times New Roman', serif" }}>
+            <span style={{ fontSize: '8.5px', color: SIDEBAR_TEXT, lineHeight: 1.35, wordBreak: 'break-all', fontFamily: "Georgia, 'Times New Roman', serif" }}>
               {c.label}
             </span>
           </div>
@@ -178,25 +181,25 @@ const TemplateExecutiveEditorial: React.FC<TemplateProps> = ({
   );
 
   const SidebarSkills = () => !skills.length ? null : (
-    <div style={{ marginBottom: 20 }}>
-      <SidebarHeading title="Technical Skills" />
+    <div style={{ marginBottom: 14 }}>
+      <SidebarHeading title="Skills" />
       {hasGroupedSkills ? (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
           {skillGroups.map((g, i) => (
             <div key={i}>
               {g.label && (
-                <div style={{ fontSize: '9px', fontWeight: 700, color: SIDEBAR_HEAD, fontFamily: "Georgia, 'Times New Roman', serif", marginBottom: 2 }}>
+                <div style={{ fontSize: '8px', fontWeight: 700, color: SIDEBAR_HEAD, fontFamily: "Georgia, 'Times New Roman', serif", marginBottom: 1 }}>
                   {g.label}
                 </div>
               )}
-              <div style={{ fontSize: '9px', color: SIDEBAR_TEXT, lineHeight: 1.5, fontFamily: "Georgia, 'Times New Roman', serif" }}>
+              <div style={{ fontSize: '8px', color: SIDEBAR_TEXT, lineHeight: 1.5, fontFamily: "Georgia, 'Times New Roman', serif" }}>
                 {g.items}
               </div>
             </div>
           ))}
         </div>
       ) : (
-        <div style={{ fontSize: '9px', color: SIDEBAR_TEXT, lineHeight: 1.6, fontFamily: "Georgia, 'Times New Roman', serif" }}>
+        <div style={{ fontSize: '8px', color: SIDEBAR_TEXT, lineHeight: 1.55, fontFamily: "Georgia, 'Times New Roman', serif" }}>
           {skills.join(', ')}
         </div>
       )}
@@ -204,12 +207,12 @@ const TemplateExecutiveEditorial: React.FC<TemplateProps> = ({
   );
 
   const SidebarLanguages = () => !cvData.languages?.length ? null : (
-    <div style={{ marginBottom: 20 }}>
+    <div style={{ marginBottom: 14 }}>
       <SidebarHeading title="Languages" />
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
         {cvData.languages.map((l, i) => (
-          <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-            <span style={{ fontSize: '9.5px', color: SIDEBAR_HEAD, fontFamily: "Georgia, 'Times New Roman', serif" }}>{l.name}</span>
+          <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <span style={{ fontSize: '8.5px', color: SIDEBAR_HEAD, fontFamily: "Georgia, 'Times New Roman', serif" }}>{l.name}</span>
             <DotBar filled={profDots(l.proficiency)} color={SIDEBAR_TEXT} />
           </div>
         ))}
@@ -218,13 +221,13 @@ const TemplateExecutiveEditorial: React.FC<TemplateProps> = ({
   );
 
   const SidebarInterests = () => !interests.length ? null : (
-    <div style={{ marginBottom: 20 }}>
+    <div style={{ marginBottom: 14 }}>
       <SidebarHeading title="Interests" />
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 4px' }}>
-        {interests.map((name, i) => (
-          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <span style={{ fontSize: '11px' }}>{interestIcon(name)}</span>
-            <span style={{ fontSize: '8.5px', color: SIDEBAR_TEXT, fontFamily: "Georgia, 'Times New Roman', serif" }}>{name}</span>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '5px 4px' }}>
+        {interests.slice(0, 6).map((name, i) => (
+          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+            <span style={{ fontSize: '10px' }}>{interestIcon(name)}</span>
+            <span style={{ fontSize: '8px', color: SIDEBAR_TEXT, fontFamily: "Georgia, 'Times New Roman', serif" }}>{name}</span>
           </div>
         ))}
       </div>
@@ -232,88 +235,88 @@ const TemplateExecutiveEditorial: React.FC<TemplateProps> = ({
   );
 
   // ─────────────────────────────────────────────────────────────────────────
-  // CENTER COLUMN SECTIONS (Summary + Experience)
+  // CENTER COLUMN (Summary + Experience)
   // ─────────────────────────────────────────────────────────────────────────
-
   const CenterSummary = () => !cvData.summary ? null : (
-    <div style={{ marginBottom: 16 }}>
+    <div style={{ marginBottom: 12 }}>
       <MainHeading title="Professional Summary" accent={userAccent} />
-      <p style={{ fontSize: '10.5px', color: '#374151', lineHeight: 1.65, margin: 0, fontFamily: "Georgia, 'Times New Roman', serif" }}
+      <p style={{ fontSize: '9px', color: '#374151', lineHeight: 1.55, margin: 0, fontFamily: "Georgia, 'Times New Roman', serif" }}
         {...editable(v => handleUpdate(d => { d.summary = v; }))}>
-        {cvData.summary}
+        {truncate(cvData.summary, SUMMARY_MAX_CHARS)}
       </p>
     </div>
   );
 
-  const CenterExperience = () => !cvData.experience?.length ? null : (
-    <div style={{ marginBottom: 16 }}>
+  const roles = (cvData.experience ?? []).slice(0, MAX_EXPERIENCE_ROLES);
+
+  const CenterExperience = () => !roles.length ? null : (
+    <div style={{ marginBottom: 12 }}>
       <MainHeading title="Experience" accent={userAccent} />
-      {cvData.experience.map((exp, ei) => (
-        <div key={ei} style={{ marginBottom: ei < cvData.experience.length - 1 ? 14 : 0 }}>
+      {roles.map((exp, ei) => (
+        <div key={ei} style={{ marginBottom: ei < roles.length - 1 ? 10 : 0 }}>
           {/* Job title + Date */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
-            <span style={{ fontSize: '11px', fontWeight: 700, color: '#111111', fontFamily: "Georgia, 'Times New Roman', serif", lineHeight: 1.3 }}
+            <span style={{ fontSize: '10px', fontWeight: 700, color: '#111111', fontFamily: "Georgia, 'Times New Roman', serif", lineHeight: 1.2 }}
               {...editable(v => handleUpdate(d => { d.experience[ei].jobTitle = v; }))}>
               {exp.jobTitle}
             </span>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 3, flexShrink: 0 }}>
               {isCurrentRole(exp.dates) && (
                 <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#22c55e', boxShadow: '0 0 0 2px #22c55e33', display: 'inline-block' }} />
               )}
-              <span style={{ fontSize: '9.5px', color: '#6b7280', fontFamily: "Georgia, 'Times New Roman', serif", whiteSpace: 'nowrap' }}
+              <span style={{ fontSize: '8.5px', color: '#6b7280', fontFamily: "Georgia, 'Times New Roman', serif", whiteSpace: 'nowrap' }}
                 {...editable(v => handleUpdate(d => { d.experience[ei].dates = v; }))}>
                 {exp.dates}
               </span>
             </span>
           </div>
-          {/* Company + Location */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8, marginTop: 2 }}>
-            <span style={{ fontSize: '10px', fontWeight: 600, color: userAccent, fontFamily: "Georgia, 'Times New Roman', serif" }}
+          {/* Company */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8, marginTop: 1 }}>
+            <span style={{ fontSize: '9px', fontWeight: 600, color: userAccent, fontFamily: "Georgia, 'Times New Roman', serif" }}
               {...editable(v => handleUpdate(d => { d.experience[ei].company = v; }))}>
               {exp.company}
             </span>
             {exp.location && (
-              <span style={{ fontSize: '9.5px', color: '#9ca3af', fontFamily: "Georgia, 'Times New Roman', serif", flexShrink: 0, whiteSpace: 'nowrap' }}>
+              <span style={{ fontSize: '8.5px', color: '#9ca3af', fontFamily: "Georgia, 'Times New Roman', serif", flexShrink: 0, whiteSpace: 'nowrap' }}>
                 {exp.location}
               </span>
             )}
           </div>
-          {/* Bullets */}
+          {/* Bullets — capped at MAX_BULLETS_PER_ROLE */}
           {exp.responsibilities?.length > 0 && (
-            <ul style={{ margin: '5px 0 0', paddingLeft: 14, listStyleType: 'disc' }}>
-              {exp.responsibilities.map((r, ri) => (
-                <li key={ri} style={{ fontSize: '10px', color: '#374151', lineHeight: 1.55, marginBottom: 3, fontFamily: "Georgia, 'Times New Roman', serif" }}
+            <ul style={{ margin: '4px 0 0', paddingLeft: 12, listStyleType: 'disc' }}>
+              {exp.responsibilities.slice(0, MAX_BULLETS_PER_ROLE).map((r, ri) => (
+                <li key={ri} style={{ fontSize: '9px', color: '#374151', lineHeight: 1.45, marginBottom: 2, fontFamily: "Georgia, 'Times New Roman', serif" }}
                   {...editable(v => handleUpdate(d => { d.experience[ei].responsibilities[ri] = v; }))}
                   dangerouslySetInnerHTML={{ __html: cleanBulletHtml(r) }}
                 />
               ))}
             </ul>
           )}
-          {ei < cvData.experience.length - 1 && (
-            <div style={{ borderTop: '1px dashed #e5e7eb', marginTop: 12 }} />
+          {ei < roles.length - 1 && (
+            <div style={{ borderTop: '1px dashed #e5e7eb', marginTop: 9 }} />
           )}
         </div>
       ))}
     </div>
   );
 
-  // Extra long custom sections also go to center column
   const CenterCustom = () => {
     const longOnes = nonInterestCustom.filter(sec => sec.items.some(i => (i.description?.length ?? 0) > 80));
     if (!longOnes.length) return null;
     return (
       <>
         {longOnes.map(sec => (
-          <div key={sec.id} style={{ marginBottom: 16 }}>
+          <div key={sec.id} style={{ marginBottom: 12 }}>
             <MainHeading title={sec.label} accent={userAccent} />
             {sec.items.filter(i => i.title?.trim()).map((item, ii) => (
-              <div key={ii} style={{ marginBottom: 10 }}>
+              <div key={ii} style={{ marginBottom: 8 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
-                  <span style={{ fontSize: '11px', fontWeight: 700, color: '#111111', fontFamily: "Georgia, 'Times New Roman', serif" }}>{item.title}</span>
-                  {item.year && <span style={{ fontSize: '9.5px', color: '#9ca3af', flexShrink: 0 }}>{item.year}</span>}
+                  <span style={{ fontSize: '10px', fontWeight: 700, color: '#111111', fontFamily: "Georgia, 'Times New Roman', serif" }}>{item.title}</span>
+                  {item.year && <span style={{ fontSize: '8.5px', color: '#9ca3af', flexShrink: 0 }}>{item.year}</span>}
                 </div>
-                {item.subtitle && <div style={{ fontSize: '10px', color: userAccent, fontWeight: 600, fontFamily: "Georgia, 'Times New Roman', serif", marginTop: 1 }}>{item.subtitle}</div>}
-                {item.description && <div style={{ fontSize: '10px', color: '#374151', fontFamily: "Georgia, 'Times New Roman', serif", lineHeight: 1.55, marginTop: 2 }}>{item.description}</div>}
+                {item.subtitle && <div style={{ fontSize: '9px', color: userAccent, fontWeight: 600, fontFamily: "Georgia, 'Times New Roman', serif", marginTop: 1 }}>{item.subtitle}</div>}
+                {item.description && <div style={{ fontSize: '9px', color: '#374151', fontFamily: "Georgia, 'Times New Roman', serif", lineHeight: 1.45, marginTop: 2 }}>{item.description}</div>}
               </div>
             ))}
           </div>
@@ -323,32 +326,31 @@ const TemplateExecutiveEditorial: React.FC<TemplateProps> = ({
   };
 
   // ─────────────────────────────────────────────────────────────────────────
-  // RIGHT COLUMN SECTIONS (Education, Certs, Projects, Awards)
+  // RIGHT COLUMN (Education, Certs, Projects, Awards)
   // ─────────────────────────────────────────────────────────────────────────
-
   const RightEducation = () => !cvData.education?.length ? null : (
-    <div style={{ marginBottom: 16 }}>
+    <div style={{ marginBottom: 12 }}>
       <MainHeading title="Education" accent={userAccent} />
       {cvData.education.map((edu, i) => {
         const dateRange = eduDateRange(edu.startYear, edu.year);
         return (
-          <div key={i} style={{ marginBottom: 12, paddingBottom: 10, borderBottom: i < cvData.education.length - 1 ? '1px dashed #e5e7eb' : 'none' }}>
+          <div key={i} style={{ marginBottom: 8, paddingBottom: 7, borderBottom: i < cvData.education.length - 1 ? '1px dashed #e5e7eb' : 'none' }}>
             {edu.degree && (
-              <div style={{ fontSize: '10.5px', fontWeight: 700, color: '#111111', fontFamily: "Georgia, 'Times New Roman', serif", lineHeight: 1.3 }}
+              <div style={{ fontSize: '9.5px', fontWeight: 700, color: '#111111', fontFamily: "Georgia, 'Times New Roman', serif", lineHeight: 1.25 }}
                 {...editable(v => handleUpdate(d => { d.education[i].degree = v; }))}>
                 {edu.degree}
               </div>
             )}
-            <div style={{ fontSize: '10px', fontWeight: 600, color: userAccent, fontFamily: "Georgia, 'Times New Roman', serif", marginTop: 2 }}
+            <div style={{ fontSize: '9px', fontWeight: 600, color: userAccent, fontFamily: "Georgia, 'Times New Roman', serif", marginTop: 1 }}
               {...editable(v => handleUpdate(d => { d.education[i].school = v; }))}>
               {edu.school}
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 4, marginTop: 1 }}>
               {edu.description && (
-                <span style={{ fontSize: '9.5px', color: '#9ca3af', fontFamily: "Georgia, 'Times New Roman', serif" }}>{edu.description}</span>
+                <span style={{ fontSize: '8.5px', color: '#9ca3af', fontFamily: "Georgia, 'Times New Roman', serif" }}>{edu.description}</span>
               )}
               {dateRange && (
-                <span style={{ fontSize: '9.5px', color: '#9ca3af', fontFamily: "Georgia, 'Times New Roman', serif", flexShrink: 0 }}>{dateRange}</span>
+                <span style={{ fontSize: '8.5px', color: '#9ca3af', fontFamily: "Georgia, 'Times New Roman', serif", flexShrink: 0 }}>{dateRange}</span>
               )}
             </div>
           </div>
@@ -358,19 +360,19 @@ const TemplateExecutiveEditorial: React.FC<TemplateProps> = ({
   );
 
   const RightCertifications = () => !cvData.certifications?.length ? null : (
-    <div style={{ marginBottom: 16 }}>
+    <div style={{ marginBottom: 12 }}>
       <MainHeading title="Certifications" accent={userAccent} />
       {cvData.certifications.map((c, i) => {
         const name   = typeof c === 'string' ? c : c.name;
         const issuer = typeof c !== 'string' ? c.issuer : null;
         const year   = typeof c !== 'string' ? c.year   : null;
         return (
-          <div key={i} style={{ marginBottom: 8, paddingBottom: 8, borderBottom: i < cvData.certifications!.length - 1 ? '1px dashed #e5e7eb' : 'none' }}>
-            <div style={{ fontSize: '10.5px', fontWeight: 700, color: '#111111', fontFamily: "Georgia, 'Times New Roman', serif", lineHeight: 1.3 }}>
+          <div key={i} style={{ marginBottom: 6, paddingBottom: 6, borderBottom: i < cvData.certifications!.length - 1 ? '1px dashed #e5e7eb' : 'none' }}>
+            <div style={{ fontSize: '9.5px', fontWeight: 700, color: '#111111', fontFamily: "Georgia, 'Times New Roman', serif", lineHeight: 1.25 }}>
               {name}
             </div>
             {(issuer || year) && (
-              <div style={{ fontSize: '9px', color: '#9ca3af', fontFamily: "Georgia, 'Times New Roman', serif", marginTop: 2 }}>
+              <div style={{ fontSize: '8.5px', color: '#9ca3af', fontFamily: "Georgia, 'Times New Roman', serif", marginTop: 1 }}>
                 {[issuer, year].filter(Boolean).join(' • ')}
               </div>
             )}
@@ -380,35 +382,37 @@ const TemplateExecutiveEditorial: React.FC<TemplateProps> = ({
     </div>
   );
 
-  const RightProjects = () => !cvData.projects?.length ? null : (
-    <div style={{ marginBottom: 16 }}>
+  const projects = (cvData.projects ?? []).slice(0, MAX_PROJECTS);
+
+  const RightProjects = () => !projects.length ? null : (
+    <div style={{ marginBottom: 12 }}>
       <MainHeading title="Projects" accent={userAccent} />
-      {cvData.projects.map((p, i) => (
-        <div key={i} style={{ marginBottom: 12, paddingBottom: 10, borderBottom: i < (cvData.projects?.length ?? 0) - 1 ? '1px dashed #e5e7eb' : 'none' }}>
+      {projects.map((p, i) => (
+        <div key={i} style={{ marginBottom: 8, paddingBottom: 7, borderBottom: i < projects.length - 1 ? '1px dashed #e5e7eb' : 'none' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 4 }}>
-            <span style={{ fontSize: '10.5px', fontWeight: 700, color: '#111111', fontFamily: "Georgia, 'Times New Roman', serif", lineHeight: 1.3 }}
+            <span style={{ fontSize: '9.5px', fontWeight: 700, color: '#111111', fontFamily: "Georgia, 'Times New Roman', serif", lineHeight: 1.25 }}
               {...editable(v => handleUpdate(d => { d.projects![i].name = v; }))}>
               {p.name}
             </span>
             {p.year && (
-              <span style={{ fontSize: '9.5px', color: '#9ca3af', fontFamily: "Georgia, 'Times New Roman', serif", flexShrink: 0 }}>{p.year}</span>
+              <span style={{ fontSize: '8.5px', color: '#9ca3af', fontFamily: "Georgia, 'Times New Roman', serif", flexShrink: 0 }}>{p.year}</span>
             )}
           </div>
           {p.bullets?.length ? (
-            <div style={{ marginTop: 3 }}>
-              {p.bullets.map((b, bi) => (
-                <div key={bi} style={{ fontSize: '9.5px', color: '#374151', lineHeight: 1.5, marginTop: 2, fontFamily: "Georgia, 'Times New Roman', serif" }}>• {cleanBulletHtml(b)}</div>
+            <div style={{ marginTop: 2 }}>
+              {p.bullets.slice(0, MAX_BULLETS_PROJECT).map((b, bi) => (
+                <div key={bi} style={{ fontSize: '8.5px', color: '#374151', lineHeight: 1.4, marginTop: 2, fontFamily: "Georgia, 'Times New Roman', serif" }}>• {cleanBulletHtml(b)}</div>
               ))}
             </div>
           ) : p.description ? (
-            <div style={{ fontSize: '9.5px', color: '#374151', lineHeight: 1.55, marginTop: 3, fontFamily: "Georgia, 'Times New Roman', serif" }}
+            <div style={{ fontSize: '8.5px', color: '#374151', lineHeight: 1.45, marginTop: 2, fontFamily: "Georgia, 'Times New Roman', serif" }}
               {...editable(v => handleUpdate(d => { d.projects![i].description = v; }))}>
-              {p.description}
+              {truncate(p.description, 140)}
             </div>
           ) : null}
           {p.technologies?.length ? (
-            <div style={{ marginTop: 4, fontSize: '9px', color: '#6b7280', fontFamily: "Georgia, 'Times New Roman', serif" }}>
-              <span style={{ fontWeight: 700 }}>Technologies:</span> {p.technologies.join(', ')}
+            <div style={{ marginTop: 3, fontSize: '8px', color: '#6b7280', fontFamily: "Georgia, 'Times New Roman', serif" }}>
+              <span style={{ fontWeight: 700 }}>Stack:</span> {p.technologies.slice(0, 6).join(', ')}
             </div>
           ) : null}
         </div>
@@ -417,11 +421,11 @@ const TemplateExecutiveEditorial: React.FC<TemplateProps> = ({
   );
 
   const RightAwards = () => !cvData.achievements?.length ? null : (
-    <div style={{ marginBottom: 16 }}>
+    <div style={{ marginBottom: 12 }}>
       <MainHeading title="Awards" accent={userAccent} />
       {cvData.achievements.map((a, i) => (
-        <div key={i} style={{ marginBottom: 8, paddingBottom: 8, borderBottom: i < cvData.achievements!.length - 1 ? '1px dashed #e5e7eb' : 'none' }}>
-          <div style={{ fontSize: '10.5px', fontWeight: 700, color: '#111111', fontFamily: "Georgia, 'Times New Roman', serif", lineHeight: 1.3 }}
+        <div key={i} style={{ marginBottom: 6, paddingBottom: 6, borderBottom: i < cvData.achievements!.length - 1 ? '1px dashed #e5e7eb' : 'none' }}>
+          <div style={{ fontSize: '9.5px', fontWeight: 700, color: '#111111', fontFamily: "Georgia, 'Times New Roman', serif", lineHeight: 1.25 }}
             {...editable(v => handleUpdate(d => { d.achievements![i] = v; }))}>
             {a}
           </div>
@@ -431,12 +435,12 @@ const TemplateExecutiveEditorial: React.FC<TemplateProps> = ({
   );
 
   const RightPublications = () => !cvData.publications?.length ? null : (
-    <div style={{ marginBottom: 16 }}>
+    <div style={{ marginBottom: 12 }}>
       <MainHeading title="Publications" accent={userAccent} />
       {cvData.publications.map((p, i) => (
-        <div key={i} style={{ marginBottom: 8, paddingBottom: 8, borderBottom: i < cvData.publications!.length - 1 ? '1px dashed #e5e7eb' : 'none' }}>
-          <div style={{ fontSize: '10.5px', fontWeight: 700, color: '#111111', fontFamily: "Georgia, 'Times New Roman', serif" }}>{p.title}</div>
-          <div style={{ fontSize: '9px', color: '#9ca3af', fontFamily: "Georgia, 'Times New Roman', serif", marginTop: 2 }}>
+        <div key={i} style={{ marginBottom: 6, paddingBottom: 6, borderBottom: i < cvData.publications!.length - 1 ? '1px dashed #e5e7eb' : 'none' }}>
+          <div style={{ fontSize: '9.5px', fontWeight: 700, color: '#111111', fontFamily: "Georgia, 'Times New Roman', serif" }}>{p.title}</div>
+          <div style={{ fontSize: '8px', color: '#9ca3af', fontFamily: "Georgia, 'Times New Roman', serif", marginTop: 1 }}>
             {[p.authors?.join(', '), p.journal, p.year].filter(Boolean).join(' · ')}
           </div>
         </div>
@@ -445,13 +449,13 @@ const TemplateExecutiveEditorial: React.FC<TemplateProps> = ({
   );
 
   const RightReferences = () => !cvData.references?.length ? null : (
-    <div style={{ marginBottom: 16 }}>
+    <div style={{ marginBottom: 12 }}>
       <MainHeading title="References" accent={userAccent} />
       {cvData.references.map((r, i) => (
-        <div key={i} style={{ marginBottom: 8 }}>
-          <div style={{ fontSize: '10.5px', fontWeight: 700, color: '#111111', fontFamily: "Georgia, 'Times New Roman', serif" }}>{r.name}</div>
-          <div style={{ fontSize: '9px', color: '#6b7280', fontFamily: "Georgia, 'Times New Roman', serif" }}>{r.title}</div>
-          <div style={{ fontSize: '9px', color: '#9ca3af', fontFamily: "Georgia, 'Times New Roman', serif" }}>{r.company}</div>
+        <div key={i} style={{ marginBottom: 6 }}>
+          <div style={{ fontSize: '9.5px', fontWeight: 700, color: '#111111', fontFamily: "Georgia, 'Times New Roman', serif" }}>{r.name}</div>
+          <div style={{ fontSize: '8.5px', color: '#6b7280', fontFamily: "Georgia, 'Times New Roman', serif" }}>{r.title}</div>
+          <div style={{ fontSize: '8.5px', color: '#9ca3af', fontFamily: "Georgia, 'Times New Roman', serif" }}>{r.company}</div>
         </div>
       ))}
     </div>
@@ -463,16 +467,16 @@ const TemplateExecutiveEditorial: React.FC<TemplateProps> = ({
     return (
       <>
         {shortOnes.map(sec => (
-          <div key={sec.id} style={{ marginBottom: 16 }}>
+          <div key={sec.id} style={{ marginBottom: 12 }}>
             <MainHeading title={sec.label} accent={userAccent} />
             {sec.items.filter(i => i.title?.trim()).map((item, ii) => (
-              <div key={ii} style={{ marginBottom: 8, paddingBottom: 8, borderBottom: ii < sec.items.length - 1 ? '1px dashed #e5e7eb' : 'none' }}>
+              <div key={ii} style={{ marginBottom: 6, paddingBottom: 6, borderBottom: ii < sec.items.length - 1 ? '1px dashed #e5e7eb' : 'none' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 4 }}>
-                  <span style={{ fontSize: '10.5px', fontWeight: 700, color: '#111111', fontFamily: "Georgia, 'Times New Roman', serif" }}>{item.title}</span>
-                  {item.year && <span style={{ fontSize: '9px', color: '#9ca3af', fontFamily: "Georgia, 'Times New Roman', serif", flexShrink: 0 }}>{item.year}</span>}
+                  <span style={{ fontSize: '9.5px', fontWeight: 700, color: '#111111', fontFamily: "Georgia, 'Times New Roman', serif" }}>{item.title}</span>
+                  {item.year && <span style={{ fontSize: '8px', color: '#9ca3af', fontFamily: "Georgia, 'Times New Roman', serif", flexShrink: 0 }}>{item.year}</span>}
                 </div>
-                {item.subtitle && <div style={{ fontSize: '9.5px', color: userAccent, fontWeight: 600, fontFamily: "Georgia, 'Times New Roman', serif", marginTop: 1 }}>{item.subtitle}</div>}
-                {item.description && <div style={{ fontSize: '9px', color: '#6b7280', fontFamily: "Georgia, 'Times New Roman', serif", lineHeight: 1.5, marginTop: 1 }}>{item.description}</div>}
+                {item.subtitle && <div style={{ fontSize: '8.5px', color: userAccent, fontWeight: 600, fontFamily: "Georgia, 'Times New Roman', serif", marginTop: 1 }}>{item.subtitle}</div>}
+                {item.description && <div style={{ fontSize: '8px', color: '#6b7280', fontFamily: "Georgia, 'Times New Roman', serif", lineHeight: 1.45, marginTop: 1 }}>{item.description}</div>}
               </div>
             ))}
           </div>
@@ -482,29 +486,42 @@ const TemplateExecutiveEditorial: React.FC<TemplateProps> = ({
   };
 
   // ─────────────────────────────────────────────────────────────────────────
-  // RENDER
+  // RENDER — fixed A4 height, overflow hidden = always one page
   // ─────────────────────────────────────────────────────────────────────────
   return (
-    <div style={{ fontFamily: "Georgia, 'Times New Roman', serif", background: '#ffffff', display: 'flex', minHeight: '279mm', WebkitFontSmoothing: 'antialiased' }}>
+    <div style={{
+      fontFamily: "Georgia, 'Times New Roman', serif",
+      background: '#ffffff',
+      display: 'flex',
+      width: '210mm',
+      height: '297mm',
+      overflow: 'hidden',           // hard A4 clip — nothing bleeds past this
+      WebkitFontSmoothing: 'antialiased',
+    }}>
 
       {/* ── DARK NAVY SIDEBAR ───────────────────────────────────────────── */}
-      <div style={{ flex: '0 0 200px', width: '200px', background: SIDEBAR_BG, padding: '32px 20px 32px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-
+      <div style={{
+        flex: '0 0 182px', width: '182px',
+        background: SIDEBAR_BG,
+        padding: '24px 16px 24px 16px',
+        display: 'flex', flexDirection: 'column', alignItems: 'center',
+        overflow: 'hidden',
+      }}>
         {/* Avatar circle */}
         <div style={{
-          width: 76, height: 76, borderRadius: '50%',
-          border: '2.5px solid rgba(255,255,255,0.35)',
+          width: 64, height: 64, borderRadius: '50%',
+          border: '2px solid rgba(255,255,255,0.35)',
           background: 'rgba(255,255,255,0.08)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          marginBottom: 28, flexShrink: 0,
+          marginBottom: 20, flexShrink: 0,
         }}>
-          <span style={{ fontSize: '22px', fontWeight: 700, color: SIDEBAR_HEAD, letterSpacing: '0.04em', fontFamily: "Georgia, 'Times New Roman', serif" }}>
+          <span style={{ fontSize: '18px', fontWeight: 700, color: SIDEBAR_HEAD, letterSpacing: '0.04em', fontFamily: "Georgia, 'Times New Roman', serif" }}>
             {initials(personalInfo.name)}
           </span>
         </div>
 
         {/* Sidebar sections */}
-        <div style={{ width: '100%' }}>
+        <div style={{ width: '100%', overflow: 'hidden' }}>
           <SidebarContact />
           <SidebarSkills />
           <SidebarLanguages />
@@ -513,15 +530,15 @@ const TemplateExecutiveEditorial: React.FC<TemplateProps> = ({
       </div>
 
       {/* ── WHITE MAIN AREA ─────────────────────────────────────────────── */}
-      <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+      <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
         {/* ── HEADER ──────────────────────────────────────────────────── */}
-        <div style={{ padding: '30px 32px 20px' }}>
+        <div style={{ padding: '22px 26px 14px', flexShrink: 0 }}>
           <div style={{
-            fontSize: '32px', fontWeight: 900, color: '#0F172A',
+            fontSize: '26px', fontWeight: 900, color: '#0F172A',
             textTransform: 'uppercase', letterSpacing: '0.06em',
             lineHeight: 1.05, fontFamily: "Georgia, 'Times New Roman', serif",
-            marginBottom: 5,
+            marginBottom: 4,
           }}
             {...editable(v => handleUpdate(d => { if (!d.personalInfo) d.personalInfo = {} as any; (d.personalInfo as any).name = v; }))}
           >
@@ -530,9 +547,9 @@ const TemplateExecutiveEditorial: React.FC<TemplateProps> = ({
 
           {personalInfo.title && (
             <div style={{
-              fontSize: '11.5px', color: userAccent, fontWeight: 600,
+              fontSize: '10px', color: userAccent, fontWeight: 600,
               letterSpacing: '0.2em', textTransform: 'uppercase',
-              fontFamily: "Georgia, 'Times New Roman', serif", marginBottom: 12,
+              fontFamily: "Georgia, 'Times New Roman', serif", marginBottom: 10,
             }}
               {...editable(v => handleUpdate(d => { if (!d.personalInfo) d.personalInfo = {} as any; (d.personalInfo as any).title = v; }))}
             >
@@ -544,17 +561,17 @@ const TemplateExecutiveEditorial: React.FC<TemplateProps> = ({
         </div>
 
         {/* ── TWO CONTENT COLUMNS ─────────────────────────────────────── */}
-        <div style={{ flex: 1, display: 'flex', gap: 0 }}>
+        <div style={{ flex: 1, display: 'flex', gap: 0, overflow: 'hidden' }}>
 
           {/* CENTER COLUMN — Summary + Experience */}
-          <div style={{ flex: '0 0 56%', padding: '4px 20px 24px 32px', borderRight: '1px solid #e5e7eb' }}>
+          <div style={{ flex: '0 0 56%', padding: '2px 16px 16px 26px', borderRight: '1px solid #e5e7eb', overflow: 'hidden' }}>
             <CenterSummary />
             <CenterExperience />
             <CenterCustom />
           </div>
 
-          {/* RIGHT COLUMN — Education, Certs, Projects, Awards */}
-          <div style={{ flex: '0 0 44%', padding: '4px 24px 24px 20px' }}>
+          {/* RIGHT COLUMN — Education, Projects, Certs, Awards */}
+          <div style={{ flex: '0 0 44%', padding: '2px 20px 16px 16px', overflow: 'hidden' }}>
             <RightEducation />
             <RightCertifications />
             <RightProjects />
