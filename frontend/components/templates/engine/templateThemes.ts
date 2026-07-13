@@ -724,6 +724,28 @@ export type ApprovedTemplateColor =
 // CVPreview imports and applies this map BEFORE the V2_TEMPLATE_IDS check.
 // Governance tests can also import it to verify redirect targets exist.
 export const LEGACY_TEMPLATE_REDIRECTS: Record<string, string> = {
+  // ── Retired standalone templates (gallery-removed; redirect to nearest V2 equivalent) ──
+  // These templates no longer support font-pairing, bullet-style, or the full
+  // accent-color design system. Existing user CVs are automatically upgraded to
+  // the V2 equivalent on next load.
+  'professional':     'v2-classic-pro',
+  'minimalist':       'v2-minimal',
+  'creative':         'v2-editorial',
+  'timeline':         'v2-graphite',
+  'infographic':      'v2-editorial',
+  'harvard-gold':     'v2-harvard',
+  'tokyo-night':      'v2-noir',
+  'paris-vibe':       'v2-coral',
+  'london-finance':   'v2-warm',
+  'berlin-design':    'v2-editorial',
+  'medical-standard': 'v2-amber',
+  'ats-clean-pro':    'v2-ats-max',
+  'swe-elite':        'v2-teal',
+  'swe-neon':         'v2-noir',
+  'swe-clean':        'v2-modern-blue',
+  'swe-vivid':        'v2-modern-blue',
+  'swe-impact':       'v2-modern-blue',
+  // ── Previously consolidated older names ──────────────────────────────────────
   // Sidebar family
   'navy-sidebar':       'v2-slate-sidebar',
   'executive-sidebar':  'v2-gold-exec',
@@ -733,7 +755,6 @@ export const LEGACY_TEMPLATE_REDIRECTS: Record<string, string> = {
   'compact-sage':       'v2-sage',
   'compact-charcoal':   'v2-gold-exec',
   'modern-tech':        'v2-teal',
-  'swe-elite':          'v2-teal',
   'scholarship-pro':    'v2-amber',
   // Gray corporate single-col near-duplicates
   'corporate':          'v2-graphite',

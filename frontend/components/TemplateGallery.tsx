@@ -24,7 +24,6 @@ const templateCategories: Record<string, TemplateName[]> = {
     'v2-ats-max', 'v2-skills-first', 'v2-starter',
     'v2-classic-pro', 'v2-standard-black', 'v2-pro', 'v2-navy',
     'v2-harvard', 'v2-warm', 'v2-crimson',
-    'professional', 'ats-clean-pro', 'london-finance',
   ],
   // Contemporary sidebar and accent-forward designs
   'Modern': [
@@ -38,17 +37,14 @@ const templateCategories: Record<string, TemplateName[]> = {
   // Engineers, developers, and technical contributors
   'Technical': [
     'v2-modern-blue', 'v2-terminal', 'v2-noir',
-    'swe-elite', 'swe-clean', 'swe-neon', 'swe-vivid', 'swe-impact',
   ],
   // Design, media, marketing — visual-first (lower ATS score)
   'Creative': [
     'v2-editorial', 'v2-coral',
-    'creative', 'berlin-design', 'paris-vibe', 'tokyo-night', 'infographic',
   ],
   // Research, academia, graduate programmes
   'Academic': [
     'v2-amber', 'v2-forest',
-    'harvard-gold', 'medical-standard',
   ],
   // Templates that render a profile photo
   'Photo': [
@@ -58,7 +54,6 @@ const templateCategories: Record<string, TemplateName[]> = {
   // Clean, sparse layouts — highest ATS parse rates
   'Minimal': [
     'v2-minimal', 'v2-graphite',
-    'minimalist', 'timeline',
   ],
 };
 
@@ -97,7 +92,6 @@ const FEATURED_PICKS: FeaturedPick[] = [
 // ─── ATS config ───────────────────────────────────────────────────────────────
 
 const photoSupportedTemplates: TemplateName[] = [
-  'creative', 'minimalist',
   'v2-photo', 'v2-slate-sidebar', 'v2-gold-exec', 'v2-sage', 'v2-coral', 'v2-forest',
   'v2-teal', 'v2-steel', 'v2-crimson',
 ];
