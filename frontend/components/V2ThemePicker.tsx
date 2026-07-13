@@ -1,5 +1,6 @@
 import React, { useRef } from 'react';
 import { CVData } from '../types';
+import { FONT_PAIRINGS } from './templates/engine/fontPairings';
 
 interface V2ThemePickerProps {
   cvData: CVData;
@@ -19,14 +20,8 @@ const ACCENT_COLORS = [
   { label: 'Black',     value: '#111111' },
 ];
 
-const FONT_PAIRINGS = [
-  { id: 'inter',              headingLabel: 'Inter',          bodyLabel: 'Inter',       label: 'Modern Sans',   headingFont: "'Inter', sans-serif",                       bodyFont: "'Inter', sans-serif" },
-  { id: 'playfair-dm',        headingLabel: 'Playfair',       bodyLabel: 'DM Sans',     label: 'Editorial',     headingFont: "'Playfair Display', Georgia, serif",         bodyFont: "'DM Sans', sans-serif" },
-  { id: 'georgia-open',       headingLabel: 'Georgia',        bodyLabel: 'Open Sans',   label: 'Traditional',   headingFont: "Georgia, 'Times New Roman', serif",          bodyFont: "'Open Sans', sans-serif" },
-  { id: 'mono-inter',         headingLabel: 'Mono',           bodyLabel: 'Inter',       label: 'Developer',     headingFont: "'JetBrains Mono', 'Fira Code', monospace",   bodyFont: "'Inter', sans-serif" },
-  { id: 'raleway-inter',      headingLabel: 'Raleway',        bodyLabel: 'Inter',       label: 'Geometric',     headingFont: "'Raleway', sans-serif",                      bodyFont: "'Inter', sans-serif" },
-  { id: 'merriweather-lato',  headingLabel: 'Merriweather',   bodyLabel: 'Lato',        label: 'Classic Pro',   headingFont: "'Merriweather', Georgia, serif",             bodyFont: "'Lato', sans-serif" },
-];
+// Font pairings are sourced from the shared fontPairings.ts — no local copy needed.
+const PICKER_FONT_PAIRINGS = FONT_PAIRINGS.filter(fp => fp.id !== 'default');
 
 const FONT_SCALES = [
   { label: 'XS', value: 0.88, title: 'Extra small text' },
@@ -168,8 +163,11 @@ const V2ThemePicker: React.FC<V2ThemePickerProps> = ({ cvData, onChange }) => {
             </button>
           )}
         </div>
-        <div className="grid grid-cols-3 gap-1.5 p-2.5 rounded-lg bg-zinc-50 dark:bg-neutral-800/50 border border-zinc-200 dark:border-neutral-700">
-          {FONT_PAIRINGS.map(fp => {
+        <div
+          className="grid grid-cols-3 gap-1.5 p-2.5 rounded-lg bg-zinc-50 dark:bg-neutral-800/50 border border-zinc-200 dark:border-neutral-700 overflow-y-auto"
+          style={{ maxHeight: '260px', scrollbarWidth: 'thin', scrollbarColor: '#d1d5db transparent' }}
+        >
+          {PICKER_FONT_PAIRINGS.map(fp => {
             const active = currentFont === fp.id;
             return (
               <button
@@ -177,6 +175,7 @@ const V2ThemePicker: React.FC<V2ThemePickerProps> = ({ cvData, onChange }) => {
                 type="button"
                 onClick={() => setFont(fp.id)}
                 aria-pressed={active}
+                title={`${fp.name} — ${fp.description}`}
                 className={`flex flex-col items-center gap-0.5 py-2 px-1 rounded-md border transition-all duration-100 ${
                   active
                     ? 'border-[#2563eb] bg-blue-50 dark:bg-blue-950/30 shadow-sm'
@@ -185,15 +184,15 @@ const V2ThemePicker: React.FC<V2ThemePickerProps> = ({ cvData, onChange }) => {
               >
                 <span
                   className="text-[15px] leading-none font-semibold text-zinc-800 dark:text-zinc-100"
-                  style={{ fontFamily: fp.headingFont }}
+                  style={{ fontFamily: fp.heading || "'DM Sans', sans-serif" }}
                 >
                   Aa
                 </span>
-                <span className="text-[8.5px] font-medium text-zinc-500 dark:text-zinc-400 truncate w-full text-center leading-tight" style={{ fontFamily: fp.bodyFont }}>
-                  {fp.label}
+                <span className="text-[8px] font-medium text-zinc-500 dark:text-zinc-400 truncate w-full text-center leading-tight">
+                  {fp.name.split(' ')[0]}
                 </span>
-                <span className="text-[7.5px] text-zinc-400 dark:text-zinc-500 truncate w-full text-center leading-tight">
-                  {fp.headingLabel} / {fp.bodyLabel}
+                <span className="text-[7px] text-zinc-400 dark:text-zinc-500 truncate w-full text-center leading-tight">
+                  {fp.description.split(' · ')[0]}
                 </span>
               </button>
             );
