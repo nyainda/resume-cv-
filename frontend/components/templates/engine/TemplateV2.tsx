@@ -111,8 +111,18 @@ function editable(isEditing: boolean, onBlur: (v: string) => void): React.HTMLAt
   return {
     contentEditable: true,
     suppressContentEditableWarning: true,
-    onBlur: (e: React.FocusEvent<HTMLElement>) => onBlur(e.currentTarget.innerText.trim()),
-    style: { outline: 'none', cursor: 'text' },
+    onBlur: (e: React.FocusEvent<HTMLElement>) => {
+      (e.currentTarget as HTMLElement).style.outline = 'none';
+      (e.currentTarget as HTMLElement).style.background = 'transparent';
+      onBlur(e.currentTarget.innerText.trim());
+    },
+    onFocus: (e: React.FocusEvent<HTMLElement>) => {
+      (e.currentTarget as HTMLElement).style.outline = '1.5px dashed #2563eb88';
+      (e.currentTarget as HTMLElement).style.outlineOffset = '2px';
+      (e.currentTarget as HTMLElement).style.background = 'rgba(37,99,235,0.04)';
+      (e.currentTarget as HTMLElement).style.borderRadius = '2px';
+    },
+    style: { cursor: 'text', outline: 'none' },
   };
 }
 
@@ -327,16 +337,20 @@ const ExperienceSection: React.FC<{ cvData: CVData; theme: TemplateTheme; sc: De
             <div style={{ borderTop: `1px solid ${theme.borderColor}`, marginBottom: sc.itemGap, opacity: 0.55 }} />
           )}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8, marginBottom: 2 }}>
-            <span style={{ fontSize: sc.bodySize, fontWeight: 700, color: theme.bodyText, fontFamily: theme.fontBody }}>{exp.company}</span>
+            <span style={{ fontSize: sc.bodySize, fontWeight: 700, color: theme.bodyText, fontFamily: theme.fontBody }}
+              {...editable(isEditing, v => { const d = JSON.parse(JSON.stringify(cvData)); d.experience[ei].company = v; onChange(d); })}>{exp.company}</span>
             <span style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
               {isCurrentRole(exp.dates) && (
                 <span style={{ width: 6, height: 6, borderRadius: '50%', background: LIVE_ROLE_GREEN, display: 'inline-block', boxShadow: `0 0 0 2px ${LIVE_ROLE_GREEN}33` }} title="Current role" />
               )}
-              <span style={{ fontSize: sc.metaSize, color: theme.bodyMuted, fontFamily: theme.fontBody }}>{exp.dates}</span>
+              <span style={{ fontSize: sc.metaSize, color: theme.bodyMuted, fontFamily: theme.fontBody }}
+                {...editable(isEditing, v => { const d = JSON.parse(JSON.stringify(cvData)); d.experience[ei].dates = v; onChange(d); })}>{exp.dates}</span>
             </span>
           </div>
-          {exp.jobTitle && <div style={{ fontSize: sc.metaSize, color: theme.accent, fontWeight: 600, fontFamily: theme.fontBody, marginBottom: 1 }}>{exp.jobTitle}</div>}
-          {exp.location && <div style={{ fontSize: sc.metaSize, color: theme.bodyMuted, fontFamily: theme.fontBody, marginBottom: 2 }}>{exp.location}</div>}
+          {exp.jobTitle && <div style={{ fontSize: sc.metaSize, color: theme.accent, fontWeight: 600, fontFamily: theme.fontBody, marginBottom: 1 }}
+            {...editable(isEditing, v => { const d = JSON.parse(JSON.stringify(cvData)); d.experience[ei].jobTitle = v; onChange(d); })}>{exp.jobTitle}</div>}
+          {exp.location && <div style={{ fontSize: sc.metaSize, color: theme.bodyMuted, fontFamily: theme.fontBody, marginBottom: 2 }}
+            {...editable(isEditing, v => { const d = JSON.parse(JSON.stringify(cvData)); d.experience[ei].location = v; onChange(d); })}>{exp.location}</div>}
           <div style={{ marginTop: 3 }}>
             {exp.responsibilities.map((r, ri) => (
               <Bullet key={ri} text={r} theme={theme} sc={sc} isEditing={isEditing}
@@ -385,7 +399,8 @@ const EducationSection: React.FC<{ cvData: CVData; theme: TemplateTheme; sc: Den
               )}
             </div>
             {edu.description && (
-              <div style={{ fontSize: sc.metaSize, color: theme.bodyMuted, marginTop: 3, fontFamily: theme.fontBody, lineHeight: sc.lineH }}>
+              <div style={{ fontSize: sc.metaSize, color: theme.bodyMuted, marginTop: 3, fontFamily: theme.fontBody, lineHeight: sc.lineH }}
+                {...editable(isEditing, v => { const d = JSON.parse(JSON.stringify(cvData)); d.education[i].description = v; onChange(d); })}>
                 {edu.description}
               </div>
             )}
@@ -396,7 +411,7 @@ const EducationSection: React.FC<{ cvData: CVData; theme: TemplateTheme; sc: Den
   );
 };
 
-const ProjectsSection: React.FC<{ cvData: CVData; theme: TemplateTheme; sc: DensityScale }> = ({ cvData, theme, sc }) => {
+const ProjectsSection: React.FC<{ cvData: CVData; theme: TemplateTheme; sc: DensityScale; isEditing?: boolean; onChange?: (d: CVData) => void }> = ({ cvData, theme, sc, isEditing = false, onChange = () => {} }) => {
   if (!cvData.projects?.length) return null;
   return (
     <Section sc={sc}>
@@ -404,16 +419,20 @@ const ProjectsSection: React.FC<{ cvData: CVData; theme: TemplateTheme; sc: Dens
       {cvData.projects.map((p, i) => (
         <div key={i} style={{ marginBottom: sc.itemGap }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-            <span style={{ fontSize: sc.bodySize, fontWeight: 700, color: theme.bodyText, fontFamily: theme.fontBody }}>{p.name}</span>
-            {p.year && <span style={{ fontSize: sc.metaSize, color: theme.bodyMuted, fontFamily: theme.fontBody }}>{p.year}</span>}
+            <span style={{ fontSize: sc.bodySize, fontWeight: 700, color: theme.bodyText, fontFamily: theme.fontBody }}
+              {...editable(isEditing, v => { const d = JSON.parse(JSON.stringify(cvData)); d.projects![i].name = v; onChange(d); })}>{p.name}</span>
+            {p.year && <span style={{ fontSize: sc.metaSize, color: theme.bodyMuted, fontFamily: theme.fontBody }}
+              {...editable(isEditing, v => { const d = JSON.parse(JSON.stringify(cvData)); d.projects![i].year = v; onChange(d); })}>{p.year}</span>}
           </div>
-          {p.description && <div style={{ fontSize: sc.metaSize, color: theme.bodyMuted, lineHeight: sc.lineH, marginTop: 2, fontFamily: theme.fontBody }}>{p.description}</div>}
+          {p.description && <div style={{ fontSize: sc.metaSize, color: theme.bodyMuted, lineHeight: sc.lineH, marginTop: 2, fontFamily: theme.fontBody }}
+            {...editable(isEditing, v => { const d = JSON.parse(JSON.stringify(cvData)); d.projects![i].description = v; onChange(d); })}>{p.description}</div>}
           {p.technologies?.length ? (
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, marginTop: 4 }}>
               {p.technologies.map((t, ti) => <Tag key={ti} label={t} theme={theme} sc={sc} />)}
             </div>
           ) : null}
-          {p.link && <div style={{ fontSize: sc.metaSize, color: theme.accent, marginTop: 2, fontFamily: theme.fontBody }}>{p.link}</div>}
+          {p.link && <div style={{ fontSize: sc.metaSize, color: theme.accent, marginTop: 2, fontFamily: theme.fontBody }}
+            {...editable(isEditing, v => { const d = JSON.parse(JSON.stringify(cvData)); d.projects![i].link = v; onChange(d); })}>{p.link}</div>}
         </div>
       ))}
     </Section>
@@ -481,7 +500,7 @@ const LanguagesSection: React.FC<{ cvData: CVData; theme: TemplateTheme; sc: Den
   );
 };
 
-const CertificationsSection: React.FC<{ cvData: CVData; theme: TemplateTheme; sc: DensityScale }> = ({ cvData, theme, sc }) => {
+const CertificationsSection: React.FC<{ cvData: CVData; theme: TemplateTheme; sc: DensityScale; isEditing?: boolean; onChange?: (d: CVData) => void }> = ({ cvData, theme, sc, isEditing = false, onChange = () => {} }) => {
   if (!cvData.certifications?.length) return null;
   return (
     <Section sc={sc}>
@@ -490,14 +509,26 @@ const CertificationsSection: React.FC<{ cvData: CVData; theme: TemplateTheme; sc
         const name   = typeof c === 'string' ? c : c.name;
         const issuer = typeof c !== 'string' ? c.issuer : null;
         const year   = typeof c !== 'string' ? c.year   : null;
+        const updateCert = (field: string, v: string) => {
+          const d = JSON.parse(JSON.stringify(cvData));
+          if (typeof d.certifications[i] === 'string') {
+            d.certifications[i] = { name: d.certifications[i], [field]: v };
+          } else {
+            (d.certifications[i] as any)[field] = v;
+          }
+          onChange(d);
+        };
         return (
           <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginBottom: sc.bulletGap + 3 }}>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: sc.bodySize, fontWeight: 600, color: theme.bodyText, fontFamily: theme.fontBody, lineHeight: 1.35 }}>{name}</div>
-              {issuer && <div style={{ fontSize: sc.metaSize, color: theme.bodyMuted, fontFamily: theme.fontBody, marginTop: 1 }}>{issuer}</div>}
+              <div style={{ fontSize: sc.bodySize, fontWeight: 600, color: theme.bodyText, fontFamily: theme.fontBody, lineHeight: 1.35 }}
+                {...editable(isEditing, v => updateCert('name', v))}>{name}</div>
+              {issuer && <div style={{ fontSize: sc.metaSize, color: theme.bodyMuted, fontFamily: theme.fontBody, marginTop: 1 }}
+                {...editable(isEditing, v => updateCert('issuer', v))}>{issuer}</div>}
             </div>
             {year && (
-              <span style={{ fontSize: sc.metaSize, color: theme.accent, fontFamily: theme.fontBody, fontWeight: 700, flexShrink: 0, marginTop: 1 }}>{year}</span>
+              <span style={{ fontSize: sc.metaSize, color: theme.accent, fontFamily: theme.fontBody, fontWeight: 700, flexShrink: 0, marginTop: 1 }}
+                {...editable(isEditing, v => updateCert('year', v))}>{year}</span>
             )}
           </div>
         );
@@ -506,13 +537,14 @@ const CertificationsSection: React.FC<{ cvData: CVData; theme: TemplateTheme; sc
   );
 };
 
-const AchievementsSection: React.FC<{ cvData: CVData; theme: TemplateTheme; sc: DensityScale }> = ({ cvData, theme, sc }) => {
+const AchievementsSection: React.FC<{ cvData: CVData; theme: TemplateTheme; sc: DensityScale; isEditing?: boolean; onChange?: (d: CVData) => void }> = ({ cvData, theme, sc, isEditing = false, onChange = () => {} }) => {
   if (!cvData.achievements?.length) return null;
   return (
     <Section sc={sc}>
       <SectionHeading title="Achievements" theme={theme} sc={sc} />
       {cvData.achievements.map((a, i) => (
-        <Bullet key={i} text={a} theme={theme} sc={sc} isEditing={false} onBlur={() => {}} />
+        <Bullet key={i} text={a} theme={theme} sc={sc} isEditing={isEditing}
+          onBlur={v => { const d = JSON.parse(JSON.stringify(cvData)); d.achievements![i] = v; onChange(d); }} />
       ))}
     </Section>
   );
@@ -772,16 +804,16 @@ const MainContent: React.FC<LayoutProps> = ({ cvData, theme, sc, isEditing, onCh
     {/* Education goes to main only when NOT in sidebar */}
     {!split?.eduInSidebar && <EducationSection cvData={cvData} theme={theme} sc={sc} isEditing={isEditing} onChange={onChange} />}
     {/* Projects go to main only when NOT in sidebar */}
-    {!split?.projectsInSidebar && <ProjectsSection cvData={cvData} theme={theme} sc={sc} />}
+    {!split?.projectsInSidebar && <ProjectsSection cvData={cvData} theme={theme} sc={sc} isEditing={isEditing} onChange={onChange} />}
     {/* Publications go to sidebar; only show here on single-col layouts */}
     {!split?.pubsInSidebar && <PublicationsSection cvData={cvData} theme={theme} sc={sc} />}
     {/* Additional Sections go to sidebar; only show here on single-col layouts.
         Filter promoted types (certifications, awards, publications) — already rendered above. */}
     {!split?.customInSidebar && <CustomSectionsBlock sections={(cvData.customSections ?? []).filter(s => !PROMOTED_SECTION_TYPES.has(s.type))} theme={theme} sc={sc} />}
     {/* Certifications go to sidebar; only show here on single-col layouts */}
-    {!split?.certsInSidebar && <CertificationsSection cvData={cvData} theme={theme} sc={sc} />}
+    {!split?.certsInSidebar && <CertificationsSection cvData={cvData} theme={theme} sc={sc} isEditing={isEditing} onChange={onChange} />}
     {/* Achievements in main only when too many for sidebar */}
-    {!split?.achievementsInSidebar && <AchievementsSection cvData={cvData} theme={theme} sc={sc} />}
+    {!split?.achievementsInSidebar && <AchievementsSection cvData={cvData} theme={theme} sc={sc} isEditing={isEditing} onChange={onChange} />}
     {/* References in main only when too many for sidebar */}
     {!split?.refsInSidebar && <ReferencesSection cvData={cvData} theme={theme} sc={sc} />}
   </div>
@@ -817,9 +849,9 @@ const LayoutSingleColumn: React.FC<LayoutProps> = (props) => {
   const TailSections = () => (
     <>
       <CustomSectionsBlock    sections={customSections} theme={theme} sc={sc} />
-      <CertificationsSection  cvData={cvData} theme={theme} sc={sc} />
+      <CertificationsSection  cvData={cvData} theme={theme} sc={sc} isEditing={isEditing} onChange={onChange} />
       <LanguagesSection       cvData={cvData} theme={theme} sc={sc} />
-      <AchievementsSection    cvData={cvData} theme={theme} sc={sc} />
+      <AchievementsSection    cvData={cvData} theme={theme} sc={sc} isEditing={isEditing} onChange={onChange} />
       <ReferencesSection      cvData={cvData} theme={theme} sc={sc} />
       <PublicationsSection    cvData={cvData} theme={theme} sc={sc} />
     </>
@@ -827,7 +859,8 @@ const LayoutSingleColumn: React.FC<LayoutProps> = (props) => {
   return (
     <div style={{ background: theme.bodyBg, minHeight: '280mm', position: 'relative' }}>
       {cvData.onePage && <OnePageBoundary />}
-      <CVHeader pi={props.pi} theme={theme} sc={sc} isEditing={isEditing} onUpdate={() => {}} />
+      <CVHeader pi={props.pi} theme={theme} sc={sc} isEditing={isEditing}
+        onUpdate={(f, v) => { const d = JSON.parse(JSON.stringify(cvData)); if (!d.personalInfo) d.personalInfo = {} as any; (d.personalInfo as any)[f] = v; onChange(d); }} />
       <div style={{ padding: sc.bodyPad }}>
         {theme.skillsFirst ? (
           /* Skills-first order: Summary → Core Skills → Experience → Education → Projects → Extras
@@ -837,7 +870,7 @@ const LayoutSingleColumn: React.FC<LayoutProps> = (props) => {
             <SkillsSection     skills={cvData.skills} theme={theme} sc={sc} />
             <ExperienceSection cvData={cvData} theme={theme} sc={sc} isEditing={isEditing} onChange={onChange} />
             <EducationSection  cvData={cvData} theme={theme} sc={sc} isEditing={isEditing} onChange={onChange} />
-            <ProjectsSection   cvData={cvData} theme={theme} sc={sc} />
+            <ProjectsSection   cvData={cvData} theme={theme} sc={sc} isEditing={isEditing} onChange={onChange} />
             <TailSections />
           </>
         ) : (
@@ -847,7 +880,7 @@ const LayoutSingleColumn: React.FC<LayoutProps> = (props) => {
             <ExperienceSection cvData={cvData} theme={theme} sc={sc} isEditing={isEditing} onChange={onChange} />
             <EducationSection  cvData={cvData} theme={theme} sc={sc} isEditing={isEditing} onChange={onChange} />
             <SkillsSection     skills={cvData.skills} theme={theme} sc={sc} />
-            <ProjectsSection   cvData={cvData} theme={theme} sc={sc} />
+            <ProjectsSection   cvData={cvData} theme={theme} sc={sc} isEditing={isEditing} onChange={onChange} />
             <TailSections />
           </>
         )}
@@ -861,7 +894,8 @@ const LayoutSidebarLeft: React.FC<LayoutProps> = (props) => {
   return (
     <div style={{ background: props.theme.bodyBg, minHeight: '280mm', position: 'relative' }}>
       {props.cvData.onePage && <OnePageBoundary />}
-      <CVHeader pi={props.pi} theme={props.theme} sc={props.sc} isEditing={props.isEditing} onUpdate={() => {}} />
+      <CVHeader pi={props.pi} theme={props.theme} sc={props.sc} isEditing={props.isEditing}
+        onUpdate={(f, v) => { const d = JSON.parse(JSON.stringify(props.cvData)); if (!d.personalInfo) d.personalInfo = {} as any; (d.personalInfo as any)[f] = v; props.onChange(d); }} />
       <div style={{ display: 'flex', minHeight: '230mm' }}>
         <div style={{ width: props.theme.sidebarWidth, background: props.theme.sidebarBg, flexShrink: 0 }}>
           <SidebarContent cvData={props.cvData} pi={props.pi} theme={props.theme} sc={props.sc} split={split} />
@@ -879,7 +913,8 @@ const LayoutSidebarRight: React.FC<LayoutProps> = (props) => {
   return (
     <div style={{ background: props.theme.bodyBg, minHeight: '280mm', position: 'relative' }}>
       {props.cvData.onePage && <OnePageBoundary />}
-      <CVHeader pi={props.pi} theme={props.theme} sc={props.sc} isEditing={props.isEditing} onUpdate={() => {}} />
+      <CVHeader pi={props.pi} theme={props.theme} sc={props.sc} isEditing={props.isEditing}
+        onUpdate={(f, v) => { const d = JSON.parse(JSON.stringify(props.cvData)); if (!d.personalInfo) d.personalInfo = {} as any; (d.personalInfo as any)[f] = v; props.onChange(d); }} />
       <div style={{ display: 'flex', minHeight: '230mm' }}>
         <div style={{ flex: 1, borderRight: `1px solid ${props.theme.borderColor}` }}>
           <MainContent {...props} split={split} padOverride={props.sc.sidebarPad} />
@@ -907,16 +942,17 @@ const LayoutTwoColumn: React.FC<LayoutProps> = (props) => {
   return (
     <div style={{ background: theme.bodyBg, minHeight: '280mm', position: 'relative' }}>
       {cvData.onePage && <OnePageBoundary />}
-      <CVHeader pi={props.pi} theme={theme} sc={sc} isEditing={props.isEditing} onUpdate={() => {}} />
+      <CVHeader pi={props.pi} theme={theme} sc={sc} isEditing={props.isEditing}
+        onUpdate={(f, v) => { const d = JSON.parse(JSON.stringify(cvData)); if (!d.personalInfo) d.personalInfo = {} as any; (d.personalInfo as any)[f] = v; props.onChange(d); }} />
       <div style={{ display: 'flex', minHeight: '230mm' }}>
         {/* Main column: summary, experience, (projects if long), publications, custom */}
         <div style={{ flex: 1, padding: sc.sidebarPad, borderRight: `1px solid ${theme.borderColor}` }}>
           <SummarySection    cvData={cvData} theme={theme} sc={sc} isEditing={props.isEditing} onChange={props.onChange} />
           <ExperienceSection cvData={cvData} theme={theme} sc={sc} isEditing={props.isEditing} onChange={props.onChange} />
-          {!split.projectsInSidebar && <ProjectsSection cvData={cvData} theme={theme} sc={sc} />}
+          {!split.projectsInSidebar && <ProjectsSection cvData={cvData} theme={theme} sc={sc} isEditing={props.isEditing} onChange={props.onChange} />}
           <PublicationsSection cvData={cvData} theme={theme} sc={sc} />
           <CustomSectionsBlock sections={cvData.customSections ?? []} theme={theme} sc={sc} />
-          {!split.achievementsInSidebar && <AchievementsSection cvData={cvData} theme={theme} sc={sc} />}
+          {!split.achievementsInSidebar && <AchievementsSection cvData={cvData} theme={theme} sc={sc} isEditing={props.isEditing} onChange={props.onChange} />}
           {!split.refsInSidebar && <ReferencesSection cvData={cvData} theme={theme} sc={sc} />}
         </div>
         {/* Side column: skills, education, languages, certs, (short projects), (achievements), (refs) */}
@@ -936,9 +972,9 @@ const LayoutTwoColumn: React.FC<LayoutProps> = (props) => {
           {/* Education always in right column for two-col */}
           <EducationSection      cvData={cvData} theme={rightColTheme} sc={sc} isEditing={props.isEditing} onChange={props.onChange} />
           <LanguagesSection      cvData={cvData} theme={rightColTheme} sc={sc} />
-          <CertificationsSection cvData={cvData} theme={rightColTheme} sc={sc} />
-          {split.projectsInSidebar    && <ProjectsSection    cvData={cvData} theme={rightColTheme} sc={sc} />}
-          {split.achievementsInSidebar && <AchievementsSection cvData={cvData} theme={rightColTheme} sc={sc} />}
+          <CertificationsSection cvData={cvData} theme={rightColTheme} sc={sc} isEditing={props.isEditing} onChange={props.onChange} />
+          {split.projectsInSidebar    && <ProjectsSection    cvData={cvData} theme={rightColTheme} sc={sc} isEditing={props.isEditing} onChange={props.onChange} />}
+          {split.achievementsInSidebar && <AchievementsSection cvData={cvData} theme={rightColTheme} sc={sc} isEditing={props.isEditing} onChange={props.onChange} />}
           {split.refsInSidebar        && <ReferencesSection   cvData={cvData} theme={rightColTheme} sc={sc} />}
         </div>
       </div>
