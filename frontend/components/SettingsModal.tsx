@@ -7,8 +7,9 @@ import { useAuth } from '../auth/AuthContext';
 import {
   testProviderConnection, getSelectedProvider, setSelectedProvider, type AiProvider,
   getSessionTokenUsage, resetSessionTokenUsage, TOKEN_USAGE_EVENT, type SessionTokenUsage,
-  getClaudeModel, setClaudeModel, getGeminiModel, setGeminiModel,
-  CLAUDE_MODEL_OPTIONS, GEMINI_MODEL_OPTIONS,
+  getClaudeModel, setClaudeModel, getGeminiModel, setGeminiModel, getGroqModel, setGroqModel,
+  CLAUDE_MODEL_OPTIONS, GEMINI_MODEL_OPTIONS, GROQ_MODEL_OPTIONS,
+  getGroqApiKey,
 } from '../services/groqService';
 import { rewarmCVEngineModels } from '../services/cvEngineClient';
 import { setRuntimeKeys } from '../services/security/RuntimeKeys';
@@ -26,9 +27,11 @@ interface SettingsModalProps {
 const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, currentApiSettings, onOpenOnboarding }) => {
   const [geminiKey, setGeminiKey] = useState(currentApiSettings.apiKey || '');
   const [claudeKey, setClaudeKey] = useState(currentApiSettings.claudeApiKey || '');
+  const [groqKey, setGroqKey] = useState(currentApiSettings.groqApiKey || getGroqApiKey() || '');
   const [selectedAiProvider, setSelectedAiProvider] = useState<AiProvider>(getSelectedProvider());
   const [claudeModel, setClaudeModelState] = useState<string>(getClaudeModel());
   const [geminiModel, setGeminiModelState] = useState<string>(getGeminiModel());
+  const [groqModel, setGroqModelState] = useState<string>(getGroqModel());
 
   // Premium gate for Workers AI — free users see the upgrade modal on click
   const {
@@ -65,8 +68,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
   const [providerTest, setProviderTest] = useState<TestState>({ status: 'idle' });
 
   const runProviderTest = useCallback(async () => {
-    const p = selectedAiProvider === 'claude' ? 'claude' : 'gemini';
-    const key = p === 'claude' ? claudeKey.trim() : geminiKey.trim();
+    const p = selectedAiProvider === 'claude' ? 'claude' : selectedAiProvider === 'groq' ? 'groq' : 'gemini';
+    const key = p === 'claude' ? claudeKey.trim() : p === 'groq' ? groqKey.trim() : geminiKey.trim();
     if (!key) {
       setProviderTest({ status: 'fail', message: 'Please enter a key first.' });
       return;
@@ -74,6 +77,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
     setProviderTest({ status: 'testing' });
     if (p === 'claude') {
       try { setRuntimeKeys({ claudeApiKey: claudeKey.trim() }); } catch { }
+    } else if (p === 'groq') {
+      try { setRuntimeKeys({ groqApiKey: groqKey.trim() }); } catch { }
     } else {
       try { setRuntimeKeys({ apiKey: geminiKey.trim() }); } catch { }
     }
@@ -87,7 +92,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
     } catch (e: any) {
       setProviderTest({ status: 'fail', message: e?.message || 'Connection failed.' });
     }
-  }, [selectedAiProvider, claudeKey, geminiKey]);
+  }, [selectedAiProvider, claudeKey, geminiKey, groqKey]);
 
   useEffect(() => { setProviderTest({ status: 'idle' }); }, [selectedAiProvider, claudeKey, geminiKey]);
 
@@ -117,9 +122,11 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
   useEffect(() => {
     setGeminiKey(currentApiSettings.apiKey || '');
     setClaudeKey(currentApiSettings.claudeApiKey || '');
+    setGroqKey(currentApiSettings.groqApiKey || getGroqApiKey() || '');
     setSelectedAiProvider(getSelectedProvider());
     setClaudeModelState(getClaudeModel());
     setGeminiModelState(getGeminiModel());
+    setGroqModelState(getGroqModel());
   }, [currentApiSettings, isOpen]);
 
   useEffect(() => {
@@ -137,11 +144,13 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
     setSelectedProvider(selectedAiProvider);
     setClaudeModel(claudeModel);
     setGeminiModel(geminiModel);
+    setGroqModel(groqModel);
     const settingsToSave: ApiSettings = {
       provider: 'gemini',
       aiProvider: selectedAiProvider,
       apiKey: geminiKey.trim() || null,
       claudeApiKey: claudeKey.trim() || null,
+      groqApiKey: groqKey.trim() || null,
       msClientId: null,
     };
     onSave(settingsToSave);

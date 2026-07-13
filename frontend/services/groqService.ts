@@ -1,4 +1,4 @@
-import { getGeminiKey as _rtGemini, getClaudeKey as _rtClaude } from './security/RuntimeKeys';
+import { getGeminiKey as _rtGemini, getClaudeKey as _rtClaude, getGroqKey as _rtGroq } from './security/RuntimeKeys';
 import { lookupGroqCache, storeGroqCache } from './groqCacheClient';
 import { workerTieredLLM, workerProxyLLM, workerProxyStream, workerTieredLLMStream, isCVEngineConfigured } from './cvEngineClient';
 
@@ -65,17 +65,18 @@ export const GROQ_LARGE = 'llama-3.3-70b-versatile';
 export const GROQ_FAST  = 'llama-3.1-8b-instant';
 
 // ── Selected AI provider ──────────────────────────────────────────────────────
-export type AiProvider = 'workers-ai' | 'claude' | 'gemini';
+export type AiProvider = 'workers-ai' | 'claude' | 'gemini' | 'groq';
 
 const _AI_PROVIDER_KEY = 'cv_builder:aiProvider';
 
 export function getSelectedProvider(): AiProvider {
     try {
         const v = localStorage.getItem(_AI_PROVIDER_KEY);
-        if (v === 'claude' || v === 'gemini' || v === 'workers-ai') return v;
+        if (v === 'claude' || v === 'gemini' || v === 'workers-ai' || v === 'groq') return v;
         // Derive from which key is configured if never explicitly set
         if (getClaudeApiKey()) return 'claude';
         if (getGeminiApiKey()) return 'gemini';
+        if (getGroqApiKey()) return 'groq';
     } catch { /* ignore */ }
     return 'workers-ai';
 }
@@ -84,7 +85,7 @@ export function setSelectedProvider(p: AiProvider): void {
     try { localStorage.setItem(_AI_PROVIDER_KEY, p); } catch { /* ignore */ }
 }
 
-// ── BYOK model selection (Claude / Gemini) ────────────────────────────────────
+// ── BYOK model selection (Claude / Gemini / Groq) ─────────────────────────────
 // Mirrors the catalogs exported by the worker (backend/cv-engine-worker/src/
 // handlers/llm.ts). Kept as a small duplicated constant here because the
 // frontend does not import worker code directly. If a provider renames or
@@ -107,14 +108,25 @@ export const GEMINI_MODEL_OPTIONS: AiModelOption[] = [
     { id: 'gemini-2.0-flash-lite', label: 'Gemini 2.0 Flash-Lite (cheapest)' },
 ];
 
+export const GROQ_MODEL_OPTIONS: AiModelOption[] = [
+    { id: 'llama-3.3-70b-versatile',          label: 'Llama 3.3 70B Versatile (default, best quality)' },
+    { id: 'moonshotai/kimi-k2-instruct',       label: 'Kimi K2 (strong reasoning)' },
+    { id: 'deepseek-r1-distill-llama-70b',     label: 'DeepSeek R1 70B (reasoning)' },
+    { id: 'llama-3.1-8b-instant',              label: 'Llama 3.1 8B Instant (fastest, cheapest)' },
+    { id: 'gemma2-9b-it',                      label: 'Gemma 2 9B (balanced)' },
+    { id: 'mixtral-8x7b-32768',                label: 'Mixtral 8x7B (long context)' },
+];
+
 const _CLAUDE_MODEL_KEY = 'cv_builder:claudeModel';
 const _GEMINI_MODEL_KEY = 'cv_builder:geminiModel';
+const _GROQ_MODEL_KEY   = 'cv_builder:groqModel';
 
 // Defaults intentionally match the worker's own hardcoded fallback default
 // (backend/cv-engine-worker/src/handlers/llm.ts) rather than the first catalog
 // entry, so users who never touch this setting see unchanged behavior.
 const DEFAULT_CLAUDE_MODEL = 'claude-haiku-4-5-20251001';
 const DEFAULT_GEMINI_MODEL = 'gemini-2.0-flash';
+const DEFAULT_GROQ_MODEL   = 'llama-3.3-70b-versatile';
 
 export function getClaudeModel(): string {
     try {
@@ -138,6 +150,18 @@ export function getGeminiModel(): string {
 
 export function setGeminiModel(id: string): void {
     try { localStorage.setItem(_GEMINI_MODEL_KEY, id); } catch { /* ignore */ }
+}
+
+export function getGroqModel(): string {
+    try {
+        const v = localStorage.getItem(_GROQ_MODEL_KEY);
+        if (v && GROQ_MODEL_OPTIONS.some(m => m.id === v)) return v;
+    } catch { /* ignore */ }
+    return DEFAULT_GROQ_MODEL;
+}
+
+export function setGroqModel(id: string): void {
+    try { localStorage.setItem(_GROQ_MODEL_KEY, id); } catch { /* ignore */ }
 }
 
 // ── Prompt Vault stubs (no-op — worker injects system prompts internally) ─────
@@ -191,13 +215,14 @@ export interface ProviderChainStatus {
     timestamp: number;
 }
 
-const PROVIDERS = ['Workers AI', 'Claude', 'Gemini'] as const;
+const PROVIDERS = ['Workers AI', 'Claude', 'Gemini', 'Groq'] as const;
 type ProviderName = typeof PROVIDERS[number];
 
 const _providerHealth: Record<ProviderName, ProviderHealth> = {
     'Workers AI': { state: 'never_tried', attempts: 0 },
     'Claude':     { state: 'never_tried', attempts: 0 },
     'Gemini':     { state: 'never_tried', attempts: 0 },
+    'Groq':       { state: 'never_tried', attempts: 0 },
 };
 
 function _classifyErrorState(err: any): ProviderHealthState {
@@ -213,6 +238,7 @@ function _buildChainStatus(): ProviderChainStatus {
         'Workers AI': isCVEngineConfigured(),
         'Claude':     !!getClaudeApiKey(),
         'Gemini':     !!getGeminiApiKey(),
+        'Groq':       !!getGroqApiKey(),
     };
     return {
         providers: PROVIDERS.map(name => {
@@ -278,9 +304,22 @@ export function getClaudeApiKey(): string | null {
     return null;
 }
 
+export function getGroqApiKey(): string | null {
+    const rt = _rtGroq();
+    if (rt) return rt;
+    try {
+        const s = localStorage.getItem('cv_builder:apiSettings') || localStorage.getItem('apiSettings');
+        if (s) {
+            const p = JSON.parse(s);
+            if (p.groqApiKey && !p.groqApiKey.startsWith('enc:v1:')) return p.groqApiKey.replace(/^"|"$/g, '');
+        }
+    } catch { /* ignore */ }
+    return null;
+}
+
 /** True when at least one key-requiring provider is configured, or Workers AI is set up. */
 export function hasAnyLlmKey(): boolean {
-    return isCVEngineConfigured() || !!getClaudeApiKey() || !!getGeminiApiKey();
+    return isCVEngineConfigured() || !!getClaudeApiKey() || !!getGeminiApiKey() || !!getGroqApiKey();
 }
 
 /**
@@ -329,12 +368,13 @@ export async function callProviderViaProxyMultimodal(
  * Test a provider connection end-to-end via the CF Worker proxy.
  */
 export async function testProviderConnection(
-    provider: 'claude' | 'gemini',
+    provider: 'claude' | 'gemini' | 'groq',
 ): Promise<{ ok: boolean; error?: string; model?: string }> {
     try {
-        const key = provider === 'claude' ? getClaudeApiKey() : getGeminiApiKey();
-        if (!key) return { ok: false, error: `No ${provider === 'claude' ? 'Claude' : 'Gemini'} API key configured.` };
-        const model = provider === 'claude' ? getClaudeModel() : getGeminiModel();
+        const key = provider === 'claude' ? getClaudeApiKey() : provider === 'groq' ? getGroqApiKey() : getGeminiApiKey();
+        const providerLabel = provider === 'claude' ? 'Claude' : provider === 'groq' ? 'Groq' : 'Gemini';
+        if (!key) return { ok: false, error: `No ${providerLabel} API key configured.` };
+        const model = provider === 'claude' ? getClaudeModel() : provider === 'groq' ? getGroqModel() : getGeminiModel();
         const result = await workerProxyLLM('general', 'Reply with the single word OK.', {
             provider,
             apiKey: key,
@@ -505,7 +545,55 @@ export async function groqChat(
         }
     }
 
-    // Should never reach here — getSelectedProvider() always returns one of the three above
+    // ── Groq ──────────────────────────────────────────────────────────────────
+    if (provider === 'groq') {
+        const key = getGroqApiKey();
+        if (!key) {
+            const err: any = new Error('No Groq API key configured. Go to Settings → AI Keys to add your Groq API key.');
+            err.isUserFacing = true;
+            throw err;
+        }
+        _dispatchTrying({ label: 'Groq', type: 'single' });
+        try {
+            const r = await workerProxyLLM(proxyTask, userPrompt, {
+                provider:    'groq',
+                apiKey:      key,
+                model:       getGroqModel(),
+                temperature: opts.temperature,
+                maxTokens:   opts.maxTokens ?? 8192,
+                json:        opts.json,
+                timeoutMs:   60_000,
+            });
+            if (!r) {
+                const err: any = new Error(
+                    isCVEngineConfigured()
+                        ? 'Groq did not return a response. The request may have timed out — please try again.'
+                        : 'Groq proxy requires a configured CV Engine URL. Go to Settings → AI Provider.'
+                );
+                err.isUserFacing = true;
+                throw err;
+            }
+            _lastAiEngine = 'Groq';
+            _recordProviderResult('Groq', 'ok');
+            _trackTokens(systemPrompt, userPrompt, r);
+            storeGroqCache(model, systemPrompt, userPrompt, effectiveTemp, r);
+            return r;
+        } catch (e: any) {
+            if (e?.isUserFacing) throw e;
+            const errState = _classifyErrorState(e);
+            _recordProviderResult('Groq', errState, e);
+            const hint = errState === 'auth_failed'
+                ? 'Your Groq API key appears to be invalid. Update it in Settings → AI Keys.'
+                : errState === 'quota_exhausted'
+                ? 'Groq rate limit hit. Wait a moment or switch to a different provider in Settings → AI Provider.'
+                : `Groq failed: ${e?.message || 'unknown error'}`;
+            const err: any = new Error(hint);
+            err.isUserFacing = true;
+            throw err;
+        }
+    }
+
+    // Should never reach here — getSelectedProvider() always returns one of the four above
     const err: any = new Error('No AI provider selected. Go to Settings → AI Provider to configure one.');
     err.isUserFacing = true;
     throw err;
@@ -653,7 +741,47 @@ export async function groqChatStream(
         }
     }
 
-    // ── Fallback — groqChat (handles Groq + provider chain) ─────────────────
+    // ── Groq — SSE streaming through /api/cv/proxy-llm ───────────────────────
+    if (provider === 'groq') {
+        const key = getGroqApiKey();
+        if (!key) {
+            const err: any = new Error('No Groq API key configured. Go to Settings → AI Keys.');
+            err.isUserFacing = true;
+            throw err;
+        }
+        _dispatchTrying({ label: 'Groq (stream)', type: 'single' });
+        try {
+            const text = await workerProxyStream(proxyTask, userPrompt, {
+                provider:    'groq',
+                apiKey:      key,
+                model:       getGroqModel(),
+                temperature: opts.temperature,
+                maxTokens:   opts.maxTokens,
+                timeoutMs:   60_000,
+                onChunk,
+            });
+            if (!text) throw new Error('Groq stream returned no text');
+            _lastAiEngine = 'Groq';
+            _recordProviderResult('Groq', 'ok');
+            _trackTokens(systemPrompt, userPrompt, text);
+            storeGroqCache(model, systemPrompt, userPrompt, effectiveTemp, text);
+            return text;
+        } catch (e: any) {
+            if (e?.isUserFacing) throw e;
+            const errState = _classifyErrorState(e);
+            _recordProviderResult('Groq', errState, e);
+            const hint = errState === 'auth_failed'
+                ? 'Your Groq API key appears to be invalid. Update it in Settings → AI Keys.'
+                : errState === 'quota_exhausted'
+                ? 'Groq rate limit hit. Wait a moment or switch providers in Settings → AI Provider.'
+                : `Groq stream failed: ${e?.message || 'unknown error'}`;
+            const err: any = new Error(hint);
+            err.isUserFacing = true;
+            throw err;
+        }
+    }
+
+    // Should never reach here — all providers handled above
     const text = await groqChat(model, systemPrompt, userPrompt, opts);
     onChunk(text);
     return text;
@@ -674,6 +802,7 @@ if (typeof window !== 'undefined') {
             'Workers AI': isCVEngineConfigured(),
             'Claude':     !!getClaudeApiKey(),
             'Gemini':     !!getGeminiApiKey(),
+            'Groq':       !!getGroqApiKey(),
         };
         const rows = PROVIDERS.map(name => {
             const h = _providerHealth[name];

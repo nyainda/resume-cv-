@@ -370,9 +370,10 @@ export type AIProvider = 'gemini' | 'openai' | 'anthropic' | 'qwen';
 
 export interface ApiSettings {
   provider: AIProvider;
-  aiProvider?: 'workers-ai' | 'claude' | 'gemini'; // Active AI provider (single selection)
+  aiProvider?: 'workers-ai' | 'claude' | 'gemini' | 'groq'; // Active AI provider (single selection)
   apiKey: string | null;            // Gemini key (for PDF/image parsing + Gemini AI provider)
   claudeApiKey?: string | null;     // Anthropic Claude key (for Claude AI provider)
+  groqApiKey?: string | null;       // Groq key (for Groq AI provider)
   tavilyApiKey?: string | null;     // For job search & company research
   brevoApiKey?: string | null;      // For sending emails via Brevo SMTP API
   msClientId?: string | null;       // Azure AD Client ID for Microsoft/OneDrive integration

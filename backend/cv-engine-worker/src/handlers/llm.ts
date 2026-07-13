@@ -797,8 +797,8 @@ export async function handleProxyLLM(request: Request, env: Env): Promise<Respon
     if (!provider || !apiKey || !prompt) {
         return json({ error: 'missing_fields', required: ['provider', 'apiKey', 'prompt'] }, request, env, 400);
     }
-    if (!['claude', 'gemini', 'openrouter', 'together', 'cerebras'].includes(provider)) {
-        return json({ error: 'unsupported_provider', allowed: ['claude', 'gemini', 'openrouter', 'together', 'cerebras'] }, request, env, 400);
+    if (!['claude', 'gemini', 'groq', 'openrouter', 'together', 'cerebras'].includes(provider)) {
+        return json({ error: 'unsupported_provider', allowed: ['claude', 'gemini', 'groq', 'openrouter', 'together', 'cerebras'] }, request, env, 400);
     }
 
     const temperature = clamp(Number(body?.temperature ?? 0.4), 0, 1);
@@ -958,6 +958,103 @@ export async function handleProxyLLM(request: Request, env: Env): Promise<Respon
                 status: claudeLastErr?.status ?? 502,
                 attempted: claudeAttempted,
             }, request, env, 502);
+        }
+
+        // ── Groq (OpenAI-compatible) ──────────────────────────────────────────
+        if (provider === 'groq') {
+            const groqModel = model || 'llama-3.3-70b-versatile';
+            const groqUrl   = 'https://api.groq.com/openai/v1/chat/completions';
+
+            const msgs: Array<{ role: string; content: string }> = [];
+            if (effectiveSystem) msgs.push({ role: 'system', content: effectiveSystem });
+            msgs.push({ role: 'user', content: prompt });
+
+            const groqBody: Record<string, unknown> = {
+                model:       groqModel,
+                messages:    msgs,
+                max_tokens:  maxTokens,
+                temperature,
+            };
+            // Groq supports response_format for json_object on most models
+            if (wantJson) groqBody.response_format = { type: 'json_object' };
+
+            const groqHeaders: Record<string, string> = {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${apiKey}`,
+            };
+
+            if (wantStream) {
+                groqBody.stream = true;
+                const sRes = await fetch(groqUrl, { method: 'POST', headers: groqHeaders, body: JSON.stringify(groqBody) });
+                if (!sRes.ok || !sRes.body) {
+                    const errText = await sRes.text().catch(() => '');
+                    return json({ error: 'groq_stream_failed', status: sRes.status, message: errText.slice(0, 200) }, request, env, 502);
+                }
+                const { readable, writable } = new TransformStream();
+                const writer  = writable.getWriter();
+                const encoder = new TextEncoder();
+                const decoder = new TextDecoder();
+
+                void (async () => {
+                    let buf = '';
+                    try {
+                        const reader = sRes.body!.getReader();
+                        while (true) {
+                            const { done, value } = await reader.read();
+                            if (done) break;
+                            buf += decoder.decode(value, { stream: true });
+                            const lines = buf.split('\n');
+                            buf = lines.pop() ?? '';
+                            for (const line of lines) {
+                                if (!line.startsWith('data: ')) continue;
+                                const raw = line.slice(6).trim();
+                                if (!raw || raw === '[DONE]') continue;
+                                try {
+                                    const evt = JSON.parse(raw) as any;
+                                    const text: string = evt?.choices?.[0]?.delta?.content ?? '';
+                                    if (text) {
+                                        const norm = JSON.stringify({ type: 'content_block_delta', delta: { type: 'text_delta', text } });
+                                        await writer.write(encoder.encode(`data: ${norm}\n\n`));
+                                    }
+                                } catch { /* ignore */ }
+                            }
+                        }
+                    } finally {
+                        await writer.close().catch(() => {});
+                    }
+                })();
+
+                return new Response(readable, {
+                    headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no' },
+                });
+            }
+
+            const res = await fetch(groqUrl, { method: 'POST', headers: groqHeaders, body: JSON.stringify(groqBody) });
+            if (!res.ok) {
+                const raw = await res.text().catch(() => '');
+                const errStatus = (res.status >= 400 && res.status < 500) ? res.status : 502;
+                return json({ error: 'upstream_error', message: raw.slice(0, 200), status: res.status }, request, env, errStatus);
+            }
+            const data = await res.json() as any;
+            let text: string = data?.choices?.[0]?.message?.content ?? '';
+            const stopReason: string = data?.choices?.[0]?.finish_reason ?? '';
+            if (!text) return json({ error: 'empty_response' }, request, env, 502);
+
+            // Bump token budget once on truncation (same pattern as Claude)
+            if (stopReason === 'length' && maxTokens < PROXY_HARD_MAX_TOKENS) {
+                const bumpedTokens = Math.min(maxTokens * 2, PROXY_HARD_MAX_TOKENS);
+                const bumpRes = await fetch(groqUrl, {
+                    method: 'POST', headers: groqHeaders,
+                    body: JSON.stringify({ ...groqBody, max_tokens: bumpedTokens }),
+                });
+                if (bumpRes.ok) {
+                    const bumpData = await bumpRes.json().catch(() => null) as any;
+                    const bumpText: string = bumpData?.choices?.[0]?.message?.content ?? '';
+                    if (bumpText) text = bumpText;
+                }
+            }
+
+            return json({ text, model: groqModel, provider: 'groq', finishReason: stopReason, truncated: stopReason === 'length' }, request, env);
         }
 
         // ── OpenRouter / Together / Cerebras ─────────────────────────────────
