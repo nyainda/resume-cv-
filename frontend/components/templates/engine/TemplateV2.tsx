@@ -453,12 +453,12 @@ const SkillsSection: React.FC<{ skills: string[]; theme: TemplateTheme; sc: Dens
   // ≤8 skills: inline tag chips — clean and modern
   // >8 skills: 2/3-col bullet grid — saves space and looks organised
   const useGrid = skills.length > 8;
-  const cols = skills.length > 14 ? 3 : 2;
+  const cols = skills.length > 10 ? 3 : 2;
   return (
     <Section sc={sc}>
       <SectionHeading title="Core Skills" theme={theme} sc={sc} />
       {useGrid ? (
-        <div style={{ display: 'grid', gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: `${sc.bulletGap + 1}px 12px` }}>
+        <div style={{ display: 'grid', gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: '4px 12px' }}>
           {skills.map((s, i) => (
             <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 5, minWidth: 0 }}>
               <span style={{ color: theme.bodyMuted, fontSize: '5px', flexShrink: 0, lineHeight: 1 }}>◆</span>
@@ -1005,7 +1005,10 @@ const TemplateV2: React.FC<TemplateV2Props> = ({ cvData, personalInfo, isEditing
 
   const sc = applyFontScale(DENSITY_SCALES[density], cvData.fontScale ?? 1);
 
-  // Apply user accent-colour override
+  // Apply user accent-colour override.
+  // ONLY section-heading tokens change — headerTitleColor, tagText/tagBg/tagBorder
+  // stay at their fixed theme-defined neutral values so skill tags and the
+  // professional-title subtitle never inherit the user's accent pick.
   if (cvData.accentColor) {
     const c = cvData.accentColor;
     theme = {
@@ -1013,10 +1016,6 @@ const TemplateV2: React.FC<TemplateV2Props> = ({ cvData, personalInfo, isEditing
       accent: c,
       sectionBorderColor: c,
       accentBar: theme.accentBar ? c : undefined,
-      headerTitleColor: theme.headerBg === '#ffffff' ? c : theme.headerTitleColor,
-      tagText: c,
-      tagBg: c + '18',
-      tagBorder: c + '44',
     };
   }
 
