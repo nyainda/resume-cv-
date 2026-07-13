@@ -41,6 +41,51 @@ function detectDensity(cvData: CVData): ContentDensity {
 }
 
 
+// ─── SmartSplit ───────────────────────────────────────────────────────────────
+// Decides which secondary sections route to the sidebar vs the main column.
+// Short sections (certs, skills, languages) live well in a narrow sidebar;
+// long ones (many projects, publications, custom with descriptions) stay in main.
+interface SmartSplit {
+  eduInSidebar:          boolean;
+  projectsInSidebar:     boolean;
+  certsInSidebar:        boolean;
+  pubsInSidebar:         boolean;
+  customInSidebar:       boolean;
+  achievementsInSidebar: boolean;
+  refsInSidebar:         boolean;
+}
+
+function computeSmartSplit(cvData: CVData): SmartSplit {
+  const projectCount   = cvData.projects?.length ?? 0;
+  const certCount      = cvData.certifications?.length ?? 0;
+  const pubCount       = cvData.publications?.length ?? 0;
+  const achieveCount   = cvData.achievements?.length ?? 0;
+  const refCount       = cvData.references?.length ?? 0;
+  const eduCount       = cvData.education?.length ?? 0;
+
+  // Custom sections: route to sidebar only when all items are short (no description)
+  const hasLongCustom  = (cvData.customSections ?? []).some(sec =>
+    sec.items.some(item => (item.description?.length ?? 0) > 60)
+  );
+
+  return {
+    // Education: sidebar when 1–2 entries (typical); main when many (academic CVs)
+    eduInSidebar:          eduCount <= 2,
+    // Projects: sidebar only when very few and brief
+    projectsInSidebar:     projectCount <= 2,
+    // Certifications: sidebar-friendly — compact list items
+    certsInSidebar:        certCount <= 6,
+    // Publications: usually long titles → keep in main unless very few
+    pubsInSidebar:         pubCount <= 3,
+    // Custom sections: sidebar only when items are short snippets
+    customInSidebar:       !hasLongCustom,
+    // Achievements: sidebar when few
+    achievementsInSidebar: achieveCount <= 4,
+    // References: sidebar when one or two
+    refsInSidebar:         refCount <= 2,
+  };
+}
+
 // ─── Inline-edit helper ───────────────────────────────────────────────────────
 function editable(isEditing: boolean, onBlur: (v: string) => void): React.HTMLAttributes<HTMLElement> {
   if (!isEditing) return {};

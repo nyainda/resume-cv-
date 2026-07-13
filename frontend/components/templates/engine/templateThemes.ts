@@ -679,6 +679,31 @@ export const THEMES: TemplateTheme[] = [
     atsScore: 'medium', bestFor: 'Law, banking, consulting, executive and senior leadership roles',
     description: 'Ivory body, crimson accents, Playfair Display serif headings. Distinguished and powerful — the CV that commands a second look.',
   },
+  // ── EXECUTIVE EDITORIAL ──────────────────────────────────────────────────────
+  // Flagship premium single-column editorial layout.
+  // Spec: large uppercase name, accent-colour title, caps-line section headings
+  // with full-width underline rule, generous whitespace, zero sidebar.
+  // ATS-safe: no tables, no progress bars, no text inside graphics.
+  {
+    id: 'v2-executive-editorial',
+    name: 'Executive Editorial',
+    layout: 'single-col',
+    category: 'Executive',
+    headerBg: '#ffffff', headerText: '#111111', headerPadding: '36px 44px 28px',
+    headerNameSize: '36px', headerNameWeight: '900', headerTitleColor: '#1B2B4B',
+    headerAlign: 'left',
+    headerNameStyle: 'uppercase',
+    accent: '#1B2B4B', accentContrast: '#ffffff',
+    sidebarBg: '', sidebarText: '', sidebarMuted: '', sidebarWidth: '0',
+    bodyBg: '#ffffff', bodyText: '#111111', bodyMuted: '#555555',
+    sectionColor: '#111111', sectionSize: '10.5px', sectionWeight: '700',
+    sectionDecoration: 'underline', sectionBorderColor: '#1B2B4B',
+    tagBg: '#f4f6f9', tagText: '#1B2B4B', tagBorder: '#c8d0de', tagRadius: '3px',
+    fontHeading: "'DM Sans', 'Inter', sans-serif", fontBody: "'DM Sans', 'Inter', sans-serif",
+    bulletChar: '•', borderColor: '#e5e7eb',
+    atsScore: 'high', bestFor: 'Senior leadership, executive, director, VP, C-suite roles',
+    description: 'Flagship editorial template. Large uppercase name, navy accent title, generous whitespace and full-width section rules. Benchmark quality — no sidebar, pure single-column flow, 100% ATS-safe.',
+  },
 ];
 
 export const THEME_MAP: Record<string, TemplateTheme> = Object.fromEntries(THEMES.map(t => [t.id, t]));

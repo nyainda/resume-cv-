@@ -447,21 +447,32 @@ export type TemplateName =
   | 'ats-clean-pro'
   | 'v2-pro'
   | 'v2-navy'
+  | 'v2-photo'
+  | 'v2-slate-sidebar'
+  | 'v2-gold-exec'
   | 'v2-minimal'
+  | 'v2-sage'
   | 'v2-terminal'
   | 'v2-noir'
+  | 'v2-editorial'
+  | 'v2-coral'
   | 'v2-amber'
   | 'v2-ink'
+  | 'v2-forest'
   | 'v2-classic-pro'
   | 'v2-standard-black'
   | 'v2-harvard'
   | 'v2-warm'
+  | 'v2-steel'
+  | 'v2-teal'
   | 'v2-bold'
   | 'v2-modern-blue'
   | 'v2-graphite'
+  | 'v2-crimson'
   | 'v2-ats-max'
   | 'v2-skills-first'
-  | 'v2-starter';
+  | 'v2-starter'
+  | 'v2-executive-editorial';
 
 // ── Sidebar section visibility (Sidebar Section Picker) ──────────────────────
 // Controls which auto-generated sidebar fillers appear in templates that have
@@ -539,8 +550,9 @@ export const templateDisplayNames: Record<TemplateName, string> = {
   'v2-graphite':      'Graphite Clean',
   'v2-crimson':       'Crimson Elite',
   'v2-ats-max':       'ATS Maximum',
-  'v2-skills-first':  'Skills First',
-  'v2-starter':       'Career Starter',
+  'v2-skills-first':            'Skills First',
+  'v2-starter':                 'Career Starter',
+  'v2-executive-editorial':     'Executive Editorial',
 };
 
 // --- CV Generation Mode ---

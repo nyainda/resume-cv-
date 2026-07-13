@@ -99,7 +99,7 @@ const atsLevel: Record<TemplateName, 'high' | 'medium' | 'low'> = {
   'v2-pro': 'high', 'v2-navy': 'high', 'v2-minimal': 'high', 'v2-amber': 'high', 'v2-ink': 'high',
   'v2-harvard': 'high', 'v2-warm': 'high', 'v2-bold': 'high',
   'v2-modern-blue': 'high', 'v2-graphite': 'high',
-  'v2-ats-max': 'high', 'v2-skills-first': 'high', 'v2-starter': 'high',
+  'v2-ats-max': 'high', 'v2-skills-first': 'high', 'v2-starter': 'high', 'v2-executive-editorial': 'high',
   'v2-photo': 'medium', 'v2-slate-sidebar': 'medium', 'v2-gold-exec': 'medium',
   'v2-sage': 'medium', 'v2-forest': 'medium', 'v2-coral': 'medium',
   'v2-editorial': 'medium', 'v2-steel': 'medium', 'v2-teal': 'medium', 'v2-crimson': 'medium',
