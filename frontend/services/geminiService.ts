@@ -896,6 +896,56 @@ The "cv" field must ALWAYS be present — even when all checks pass.
     const validatorSystem = _validatorSystem || 'You are a strict CV quality validator. Return only valid JSON.';
     const stripFences = (s: string) => s.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
 
+    // ── Safe merge: if the validator response was truncated and dropped roles/projects,
+    // restore them from the pre-validation cvData so the user never loses content.
+    const safeValidatorMerge = (validatedCv: any): CVData => {
+        if (!validatedCv || typeof validatedCv !== 'object') return cvData;
+
+        let merged = { ...validatedCv };
+
+        // Restore experience roles that didn't fit in the validator's token budget
+        if (Array.isArray(cvData.experience) && cvData.experience.length > 0) {
+            const retainedExp: any[] = Array.isArray(merged.experience) ? merged.experience : [];
+            if (retainedExp.length < cvData.experience.length) {
+                console.warn(
+                    `[CV Validator] Response had ${retainedExp.length}/${cvData.experience.length} roles — ` +
+                    `restoring ${cvData.experience.length - retainedExp.length} truncated role(s) from pre-validation CV.`
+                );
+                const validatedKeys = new Set(retainedExp.map((e: any) => `${e.company}|${e.jobTitle}`));
+                const restored = [...retainedExp];
+                for (const orig of cvData.experience) {
+                    if (!validatedKeys.has(`${orig.company}|${orig.jobTitle}`)) {
+                        restored.push(orig);
+                    }
+                }
+                // Re-sort to match original profile order
+                const order = new Map(cvData.experience.map((e, i) => [`${e.company}|${e.jobTitle}`, i]));
+                restored.sort((a: any, b: any) =>
+                    (order.get(`${a.company}|${a.jobTitle}`) ?? 999) -
+                    (order.get(`${b.company}|${b.jobTitle}`) ?? 999)
+                );
+                merged = { ...merged, experience: restored };
+            }
+        }
+
+        // Restore projects if validator dropped them entirely (token budget exhausted after experience)
+        if (Array.isArray(cvData.projects) && cvData.projects.length > 0) {
+            if (!Array.isArray(merged.projects) || merged.projects.length === 0) {
+                console.warn('[CV Validator] Projects absent in validator response — restoring from pre-validation CV.');
+                merged = { ...merged, projects: cvData.projects };
+            }
+        }
+
+        // Restore certifications if dropped
+        if (Array.isArray(cvData.certifications) && cvData.certifications.length > 0) {
+            if (!Array.isArray(merged.certifications) || merged.certifications.length === 0) {
+                merged = { ...merged, certifications: cvData.certifications };
+            }
+        }
+
+        return merged as CVData;
+    };
+
     // Use Cloudflare Workers AI only when it is the selected provider.
     // When user has chosen Claude or Gemini, skip directly to groqChat (which
     // routes through their selected provider) — no wasted timeout on Worker AI.
@@ -905,7 +955,7 @@ The "cv" field must ALWAYS be present — even when all checks pass.
                 system: validatorSystem,
                 temperature: 0.1,
                 json: true,
-                maxTokens: 4000,
+                maxTokens: 6000,
             });
             if (cf) {
                 try {
@@ -914,7 +964,7 @@ The "cv" field must ALWAYS be present — even when all checks pass.
                         console.warn('[CV Validator] Flags raised (cf):', parsed.flags);
                     }
                     console.log('[CV Validator] Pass complete via Cloudflare Workers AI (tiered: cvValidate).');
-                    return parsed.cv || cvData;
+                    return safeValidatorMerge(parsed.cv || cvData);
                 } catch (parseErr) {
                     console.warn('[CV Validator] Worker JSON parse failed, falling back to selected provider:', parseErr);
                 }
@@ -925,12 +975,12 @@ The "cv" field must ALWAYS be present — even when all checks pass.
     }
 
     try {
-        const result = await groqChat(GROQ_LARGE, validatorSystem, validatorPrompt, { temperature: 0.1, json: true, maxTokens: 4000 });
+        const result = await groqChat(GROQ_LARGE, validatorSystem, validatorPrompt, { temperature: 0.1, json: true, maxTokens: 6000 });
         const parsed = JSON.parse(stripFences(result));
         if (parsed.flags && parsed.flags.length > 0) {
             console.warn('[CV Validator] Flags raised:', parsed.flags);
         }
-        return parsed.cv || cvData;
+        return safeValidatorMerge(parsed.cv || cvData);
     } catch (e) {
         console.error('[CV Validator] Validation failed, returning original:', e);
         return cvData;
