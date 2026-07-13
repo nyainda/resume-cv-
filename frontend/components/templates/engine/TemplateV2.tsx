@@ -15,7 +15,7 @@ interface TemplateV2Props {
 }
 
 // Types already rendered as dedicated sections — exclude from the generic customSections loop
-// to prevent the same data appearing twice in the sidebar/main body.
+// to prevent the same data appearing twice in the main body.
 const PROMOTED_SECTION_TYPES = new Set(['certifications', 'achievements', 'awards', 'publications']);
 
 // Semantic constant — always green regardless of theme; signals an active/current role
@@ -40,71 +40,6 @@ function detectDensity(cvData: CVData): ContentDensity {
   return 'spacious';
 }
 
-// ─── Smart section routing ─────────────────────────────────────────────────
-interface SmartSplit {
-  eduInSidebar: boolean;
-  projectsInSidebar: boolean;
-  achievementsInSidebar: boolean;
-  refsInSidebar: boolean;
-  certsInSidebar: boolean;
-  customInSidebar: boolean;
-  pubsInSidebar: boolean;
-}
-
-function computeSmartSplit(cvData: CVData): SmartSplit {
-  // ── Education ────────────────────────────────────────────────────────────────
-  // Sidebar: ≤2 entries and no long descriptions (≥60 chars triggers main-col treatment)
-  const eduCount = cvData.education?.length ?? 0;
-  const eduHasLongDesc = cvData.education?.some(e => (e.description?.length ?? 0) > 60) ?? false;
-  const eduInSidebar = eduCount <= 2 && !eduHasLongDesc;
-
-  // ── Projects ─────────────────────────────────────────────────────────────────
-  // Route to sidebar whenever ≤4 projects exist. Content length, tech-tag count,
-  // and bullet lists are handled in the sidebar renderer itself (description
-  // clamped to 2 lines, first bullet used as fallback blurb, tech tags capped at 4)
-  // so there is no content-gating here. This keeps Experience dominant in the main
-  // column for the vast majority of CVs.
-  const projCount = cvData.projects?.length ?? 0;
-  const projectsInSidebar = projCount > 0 && projCount <= 4;
-
-  // ── Achievements ─────────────────────────────────────────────────────────────
-  // Sidebar: ≤5 items AND individually short (avg ≤ 90 chars)
-  const achList = cvData.achievements ?? [];
-  const achAvgLen = achList.length > 0
-    ? achList.reduce((s, a) => s + a.length, 0) / achList.length
-    : 0;
-  const achievementsInSidebar = achList.length <= 5 && achAvgLen <= 90;
-
-  // ── References ───────────────────────────────────────────────────────────────
-  // Sidebar: ≤2 — brief card style fits; 3+ get the full main-column table
-  const refsInSidebar = (cvData.references?.length ?? 0) <= 2;
-
-  // ── Certifications ───────────────────────────────────────────────────────────
-  // Always sidebar — compact credential chips never need full width
-  const certsInSidebar = (cvData.certifications?.length ?? 0) > 0;
-
-  // ── Publications ─────────────────────────────────────────────────────────────
-  // Sidebar: ≤3 items AND short titles AND small author lists
-  // Longer academic citation lists always go to main column
-  const pubs = cvData.publications ?? [];
-  const pubsHaveLongContent = pubs.some(
-    p => (p.title?.length ?? 0) > 80 || (p.authors?.length ?? 0) > 3
-  );
-  const pubsInSidebar = pubs.length > 0 && pubs.length <= 3 && !pubsHaveLongContent;
-
-  // ── Custom sections ───────────────────────────────────────────────────────────
-  // Sidebar: only when ALL non-promoted sections have short items (no long descriptions/subtitles)
-  // Long items (volunteer role descriptions, patent abstracts) go to main column
-  const nonPromotedCustom = (cvData.customSections ?? [])
-    .filter(s => !PROMOTED_SECTION_TYPES.has(s.type));
-  const customHasContent = nonPromotedCustom.some(s => s.items.some(item => item.title?.trim()));
-  const customHasLongItems = nonPromotedCustom.some(s =>
-    s.items.some(item => (item.description?.length ?? 0) > 60 || (item.subtitle?.length ?? 0) > 50)
-  );
-  const customInSidebar = customHasContent && !customHasLongItems;
-
-  return { eduInSidebar, projectsInSidebar, achievementsInSidebar, refsInSidebar, certsInSidebar, customInSidebar, pubsInSidebar };
-}
 
 // ─── Inline-edit helper ───────────────────────────────────────────────────────
 function editable(isEditing: boolean, onBlur: (v: string) => void): React.HTMLAttributes<HTMLElement> {

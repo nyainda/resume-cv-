@@ -23,33 +23,23 @@ const templateCategories: Record<string, TemplateName[]> = {
   'Professional': [
     'v2-ats-max', 'v2-skills-first', 'v2-starter',
     'v2-classic-pro', 'v2-standard-black', 'v2-pro', 'v2-navy',
-    'v2-harvard', 'v2-warm', 'v2-crimson',
+    'v2-harvard', 'v2-warm',
   ],
-  // Contemporary sidebar and accent-forward designs
+  // Contemporary accent-forward designs
   'Modern': [
-    'v2-teal', 'v2-steel', 'v2-bold', 'v2-slate-sidebar',
-    'v2-sage', 'v2-graphite',
+    'v2-bold', 'v2-graphite',
   ],
   // Senior, C-suite and leadership roles
   'Executive': [
-    'v2-gold-exec', 'v2-ink', 'v2-crimson',
+    'v2-ink',
   ],
   // Engineers, developers, and technical contributors
   'Technical': [
     'v2-modern-blue', 'v2-terminal', 'v2-noir',
   ],
-  // Design, media, marketing — visual-first (lower ATS score)
-  'Creative': [
-    'v2-editorial', 'v2-coral',
-  ],
   // Research, academia, graduate programmes
   'Academic': [
-    'v2-amber', 'v2-forest',
-  ],
-  // Templates that render a profile photo
-  'Photo': [
-    'v2-photo', 'v2-teal', 'v2-steel', 'v2-slate-sidebar',
-    'v2-sage', 'v2-gold-exec', 'v2-coral', 'v2-forest', 'v2-crimson',
+    'v2-amber', 'v2-ink',
   ],
   // Clean, sparse layouts — highest ATS parse rates
   'Minimal': [
