@@ -178,7 +178,7 @@ const TemplateHarvardGold: React.FC<TemplateProps> = ({ cvData, personalInfo, is
     return (
         <div id="cv-preview-harvard-gold" className="bg-white p-8 text-slate-800 shadow-lg border font-serif leading-relaxed" style={{ fontFamily: "'Crimson Text', 'Georgia', serif" }}>
             <header className="text-center mb-5">
-                <h1 className="text-3xl font-bold tracking-tight text-slate-900 uppercase mb-2 decoration-amber-600/30 underline underline-offset-8">
+                <h1 className="text-3xl font-bold tracking-tight text-slate-900 uppercase mb-2" style={{ textDecoration: 'underline', textDecorationColor: accent + '55', textUnderlineOffset: '8px' }}>
                     {personalInfo.name}
                 </h1>
                 <div className="flex flex-wrap justify-center items-center gap-x-4 gap-y-1 text-sm text-slate-600">

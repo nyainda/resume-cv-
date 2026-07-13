@@ -425,8 +425,16 @@ const ProjectsSection: React.FC<{ cvData: CVData; theme: TemplateTheme; sc: Dens
             {p.year && <span style={{ fontSize: sc.metaSize, color: theme.bodyMuted, fontFamily: theme.fontBody }}
               {...editable(isEditing, v => { const d = JSON.parse(JSON.stringify(cvData)); d.projects![i].year = v; onChange(d); })}>{p.year}</span>}
           </div>
-          {p.description && <div style={{ fontSize: sc.metaSize, color: theme.bodyMuted, lineHeight: sc.lineH, marginTop: 2, fontFamily: theme.fontBody }}
+          {p.description && <div style={{ fontSize: sc.bodySize, color: theme.bodyText, lineHeight: sc.lineH, marginTop: 2, fontFamily: theme.fontBody }}
             {...editable(isEditing, v => { const d = JSON.parse(JSON.stringify(cvData)); d.projects![i].description = v; onChange(d); })}>{p.description}</div>}
+          {p.bullets?.length ? (
+            <div style={{ marginTop: 3 }}>
+              {p.bullets.map((b, bi) => (
+                <Bullet key={bi} text={b} theme={theme} sc={sc} isEditing={isEditing}
+                  onBlur={v => { const d = JSON.parse(JSON.stringify(cvData)); d.projects![i].bullets![bi] = v; onChange(d); }} />
+              ))}
+            </div>
+          ) : null}
           {p.technologies?.length ? (
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, marginTop: 4 }}>
               {p.technologies.map((t, ti) => <Tag key={ti} label={t} theme={theme} sc={sc} />)}

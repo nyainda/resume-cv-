@@ -162,7 +162,7 @@ const TemplateSWEClean: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdi
 
     return (
         <div className="bg-white font-sans" style={{ minHeight: '297mm', fontFamily: "'Inter', system-ui, sans-serif", padding: '12mm 14mm' }}>
-            <header className="mb-6 pb-5" style={{ borderBottom: '2px solid #111827' }}>
+            <header className="mb-6 pb-5" style={{ borderBottom: `2px solid ${accent}` }}>
                 <div className="flex items-start justify-between gap-4">
                     <div>
                         <h1 className="font-black text-gray-900" style={{ fontSize: '26px', letterSpacing: '-0.5px', lineHeight: 1.1 }}>{personalInfo.name}</h1>
