@@ -185,6 +185,30 @@ const V2ThemePicker: React.FC<V2ThemePickerProps> = ({ cvData, onChange }) => {
         </div>
       </div>
 
+      {/* ── 1-Page Mode ──────────────────────────────────────────────── */}
+      <div className="flex items-center justify-between py-1">
+        <div>
+          <span className="text-[10px] font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-widest block">
+            1-Page Mode
+          </span>
+          <span className="text-[10px] text-zinc-400 dark:text-zinc-500 leading-snug">
+            Compresses content to fit one A4 page — a red line shows where page 1 ends
+          </span>
+        </div>
+        <button
+          type="button"
+          onClick={() => onChange({ ...cvData, onePage: !cvData.onePage })}
+          className={`relative flex-shrink-0 w-10 h-5 rounded-full transition-colors duration-200 focus:outline-none ml-4 ${
+            cvData.onePage ? 'bg-[#1B2B4B]' : 'bg-zinc-200 dark:bg-neutral-600'
+          }`}
+          role="switch"
+          aria-checked={!!cvData.onePage}
+          title="Toggle 1-page mode"
+        >
+          <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 ${cvData.onePage ? 'translate-x-5' : 'translate-x-0'}`} />
+        </button>
+      </div>
+
       {/* ── Text size ────────────────────────────────────────────────── */}
       <div>
         <div className="flex items-center justify-between mb-2">

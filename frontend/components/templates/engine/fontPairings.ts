@@ -143,6 +143,42 @@ export const FONT_PAIRINGS: FontPairing[] = [
     body: "'JetBrains Mono', 'Fira Code', monospace",
     category: 'mono',
   },
+
+  // ── V2ThemePicker canonical pairings ──────────────────────────────────────
+  // These IDs are used by V2ThemePicker.tsx and must match so TemplateV2
+  // can look them up in FONT_PAIRING_MAP.
+  {
+    id: 'georgia-open',
+    name: 'Traditional',
+    description: 'Classic · readable',
+    heading: "Georgia, 'Times New Roman', serif",
+    body: "'Open Sans', sans-serif",
+    category: 'mixed',
+  },
+  {
+    id: 'mono-inter',
+    name: 'Developer',
+    description: 'Code · precise',
+    heading: "'JetBrains Mono', 'Fira Code', monospace",
+    body: "'Inter', sans-serif",
+    category: 'mono',
+  },
+  {
+    id: 'raleway-inter',
+    name: 'Geometric',
+    description: 'Stylish · modern',
+    heading: "'Raleway', sans-serif",
+    body: "'Inter', sans-serif",
+    category: 'sans',
+  },
+  {
+    id: 'merriweather-lato',
+    name: 'Classic Pro',
+    description: 'Serif · timeless',
+    heading: "'Merriweather', Georgia, serif",
+    body: "'Lato', sans-serif",
+    category: 'mixed',
+  },
 ];
 
 /** O(1) lookup map — used by TemplateV2 to resolve cvData.fontPairing. */

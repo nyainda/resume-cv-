@@ -1,7 +1,6 @@
 
 import React, { useState, useCallback, ChangeEvent, useMemo, useRef, useEffect } from 'react';
 import V2ThemePicker from './V2ThemePicker';
-import FontPicker from './FontPicker';
 import { V2_TEMPLATE_IDS } from './templates/engine/templateThemes';
 import { UserProfile, CVData, TemplateName, templateDisplayNames, JobAnalysisResult, CVGenerationMode, cvGenerationModes, ScholarshipFormat, scholarshipFormats, SavedCV, SidebarSectionsVisibility, DEFAULT_SIDEBAR_SECTIONS, SIDEBAR_TEMPLATES, STRICT_ONE_PAGE_TEMPLATES, UserProfileSlot } from '../types';
 import { getPageCount, COMPRESSION_STEPS } from '../utils/pageFit';
@@ -47,18 +46,6 @@ import { diffCV, CVDiff } from '../services/cvDoctorService';
 import { DownloadGateModal, shouldGateDownload, incrementDownloadCount } from './DownloadGateModal';
 import { useAuth } from '../auth/AuthContext';
 
-const ACCENT_COLORS = [
-  { hex: '#4f46e5', label: 'Indigo' },
-  { hex: '#2563eb', label: 'Blue' },
-  { hex: '#0d9488', label: 'Teal' },
-  { hex: '#059669', label: 'Emerald' },
-  { hex: '#7c3aed', label: 'Violet' },
-  { hex: '#c8701a', label: 'Amber' },
-  { hex: '#dc2626', label: 'Red' },
-  { hex: '#be185d', label: 'Pink' },
-  { hex: '#1a2f5a', label: 'Navy' },
-  { hex: '#2e2510', label: 'Bronze' },
-] as const;
 
 /**
  * Converts any caught error into a short, user-readable string.
@@ -2702,99 +2689,6 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
             personalInfo={userProfile.personalInfo}
           />
 
-          {/* ── Customisation Panel: Font + Accent Colour ── */}
-          <div className="mt-5 p-4 bg-zinc-50 dark:bg-neutral-800/60 rounded-xl border border-zinc-200 dark:border-neutral-700 space-y-4">
-
-            {/* Accent colour */}
-            {currentCV && (
-              <div>
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="text-[10px] font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-widest">Accent Colour</span>
-                  <div
-                    className="w-4 h-4 rounded-full border border-zinc-300 dark:border-neutral-600 shadow-sm flex-shrink-0"
-                    style={{ backgroundColor: currentCV.accentColor ?? '#4f46e5' }}
-                  />
-                  <span className="text-[10px] text-zinc-400">
-                    {ACCENT_COLORS.find(c => c.hex === currentCV.accentColor)?.label ?? (currentCV.accentColor ? 'Custom' : 'Default')}
-                  </span>
-                </div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  {ACCENT_COLORS.map(({ hex, label }) => (
-                    <button
-                      key={hex}
-                      title={label}
-                      onClick={() => { const cv = { ...currentCV, accentColor: hex }; setCurrentCV(cv); syncCurrentCVToD1(cv); }}
-                      className={`w-7 h-7 rounded-full border-2 transition-all hover:scale-110 hover:shadow-md ${
-                        (currentCV.accentColor ?? '#4f46e5') === hex
-                          ? 'border-zinc-900 dark:border-white scale-110 shadow-lg ring-2 ring-offset-1 ring-zinc-300 dark:ring-zinc-600'
-                          : 'border-transparent hover:border-zinc-300 dark:hover:border-zinc-500'
-                      }`}
-                      style={{ backgroundColor: hex }}
-                    />
-                  ))}
-                  <label
-                    title="Custom colour"
-                    className="relative w-7 h-7 rounded-full border-2 border-dashed border-zinc-300 dark:border-zinc-600 overflow-hidden cursor-pointer hover:scale-110 transition-all flex items-center justify-center bg-white dark:bg-neutral-700"
-                  >
-                    <span className="text-[11px] text-zinc-400 font-bold select-none">+</span>
-                    <input
-                      type="color"
-                      className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-                      value={currentCV.accentColor ?? '#4f46e5'}
-                      onChange={e => { const cv = { ...currentCV, accentColor: e.target.value }; setCurrentCV(cv); syncCurrentCVToD1(cv); }}
-                    />
-                  </label>
-                  {currentCV.accentColor && (
-                    <button
-                      onClick={() => { const cv = { ...currentCV, accentColor: undefined }; setCurrentCV(cv); syncCurrentCVToD1(cv); }}
-                      className="text-[11px] text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 underline ml-1"
-                    >
-                      Reset
-                    </button>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Font pairing */}
-            {currentCV && (
-              <FontPicker
-                value={currentCV.fontPairing}
-                onChange={(id) => {
-                  const cv = { ...currentCV, fontPairing: id };
-                  setCurrentCV(cv);
-                  syncCurrentCVToD1(cv);
-                }}
-              />
-            )}
-
-            {/* One-page mode */}
-            {currentCV && (
-              <div className="flex items-center justify-between">
-                <div>
-                  <span className="text-[10px] font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-widest block">1-Page Mode</span>
-                  <span className="text-[10px] text-zinc-400 dark:text-zinc-500 leading-snug">Compresses content to fit one A4 page — a red line shows where page 1 ends</span>
-                </div>
-                <button
-                  onClick={() => {
-                    const cv = { ...currentCV, onePage: !currentCV.onePage };
-                    setCurrentCV(cv);
-                    syncCurrentCVToD1(cv);
-                  }}
-                  className={`relative flex-shrink-0 w-10 h-5 rounded-full transition-colors duration-200 focus:outline-none ml-4 ${
-                    currentCV.onePage
-                      ? 'bg-[#1B2B4B]'
-                      : 'bg-zinc-200 dark:bg-neutral-600'
-                  }`}
-                  role="switch"
-                  aria-checked={!!currentCV.onePage}
-                  title="Toggle 1-page mode"
-                >
-                  <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 ${currentCV.onePage ? 'translate-x-5' : 'translate-x-0'}`} />
-                </button>
-              </div>
-            )}
-          </div>
 
           {/* ── Quick Template Strip ── */}
           <div className="mt-5">
