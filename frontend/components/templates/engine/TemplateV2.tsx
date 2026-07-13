@@ -448,6 +448,98 @@ const ProjectsSection: React.FC<{ cvData: CVData; theme: TemplateTheme; sc: Dens
   );
 };
 
+// Compact 2-column card grid — used by single-col layouts so projects don't
+// dominate the page the way Experience and Education sections do.
+// Each card: name + year, description clamped to 2 lines (first bullet used
+// as fallback blurb), tech chips capped at 3 + overflow count, cleaned link.
+const ProjectsCompactGrid: React.FC<{
+  cvData: CVData; theme: TemplateTheme; sc: DensityScale;
+}> = ({ cvData, theme, sc }) => {
+  const projects = cvData.projects;
+  if (!projects?.length) return null;
+  // Single project: use full-width section so it doesn't look awkward
+  if (projects.length === 1) {
+    return (
+      <Section sc={sc}>
+        <SectionHeading title="Projects" theme={theme} sc={sc} />
+        {(() => {
+          const p = projects[0];
+          const blurb = p.description?.trim() || (p.bullets?.[0] ?? '');
+          const cleanLink = p.link ? p.link.replace(/^https?:\/\/(www\.)?/, '') : '';
+          return (
+            <div style={{ borderLeft: `2px solid ${theme.accent}50`, paddingLeft: 9 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 4 }}>
+                <span style={{ fontSize: sc.bodySize, fontWeight: 700, color: theme.bodyText, fontFamily: theme.fontBody }}>{p.name}</span>
+                {p.year && <span style={{ fontSize: sc.metaSize, color: theme.bodyMuted, fontFamily: theme.fontBody, flexShrink: 0 }}>{p.year}</span>}
+              </div>
+              {blurb && <div style={{ fontSize: sc.metaSize, color: theme.bodyMuted, fontFamily: theme.fontBody, lineHeight: 1.45, marginTop: 2 }}>{blurb}</div>}
+              {p.technologies?.length ? (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '2px 4px', marginTop: 4 }}>
+                  {p.technologies.slice(0, 4).map((t, ti) => (
+                    <span key={ti} style={{ fontSize: sc.tagSize, color: theme.bodyMuted, fontFamily: theme.fontBody, background: theme.tagBg, border: `1px solid ${theme.tagBorder}`, borderRadius: 3, padding: '1px 4px', whiteSpace: 'nowrap' }}>{t}</span>
+                  ))}
+                  {p.technologies.length > 4 && <span style={{ fontSize: sc.tagSize, color: theme.bodyMuted, fontFamily: theme.fontBody }}>+{p.technologies.length - 4}</span>}
+                </div>
+              ) : null}
+              {cleanLink && <div style={{ fontSize: `${parseFloat(sc.metaSize) - 0.5}px`, color: theme.bodyMuted, fontFamily: theme.fontBody, marginTop: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cleanLink}</div>}
+            </div>
+          );
+        })()}
+      </Section>
+    );
+  }
+  return (
+    <Section sc={sc}>
+      <SectionHeading title="Projects" theme={theme} sc={sc} />
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px 18px' }}>
+        {projects.map((p, i) => {
+          const blurb = p.description?.trim() || (p.bullets?.[0] ?? '');
+          const cleanLink = p.link ? p.link.replace(/^https?:\/\/(www\.)?/, '') : '';
+          const techOverflow = (p.technologies?.length ?? 0) > 3 ? p.technologies!.length - 3 : 0;
+          return (
+            <div key={i} style={{ borderLeft: `2px solid ${theme.accent}50`, paddingLeft: 9 }}>
+              {/* Name + year */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 4 }}>
+                <span style={{ fontSize: sc.bodySize, fontWeight: 700, color: theme.bodyText, fontFamily: theme.fontBody, lineHeight: 1.3 }}>{p.name}</span>
+                {p.year && <span style={{ fontSize: sc.metaSize, color: theme.bodyMuted, fontFamily: theme.fontBody, flexShrink: 0 }}>{p.year}</span>}
+              </div>
+              {/* Description — hard-clamped to 2 lines */}
+              {blurb && (
+                <div style={{
+                  fontSize: sc.metaSize, color: theme.bodyMuted, fontFamily: theme.fontBody,
+                  lineHeight: 1.45, marginTop: 2,
+                  overflow: 'hidden', display: '-webkit-box',
+                  WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as any,
+                }}>{blurb}</div>
+              )}
+              {/* Tech chips — up to 3, overflow as +N */}
+              {p.technologies?.length ? (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '2px 4px', marginTop: 4 }}>
+                  {p.technologies.slice(0, 3).map((t, ti) => (
+                    <span key={ti} style={{
+                      fontSize: sc.tagSize, color: theme.bodyMuted, fontFamily: theme.fontBody,
+                      background: theme.tagBg, border: `1px solid ${theme.tagBorder}`,
+                      borderRadius: 3, padding: '1px 4px', whiteSpace: 'nowrap',
+                    }}>{t}</span>
+                  ))}
+                  {techOverflow > 0 && <span style={{ fontSize: sc.tagSize, color: theme.bodyMuted, fontFamily: theme.fontBody }}>+{techOverflow}</span>}
+                </div>
+              ) : null}
+              {/* Link — stripped of protocol, ellipsed */}
+              {cleanLink && (
+                <div style={{
+                  fontSize: `${parseFloat(sc.metaSize) - 0.5}px`, color: theme.bodyMuted, fontFamily: theme.fontBody,
+                  marginTop: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                }}>{cleanLink}</div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </Section>
+  );
+};
+
 const SkillsSection: React.FC<{ skills: string[]; theme: TemplateTheme; sc: DensityScale }> = ({ skills, theme, sc }) => {
   if (!skills?.length) return null;
   // ≤8 skills: inline tag chips — clean and modern
@@ -932,21 +1024,22 @@ const LayoutSingleColumn: React.FC<LayoutProps> = (props) => {
           /* Skills-first order: Summary → Core Skills → Experience → Education → Projects → Extras
              Used for career-change and skills-led hiring where ATS scorecard maps skills first. */
           <>
-            <SummarySection    cvData={cvData} theme={theme} sc={sc} isEditing={isEditing} onChange={onChange} />
-            <SkillsSection     skills={cvData.skills} theme={theme} sc={sc} />
-            <ExperienceSection cvData={cvData} theme={theme} sc={sc} isEditing={isEditing} onChange={onChange} />
-            <EducationSection  cvData={cvData} theme={theme} sc={sc} isEditing={isEditing} onChange={onChange} />
-            <ProjectsSection   cvData={cvData} theme={theme} sc={sc} isEditing={isEditing} onChange={onChange} />
+            <SummarySection       cvData={cvData} theme={theme} sc={sc} isEditing={isEditing} onChange={onChange} />
+            <SkillsSection        skills={cvData.skills} theme={theme} sc={sc} />
+            <ExperienceSection    cvData={cvData} theme={theme} sc={sc} isEditing={isEditing} onChange={onChange} />
+            <EducationSection     cvData={cvData} theme={theme} sc={sc} isEditing={isEditing} onChange={onChange} />
+            <ProjectsCompactGrid  cvData={cvData} theme={theme} sc={sc} />
             <TailSections />
           </>
         ) : (
-          /* Standard recruiter-expected order: Summary → Experience → Education → Skills → Projects → Extras */
+          /* Standard recruiter-expected order: Summary → Experience → Education → Skills → Projects → Extras
+             Projects rendered in compact 2-col grid so they never crowd out Experience. */
           <>
-            <SummarySection    cvData={cvData} theme={theme} sc={sc} isEditing={isEditing} onChange={onChange} />
-            <ExperienceSection cvData={cvData} theme={theme} sc={sc} isEditing={isEditing} onChange={onChange} />
-            <EducationSection  cvData={cvData} theme={theme} sc={sc} isEditing={isEditing} onChange={onChange} />
-            <SkillsSection     skills={cvData.skills} theme={theme} sc={sc} />
-            <ProjectsSection   cvData={cvData} theme={theme} sc={sc} isEditing={isEditing} onChange={onChange} />
+            <SummarySection       cvData={cvData} theme={theme} sc={sc} isEditing={isEditing} onChange={onChange} />
+            <ExperienceSection    cvData={cvData} theme={theme} sc={sc} isEditing={isEditing} onChange={onChange} />
+            <EducationSection     cvData={cvData} theme={theme} sc={sc} isEditing={isEditing} onChange={onChange} />
+            <SkillsSection        skills={cvData.skills} theme={theme} sc={sc} />
+            <ProjectsCompactGrid  cvData={cvData} theme={theme} sc={sc} />
             <TailSections />
           </>
         )}
