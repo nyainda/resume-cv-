@@ -3,6 +3,7 @@ import { cleanBulletHtml } from './templateUtils';
 import { CVData, PersonalInfo, ProfileSectionKey, DEFAULT_SECTION_ORDER } from '../../types';
 import { Trash } from '../icons';
 import { TemplateCustomSections } from './sharedSections';
+import { INK_SUBLINE, INK_DOT } from './styleTokens';
 
 interface TemplateProps {
     cvData: CVData;
@@ -74,7 +75,7 @@ const TemplateATSCleanPro: React.FC<TemplateProps> = ({ cvData, personalInfo, is
                                 <span
                                     key={i}
                                     className="text-xs font-semibold px-3 py-1 rounded-sm border"
-                                    style={{ backgroundColor: '#ecfeff', color: '#0e7490', borderColor: '#a5f3fc' }}
+                                    style={{ backgroundColor: '#f1f5f9', color: INK_SUBLINE, borderColor: '#e2e8f0' }}
                                     {...(isEditing ? editableProps(['skills', i]) : {})}
                                     dangerouslySetInnerHTML={{ __html: skill }}
                                 />
@@ -109,11 +110,11 @@ const TemplateATSCleanPro: React.FC<TemplateProps> = ({ cvData, personalInfo, is
                                         <h3 className="text-sm font-black text-slate-900" {...editableProps(['experience', index, 'jobTitle'])} dangerouslySetInnerHTML={{ __html: job.jobTitle }} />
                                         <span className="text-xs text-slate-400 flex-shrink-0 ml-3" {...editableProps(['experience', index, 'dates'])} dangerouslySetInnerHTML={{ __html: job.dates }} />
                                     </div>
-                                    <p className="text-xs font-bold mb-2" style={{ color: '#7c3aed' }} {...editableProps(['experience', index, 'company'])} dangerouslySetInnerHTML={{ __html: job.company }} />
+                                    <p className="text-xs font-bold mb-2" style={{ color: INK_SUBLINE }} {...editableProps(['experience', index, 'company'])} dangerouslySetInnerHTML={{ __html: job.company }} />
                                     <ul className="space-y-1">
                                         {job.responsibilities.map((r, i) => (
                                             <li key={i} className="flex items-start gap-2 text-xs text-slate-700">
-                                                <span className="text-cyan-600 font-black mt-0.5 flex-shrink-0">•</span>
+                                                <span className="font-black mt-0.5 flex-shrink-0" style={{ color: INK_DOT }}>•</span>
                                                 <span dangerouslySetInnerHTML={{ __html: cleanBulletHtml(r) }} {...editableProps(['experience', index, 'responsibilities', i])} />
                                             </li>
                                         ))}
@@ -150,7 +151,7 @@ const TemplateATSCleanPro: React.FC<TemplateProps> = ({ cvData, personalInfo, is
                                 <div key={i} className="flex justify-between items-start">
                                     <div>
                                         <p className="text-sm font-black text-slate-900" dangerouslySetInnerHTML={{ __html: edu.degree }} {...editableProps(['education', i, 'degree'])} />
-                                        <p className="text-xs font-semibold" style={{ color: '#7c3aed' }} dangerouslySetInnerHTML={{ __html: edu.school }} {...editableProps(['education', i, 'school'])} />
+                                        <p className="text-xs font-semibold" style={{ color: INK_SUBLINE }} dangerouslySetInnerHTML={{ __html: edu.school }} {...editableProps(['education', i, 'school'])} />
                                         {edu.description && <p className="text-xs text-slate-500 mt-0.5" dangerouslySetInnerHTML={{ __html: edu.description }} />}
                                     </div>
                                     <span className="text-xs text-slate-400 flex-shrink-0 ml-3" {...editableProps(['education', i, 'graduationYear'])} dangerouslySetInnerHTML={{ __html: edu.year }} />

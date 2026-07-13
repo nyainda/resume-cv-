@@ -3,6 +3,7 @@ import HiddenATSKeywords from '../HiddenATSKeywords';
 import { CVData, PersonalInfo } from '../../types';
 import { Trash } from '../icons';
 import { TemplateCustomSections } from './sharedSections';
+import { INK_META } from './styleTokens';
 
 interface TemplateProps {
   cvData: CVData;
@@ -53,7 +54,7 @@ const TemplateParisVibe: React.FC<TemplateProps> = ({ cvData, personalInfo, isEd
           </h1>
           <div className="text-right text-xs uppercase tracking-widest text-zinc-400 space-y-0.5">
             <p>{personalInfo.location}</p>
-            <p className="font-bold" style={{ color: accent }}>{personalInfo.email}</p>
+            <p className="font-bold text-zinc-600">{personalInfo.email}</p>
             <p>{personalInfo.phone}</p>
             {personalInfo.linkedin && <p className="opacity-60 text-[10px]">{personalInfo.linkedin.replace('https://', '')}</p>}
           </div>
@@ -132,7 +133,7 @@ const TemplateParisVibe: React.FC<TemplateProps> = ({ cvData, personalInfo, isEd
                   )}
                   <div className="flex justify-between items-end mb-1">
                     <h3 className="text-sm font-bold tracking-tight text-zinc-900" {...editableProps(['experience', index, 'jobTitle'])}>{job.jobTitle}</h3>
-                    <span className="text-[10px] uppercase font-bold tracking-[0.2em] shrink-0 ml-2" style={{ color: accent }} {...editableProps(['experience', index, 'dates'])}>{job.dates}</span>
+                    <span className="text-[10px] uppercase font-bold tracking-[0.2em] shrink-0 ml-2" style={{ color: INK_META }} {...editableProps(['experience', index, 'dates'])}>{job.dates}</span>
                   </div>
                   <p className="text-xs italic font-light text-zinc-400 tracking-wider mb-1" {...editableProps(['experience', index, 'company'])}>{job.company}</p>
                   <ul className="space-y-1 text-xs text-zinc-600 font-light border-l border-zinc-100 pl-5">

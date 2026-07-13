@@ -3,6 +3,7 @@ import { cleanBulletHtml } from './templateUtils';
 import HiddenATSKeywords from '../HiddenATSKeywords';
 import { CVData, PersonalInfo } from '../../types';
 import { TemplateCustomSections } from './sharedSections';
+import { INK_LINK } from './styleTokens';
 
 interface TemplateProps {
   cvData: CVData;
@@ -155,7 +156,7 @@ const TemplateCreative: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdi
                       <h3 className="text-xs font-semibold text-slate-900" {...editableProps(['projects', index, 'name'])}>{proj.name}</h3>
                       <p className="text-[10px] text-slate-700" dangerouslySetInnerHTML={{ __html: proj.description }} {...editableProps(['projects', index, 'description'])} />
                       {proj.link && (
-                        <a href={proj.link} className="text-[10px] underline" style={{ color: SIDEBAR_COLOR }} {...editableProps(['projects', index, 'link'])}>{proj.link}</a>
+                        <a href={proj.link} className="text-[10px] underline" style={{ color: INK_LINK }} {...editableProps(['projects', index, 'link'])}>{proj.link}</a>
                       )}
                     </div>
                   ))}

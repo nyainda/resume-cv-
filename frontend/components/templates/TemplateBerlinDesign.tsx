@@ -3,6 +3,7 @@ import HiddenATSKeywords from '../HiddenATSKeywords';
 import { CVData, PersonalInfo } from '../../types';
 import { Trash } from '../icons';
 import { TemplateCustomSections } from './sharedSections';
+import { INK_DOT } from './styleTokens';
 
 interface TemplateProps {
   cvData: CVData;
@@ -115,7 +116,7 @@ const TemplateBerlinDesign: React.FC<TemplateProps> = ({ cvData, personalInfo, i
                 <div className="flex flex-wrap gap-x-8 gap-y-4">
                     {cvData.skills.slice(0, 15).map((s, i) => (
                         <span key={i} className="text-xl font-black uppercase italic tracking-tighter text-zinc-300 hover:text-zinc-900 transition-colors cursor-default">
-                            {s}<span style={{ color: accent }}>.</span>
+                            {s}<span style={{ color: INK_DOT }}>.</span>
                         </span>
                     ))}
                 </div>

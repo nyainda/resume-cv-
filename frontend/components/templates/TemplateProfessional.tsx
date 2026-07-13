@@ -4,6 +4,7 @@ import HiddenATSKeywords from '../HiddenATSKeywords';
 import { CVData, PersonalInfo, ProfileSectionKey, DEFAULT_SECTION_ORDER } from '../../types';
 import { Trash } from '../icons';
 import { TemplateCustomSections } from './sharedSections';
+import { INK_SUBLINE, INK_DOT, INK_LINK } from './styleTokens';
 
 interface TemplateProps {
   cvData: CVData;
@@ -62,7 +63,7 @@ const TemplateProfessional: React.FC<TemplateProps> = ({ cvData, personalInfo, i
   // browsers and PDF export engines).
   const Bullet: React.FC<{ html: string; editProps?: any }> = ({ html, editProps }) => (
     <li className="flex gap-2.5 text-sm leading-relaxed text-zinc-700">
-      <span className="mt-[7px] w-1 h-1 rounded-full shrink-0" style={{ backgroundColor: accent, opacity: 0.55 }} />
+      <span className="mt-[7px] w-1 h-1 rounded-full shrink-0" style={{ backgroundColor: INK_DOT }} />
       <span dangerouslySetInnerHTML={{ __html: cleanBulletHtml(html) }} {...editProps} />
     </li>
   );
@@ -115,7 +116,7 @@ const TemplateProfessional: React.FC<TemplateProps> = ({ cvData, personalInfo, i
                   </div>
                   <p
                     className="text-[13px] font-mono font-medium uppercase tracking-wide mb-2"
-                    style={{ color: accent }}
+                    style={{ color: INK_SUBLINE }}
                     {...editableProps(['experience', index, 'company'])}
                   >
                     {job.company}
@@ -143,7 +144,7 @@ const TemplateProfessional: React.FC<TemplateProps> = ({ cvData, personalInfo, i
                       <h3 className="text-[17px] font-serif font-bold text-zinc-900" {...editableProps(['education', index, 'degree'])}>
                         {edu.degree}
                       </h3>
-                      <p className="text-[13px] font-mono font-medium uppercase tracking-wide" style={{ color: accent }} {...editableProps(['education', index, 'school'])}>
+                      <p className="text-[13px] font-mono font-medium uppercase tracking-wide" style={{ color: INK_SUBLINE }} {...editableProps(['education', index, 'school'])}>
                         {edu.school}
                       </p>
                     </div>
@@ -180,7 +181,7 @@ const TemplateProfessional: React.FC<TemplateProps> = ({ cvData, personalInfo, i
                     <ul key={ci} className="space-y-1">
                       {col.map((s, si) => (
                         <li key={si} className="flex items-center gap-2 text-sm text-zinc-700">
-                          <span className="w-1 h-1 rounded-full shrink-0" style={{ backgroundColor: accent, opacity: 0.55 }} />
+                          <span className="w-1 h-1 rounded-full shrink-0" style={{ backgroundColor: INK_DOT }} />
                           {s}
                         </li>
                       ))}
@@ -208,7 +209,7 @@ const TemplateProfessional: React.FC<TemplateProps> = ({ cvData, personalInfo, i
                     {...editableProps(['projects', index, 'description'])}
                   />
                   {proj.link && (
-                    <a href={proj.link} className="text-[13px] font-mono underline mt-0.5 inline-block" style={{ color: accent }} {...editableProps(['projects', index, 'link'])}>
+                    <a href={proj.link} className="text-[13px] font-mono underline mt-0.5 inline-block" style={{ color: INK_LINK }} {...editableProps(['projects', index, 'link'])}>
                       {proj.link}
                     </a>
                   )}
@@ -276,19 +277,19 @@ const TemplateProfessional: React.FC<TemplateProps> = ({ cvData, personalInfo, i
           {personalInfo.linkedin && (
             <>
               <span className="text-zinc-300">•</span>
-              <a href={personalInfo.linkedin} className="hover:underline" style={{ color: accent }}>LinkedIn</a>
+              <a href={personalInfo.linkedin} className="hover:underline" style={{ color: INK_LINK }}>LinkedIn</a>
             </>
           )}
           {personalInfo.website && (
             <>
               <span className="text-zinc-300">•</span>
-              <a href={personalInfo.website} className="hover:underline" style={{ color: accent }}>Website</a>
+              <a href={personalInfo.website} className="hover:underline" style={{ color: INK_LINK }}>Website</a>
             </>
           )}
           {personalInfo.github && (
             <>
               <span className="text-zinc-300">•</span>
-              <a href={personalInfo.github} className="hover:underline" style={{ color: accent }}>GitHub</a>
+              <a href={personalInfo.github} className="hover:underline" style={{ color: INK_LINK }}>GitHub</a>
             </>
           )}
         </div>

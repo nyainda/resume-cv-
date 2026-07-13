@@ -3,6 +3,7 @@ import HiddenATSKeywords from '../HiddenATSKeywords';
 import { CVData, PersonalInfo } from '../../types';
 import { Trash } from '../icons';
 import { TemplateCustomSections } from './sharedSections';
+import { INK_META, INK_LINK } from './styleTokens';
 
 interface TemplateProps {
   cvData: CVData;
@@ -73,7 +74,7 @@ const TemplateTokyoNight: React.FC<TemplateProps> = ({ cvData, personalInfo, isE
                   )}
                   <div className="flex justify-between items-baseline mb-0.5">
                     <h3 className="text-sm font-bold text-white uppercase italic" {...editableProps(['experience', index, 'jobTitle'])}>{job.jobTitle}</h3>
-                    <span className="text-[10px] font-black shrink-0 ml-2" style={{ color: accent }} {...editableProps(['experience', index, 'dates'])}>{job.dates}</span>
+                    <span className="text-[10px] font-black shrink-0 ml-2 text-slate-500" {...editableProps(['experience', index, 'dates'])}>{job.dates}</span>
                   </div>
                   <p className="text-xs font-bold text-fuchsia-400 mb-1" {...editableProps(['experience', index, 'company'])}>{job.company}</p>
                   <ul className="space-y-1 text-xs text-slate-400">
@@ -98,7 +99,7 @@ const TemplateTokyoNight: React.FC<TemplateProps> = ({ cvData, personalInfo, isE
                   <div key={i} className="border-l border-fuchsia-500/20 pl-3">
                     <p className="text-xs font-black text-white uppercase">{proj.name}</p>
                     <p className="text-[10px] text-slate-500 leading-snug mt-0.5" dangerouslySetInnerHTML={{ __html: proj.description }} />
-                    {proj.link && <a href={proj.link} className="text-[10px] truncate block" style={{ color: accent }}>{proj.link}</a>}
+                    {proj.link && <a href={proj.link} className="text-[10px] truncate block" style={{ color: INK_LINK }}>{proj.link}</a>}
                   </div>
                 ))}
               </div>
@@ -158,7 +159,7 @@ const TemplateTokyoNight: React.FC<TemplateProps> = ({ cvData, personalInfo, isE
                 {cvData.languages.map((lang, i) => (
                   <div key={i} className="flex justify-between items-center text-[10px]">
                     <span className="text-white font-bold">{lang.name}</span>
-                    <span style={{ color: accent }}>{lang.proficiency}</span>
+                    <span className="text-slate-500">{lang.proficiency}</span>
                   </div>
                 ))}
               </div>

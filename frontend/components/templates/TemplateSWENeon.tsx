@@ -2,6 +2,7 @@ import React, { useCallback } from 'react';
 import { cleanBulletHtml } from './templateUtils';
 import { CVData, PersonalInfo } from '../../types';
 import { TemplateCustomSections } from './sharedSections';
+import { INK_SUBLINE, INK_META, INK_DOT, INK_LINK } from './styleTokens';
 
 interface TemplateProps {
     cvData: CVData;
@@ -71,12 +72,12 @@ const TemplateSWENeon: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdit
                 {/* Avatar */}
                 <div className="text-center">
                     <div className="w-14 h-14 rounded-xl mx-auto mb-3 flex items-center justify-center text-xl font-black"
-                        style={{ background: `linear-gradient(135deg, ${accent} 0%, ${accent} 100%)`, color: '#010409', boxShadow: `0 0 20px ${accent}66` }}>
+                        style={{ background: 'linear-gradient(135deg, #1f2937 0%, #374151 100%)', color: '#e6edf3' }}>
                         {initials}
                     </div>
                     <h1 className="text-sm font-black leading-tight" style={{ color: '#e6edf3' }}>{personalInfo.name}</h1>
                     {cvData.experience[0] && (
-                        <p className="text-[10px] font-semibold mt-1" style={{ color: accent }}>{cvData.experience[0].jobTitle}</p>
+                        <p className="text-[10px] font-semibold mt-1" style={{ color: '#8b949e' }}>{cvData.experience[0].jobTitle}</p>
                     )}
                 </div>
 
@@ -100,7 +101,7 @@ const TemplateSWENeon: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdit
                         <div className="space-y-1.5">
                             {personalInfo.github && (
                                 <div className="flex items-center gap-1.5">
-                                    <span style={{ color: accent }}><GitHubIcon /></span>
+                                    <span style={{ color: '#8b949e' }}><GitHubIcon /></span>
                                     <span className="text-[11px] truncate" style={{ color: '#8b949e' }}>{personalInfo.github.replace('https://github.com/', '')}</span>
                                 </div>
                             )}
@@ -124,7 +125,7 @@ const TemplateSWENeon: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdit
                                     <p className="text-[10.5px] font-bold uppercase tracking-wider mb-1" style={{ color: '#484f58' }}>{cat}</p>
                                     <div className="flex flex-wrap gap-0.5">
                                         {skills.slice(0, 7).map(s => (
-                                            <span key={s} className="text-[10px] px-1.5 py-0.5 rounded font-mono font-bold" style={{ background: accent + '14', border: '1px solid rgba(6,182,212,0.25)', color: accent }}>{s}</span>
+                                            <span key={s} className="text-[10px] px-1.5 py-0.5 rounded font-mono font-bold" style={{ background: 'rgba(139,148,158,0.1)', border: '1px solid rgba(139,148,158,0.2)', color: '#8b949e' }}>{s}</span>
                                         ))}
                                     </div>
                                 </div>
@@ -141,7 +142,7 @@ const TemplateSWENeon: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdit
                             <div key={i} className="mb-2">
                                 <p className="text-[10px] font-bold leading-tight" style={{ color: '#e6edf3' }} {...ed(['education', i, 'degree'])} dangerouslySetInnerHTML={{ __html: edu.degree }} />
                                 <p className="text-[10.5px] mt-0.5" style={{ color: '#8b949e' }} {...ed(['education', i, 'school'])} dangerouslySetInnerHTML={{ __html: edu.school }} />
-                                <p className="text-[10.5px]" style={{ color: accent }}>{edu.year}</p>
+                                <p className="text-[10.5px]" style={{ color: '#8b949e' }}>{edu.year}</p>
                             </div>
                         ))}
                     </div>
@@ -179,19 +180,19 @@ const TemplateSWENeon: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdit
                                             <div className="flex items-center gap-2 flex-wrap">
                                                 <h3 className="font-bold text-xs" style={{ color: '#e6edf3' }} {...ed(['experience', i, 'jobTitle'])} dangerouslySetInnerHTML={{ __html: job.jobTitle }} />
                                                 {job.link && (
-                                                    <a href={job.link} target="_blank" rel="noopener noreferrer" className="flex items-center gap-0.5 text-[10.5px] font-semibold" style={{ color: accent }}>
+                                                    <a href={job.link} target="_blank" rel="noopener noreferrer" className="flex items-center gap-0.5 text-[10.5px] font-semibold" style={{ color: INK_LINK }}>
                                                         <GitHubIcon /><span>View</span>
                                                     </a>
                                                 )}
                                             </div>
-                                            <p className="text-[10px] font-semibold mt-0.5" style={{ color: accent }} {...ed(['experience', i, 'company'])} dangerouslySetInnerHTML={{ __html: job.company }} />
+                                            <p className="text-[10px] font-semibold mt-0.5" style={{ color: INK_SUBLINE }} {...ed(['experience', i, 'company'])} dangerouslySetInnerHTML={{ __html: job.company }} />
                                         </div>
                                         <span className="text-[10.5px] font-mono px-2 py-0.5 rounded" style={{ color: '#8b949e', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)' }} {...ed(['experience', i, 'dates'])} dangerouslySetInnerHTML={{ __html: job.dates }} />
                                     </div>
                                     <ul className="space-y-0.5">
                                         {job.responsibilities.map((r, j) => (
                                             <li key={j} className="flex items-start gap-1.5 text-[10px] leading-relaxed" style={{ color: '#8b949e' }}>
-                                                <span className="flex-shrink-0 font-black mt-0.5" style={{ color: accent }}>›</span>
+                                                <span className="flex-shrink-0 font-black mt-0.5" style={{ color: INK_DOT }}>›</span>
                                                 <span {...ed(['experience', i, 'responsibilities', j])} dangerouslySetInnerHTML={{ __html: cleanBulletHtml(r) }} />
                                             </li>
                                         ))}
@@ -214,10 +215,10 @@ const TemplateSWENeon: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdit
                             {cvData.projects.map((proj, i) => (
                                 <div key={i} className="p-3 rounded-lg" style={{ background: accent + '0a', border: '1px solid rgba(6,182,212,0.12)' }}>
                                     <div className="flex items-center justify-between gap-2 mb-1">
-                                        <h3 className="font-bold text-xs font-mono" style={{ color: accent }} {...ed(['projects', i, 'name'])} dangerouslySetInnerHTML={{ __html: proj.name }} />
+                                        <h3 className="font-bold text-xs font-mono" style={{ color: '#e6edf3' }} {...ed(['projects', i, 'name'])} dangerouslySetInnerHTML={{ __html: proj.name }} />
                                         <div className="flex items-center gap-2 flex-shrink-0">
                                             {proj.link && (
-                                                <a href={proj.link} target="_blank" rel="noopener noreferrer" className="flex items-center gap-0.5 text-[10.5px] font-bold" style={{ color: accent }}>
+                                                <a href={proj.link} target="_blank" rel="noopener noreferrer" className="flex items-center gap-0.5 text-[10.5px] font-bold" style={{ color: INK_LINK }}>
                                                     <GitHubIcon /><span>GitHub</span>
                                                 </a>
                                             )}

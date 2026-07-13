@@ -60,7 +60,7 @@ const TemplateTimeline: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdi
             <div className="relative border-l-2 border-slate-200 pl-8 space-y-5">
               {cvData.experience.map((job, index) => (
                 <div key={index} className="relative">
-                  <div className="absolute -left-[38px] top-1 h-3 w-3 rounded-full border-2 border-white" style={{ backgroundColor: accent }}></div>
+                  <div className="absolute -left-[38px] top-1 h-3 w-3 rounded-full border-2 border-white bg-slate-400"></div>
                   <p className="text-sm font-semibold text-slate-500 mb-1" {...editableProps(['experience', index, 'dates'])}>{job.dates}</p>
                   <h3 className="text-base font-bold" {...editableProps(['experience', index, 'jobTitle'])}>{job.jobTitle}</h3>
                   <p className="text-md text-slate-600 font-medium" {...editableProps(['experience', index, 'company'])}>{job.company}</p>

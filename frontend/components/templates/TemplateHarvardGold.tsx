@@ -4,6 +4,7 @@ import HiddenATSKeywords from '../HiddenATSKeywords';
 import { CVData, PersonalInfo, ProfileSectionKey, DEFAULT_SECTION_ORDER } from '../../types';
 import { Trash } from '../icons';
 import { TemplateCustomSections } from './sharedSections';
+import { INK_META, INK_LINK } from './styleTokens';
 
 interface TemplateProps {
     cvData: CVData;
@@ -76,7 +77,7 @@ const TemplateHarvardGold: React.FC<TemplateProps> = ({ cvData, personalInfo, is
                                     )}
                                     <div className="flex justify-between items-baseline">
                                         <h3 className="text-lg font-bold text-slate-900 leading-tight" {...editableProps(['experience', index, 'jobTitle'])}>{job.jobTitle}</h3>
-                                        <span className="text-sm font-medium text-amber-800/80 whitespace-nowrap ml-4" {...editableProps(['experience', index, 'dates'])}>{job.dates}</span>
+                                        <span className="text-sm font-medium whitespace-nowrap ml-4" style={{ color: INK_META }} {...editableProps(['experience', index, 'dates'])}>{job.dates}</span>
                                     </div>
                                     <p className="text-base font-semibold text-slate-700 italic mb-2" {...editableProps(['experience', index, 'company'])}>{job.company}</p>
                                     <ul className="list-disc list-outside ml-5 space-y-1.5 text-slate-700">
@@ -98,7 +99,7 @@ const TemplateHarvardGold: React.FC<TemplateProps> = ({ cvData, personalInfo, is
                                 <div key={index}>
                                     <div className="flex justify-between items-baseline">
                                         <h3 className="text-base font-bold text-slate-900" {...editableProps(['education', index, 'degree'])}>{edu.degree}</h3>
-                                        <span className="text-sm font-medium text-amber-800/80" {...editableProps(['education', index, 'year'])}>{edu.year}</span>
+                                        <span className="text-sm font-medium" style={{ color: INK_META }} {...editableProps(['education', index, 'year'])}>{edu.year}</span>
                                     </div>
                                     <p className="text-sm text-slate-600 italic" {...editableProps(['education', index, 'school'])}>{edu.school}</p>
                                     {edu.description && <p className="text-sm text-slate-500 mt-0.5" dangerouslySetInnerHTML={{ __html: edu.description }} />}
@@ -137,7 +138,7 @@ const TemplateHarvardGold: React.FC<TemplateProps> = ({ cvData, personalInfo, is
                                 <div key={index}>
                                     <div className="flex items-baseline gap-2">
                                         <h3 className="text-base font-bold text-slate-900 leading-tight" {...editableProps(['projects', index, 'name'])}>{proj.name}</h3>
-                                        {proj.link && <a href={proj.link} className="text-xs text-amber-700 hover:underline">[link]</a>}
+                                        {proj.link && <a href={proj.link} className="text-xs hover:underline" style={{ color: INK_LINK }}>[link]</a>}
                                     </div>
                                     <p className="text-sm text-slate-700 mt-1" dangerouslySetInnerHTML={{ __html: proj.description }} {...editableProps(['projects', index, 'description'])} />
                                 </div>
@@ -184,7 +185,7 @@ const TemplateHarvardGold: React.FC<TemplateProps> = ({ cvData, personalInfo, is
                     {personalInfo.location && <span>{personalInfo.location}</span>}
                     {personalInfo.phone && <><span className="text-amber-600/40">|</span><span>{personalInfo.phone}</span></>}
                     {personalInfo.email && <><span className="text-amber-600/40">|</span><span>{personalInfo.email}</span></>}
-                    {personalInfo.linkedin && <><span className="text-amber-600/40">|</span><span className="text-amber-800">LinkedIn</span></>}
+                    {personalInfo.linkedin && <><span className="text-amber-600/40">|</span><span style={{ color: INK_LINK }}>LinkedIn</span></>}
                 </div>
             </header>
 
@@ -198,7 +199,7 @@ const TemplateHarvardGold: React.FC<TemplateProps> = ({ cvData, personalInfo, is
                                 <p key={index} className="text-sm text-slate-700">
                                     <span className="font-bold" {...editableProps(['publications', index, 'title'])}>{pub.title}</span>.{' '}
                                     <span className="italic" {...editableProps(['publications', index, 'authors'])}>{pub.authors.join(', ')}</span>.{' '}
-                                    <span className="text-amber-800/80" {...editableProps(['publications', index, 'journal'])}>{pub.journal}</span>, <span {...editableProps(['publications', index, 'year'])}>{pub.year}</span>.
+                                    <span style={{ color: INK_META }} {...editableProps(['publications', index, 'journal'])}>{pub.journal}</span>, <span {...editableProps(['publications', index, 'year'])}>{pub.year}</span>.
                                 </p>
                             ))}
                         </div>

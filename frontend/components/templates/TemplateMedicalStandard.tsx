@@ -4,6 +4,7 @@ import HiddenATSKeywords from '../HiddenATSKeywords';
 import { CVData, PersonalInfo } from '../../types';
 import { Trash } from '../icons';
 import { TemplateCustomSections } from './sharedSections';
+import { INK_SUBLINE, INK_DOT } from './styleTokens';
 
 interface TemplateProps {
     cvData: CVData;
@@ -55,7 +56,7 @@ const TemplateMedicalStandard: React.FC<TemplateProps> = ({ cvData, personalInfo
                 <div>
                     <h1 className="text-4xl font-black tracking-tight text-slate-900 mb-2 uppercase">
                         {personalInfo.name}
-                        <span className="ml-2" style={{ color: accent }}>, MD/RN</span>
+                        <span className="ml-2 text-slate-500">, MD/RN</span>
                     </h1>
                     <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm font-bold text-slate-400 uppercase tracking-widest">
                         <span>{personalInfo.email}</span>
@@ -93,14 +94,14 @@ const TemplateMedicalStandard: React.FC<TemplateProps> = ({ cvData, personalInfo
                                     <div className="flex flex-col sm:flex-row justify-between items-start mb-6 gap-4">
                                         <div>
                                             <h3 className="text-xl font-black text-slate-800 uppercase italic leading-none" {...editableProps(['experience', index, 'jobTitle'])}>{job.jobTitle}</h3>
-                                            <p className="text-sm font-bold uppercase tracking-wider mt-2" style={{ color: accent }}>{job.company}</p>
+                                            <p className="text-sm font-bold uppercase tracking-wider mt-2" style={{ color: INK_SUBLINE }}>{job.company}</p>
                                         </div>
                                         <span className="text-xs font-black text-slate-400 bg-slate-50 px-3 py-1 rounded-full whitespace-nowrap" {...editableProps(['experience', index, 'dates'])}>{job.dates}</span>
                                     </div>
                                     <ul className="grid grid-cols-1 gap-4">
                                         {job.responsibilities.map((resp, i) => (
                                             <li key={i} className="flex gap-4 items-start text-sm text-slate-600">
-                                                <div className="w-1.5 h-1.5 rounded-full mt-2 shrink-0" style={{ backgroundColor: accent + '66' }} />
+                                                <div className="w-1.5 h-1.5 rounded-full mt-2 shrink-0" style={{ backgroundColor: INK_DOT }} />
                                                 <span dangerouslySetInnerHTML={{ __html: cleanBulletHtml(resp) }} {...editableProps(['experience', index, 'responsibilities', i])} />
                                             </li>
                                         ))}
@@ -133,7 +134,7 @@ const TemplateMedicalStandard: React.FC<TemplateProps> = ({ cvData, personalInfo
                             {cvData.education.map((edu, idx) => (
                                 <div key={idx} className="relative pl-6" style={{ borderLeft: `2px solid ${accent}33` }}>
                                     <h3 className="text-base font-black text-slate-800" {...editableProps(['education', idx, 'degree'])}>{edu.degree}</h3>
-                                    <p className="text-xs font-bold uppercase tracking-wider mt-1" style={{ color: accent }}>{edu.school}</p>
+                                    <p className="text-xs font-bold uppercase tracking-wider mt-1" style={{ color: INK_SUBLINE }}>{edu.school}</p>
                                     <p className="text-[10px] font-black text-slate-300 uppercase mt-2">{edu.year}</p>
                                 </div>
                             ))}
@@ -147,7 +148,7 @@ const TemplateMedicalStandard: React.FC<TemplateProps> = ({ cvData, personalInfo
                                 {cvData.languages.map((lang, idx) => (
                                     <div key={idx} className="flex justify-between items-center text-sm">
                                         <span className="font-bold text-slate-700">{lang.name}</span>
-                                        <span className="text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full" style={{ color: accent, backgroundColor: accent + '1a' }}>{lang.proficiency}</span>
+                                        <span className="text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">{lang.proficiency}</span>
                                     </div>
                                 ))}
                             </div>
