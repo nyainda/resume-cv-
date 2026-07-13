@@ -179,6 +179,74 @@ export const FONT_PAIRINGS: FontPairing[] = [
     body: "'Lato', sans-serif",
     category: 'mixed',
   },
+
+  // ── Extended sans-serif pairs ──────────────────────────────────────────────
+  {
+    id: 'space-grotesk',
+    name: 'Digital',
+    description: 'Geometric · techy',
+    heading: "'Space Grotesk', sans-serif",
+    body: "'DM Sans', sans-serif",
+    category: 'sans',
+  },
+  {
+    id: 'manrope',
+    name: 'Precision',
+    description: 'Variable · refined',
+    heading: "'Manrope', sans-serif",
+    body: "'Manrope', sans-serif",
+    category: 'sans',
+  },
+  {
+    id: 'sora-inter',
+    name: 'Future',
+    description: 'Futuristic · clean',
+    heading: "'Sora', sans-serif",
+    body: "'Inter', sans-serif",
+    category: 'sans',
+  },
+  {
+    id: 'outfit',
+    name: 'Versatile',
+    description: 'Balanced · universal',
+    heading: "'Outfit', sans-serif",
+    body: "'Outfit', sans-serif",
+    category: 'sans',
+  },
+
+  // ── Extended mixed pairs ───────────────────────────────────────────────────
+  {
+    id: 'fraunces-nunito',
+    name: 'Artisan',
+    description: 'Optical serif · friendly',
+    heading: "'Fraunces', Georgia, serif",
+    body: "'Nunito', sans-serif",
+    category: 'mixed',
+  },
+  {
+    id: 'dm-serif-dm-sans',
+    name: 'Editorial Modern',
+    description: 'Display serif · precise',
+    heading: "'DM Serif Display', Georgia, serif",
+    body: "'DM Sans', sans-serif",
+    category: 'mixed',
+  },
+  {
+    id: 'lora-source',
+    name: 'Literary Pro',
+    description: 'Warm serif · neutral',
+    heading: "'Lora', Georgia, serif",
+    body: "'Source Sans 3', sans-serif",
+    category: 'mixed',
+  },
+  {
+    id: 'spectral-lato',
+    name: 'Scholar',
+    description: 'Reading serif · clean',
+    heading: "'Spectral', Georgia, serif",
+    body: "'Lato', sans-serif",
+    category: 'mixed',
+  },
 ];
 
 /** O(1) lookup map — used by TemplateV2 to resolve cvData.fontPairing. */

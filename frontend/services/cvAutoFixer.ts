@@ -37,7 +37,7 @@ function cloneCV(cv: CVData): CVData {
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function extractStartingVerb(bullet: string): string {
-  const cleaned = bullet.trim().replace(/^[•\-–—*]\s*/, '');
+  const cleaned = bullet.trim().replace(/^[•\-–—*►▶▸▹→‣⁃◆◇○●]\s*/, '');
   return cleaned.split(/[\s,;:]/)[0].toLowerCase().replace(/[^a-z]/g, '');
 }
 

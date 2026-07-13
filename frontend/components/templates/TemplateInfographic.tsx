@@ -1,4 +1,5 @@
 import React, { useCallback } from 'react';
+import { cleanBulletHtml } from './templateUtils';
 import HiddenATSKeywords from '../HiddenATSKeywords';
 import { CVData, PersonalInfo } from '../../types';
 import { Mail, Phone, MapPin, Linkedin, Github } from 'lucide-react';
@@ -142,7 +143,7 @@ const TemplateInfographic: React.FC<TemplateProps> = ({ cvData, personalInfo, is
                     <p className="text-xs font-medium mb-1" style={{ color: accent }} {...editableProps(['experience', index, 'company'])}>{job.company}</p>
                     <ul className="list-disc list-outside ml-4 space-y-0.5 text-xs">
                       {job.responsibilities.map((resp, i) => (
-                        <li key={i} dangerouslySetInnerHTML={{ __html: resp }} {...editableProps(['experience', index, 'responsibilities', i])} />
+                        <li key={i} dangerouslySetInnerHTML={{ __html: cleanBulletHtml(resp) }} {...editableProps(['experience', index, 'responsibilities', i])} />
                       ))}
                     </ul>
                   </div>

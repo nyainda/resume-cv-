@@ -1,4 +1,5 @@
 import React, { useCallback } from 'react';
+import { cleanBulletHtml } from './templateUtils';
 import HiddenATSKeywords from '../HiddenATSKeywords';
 import { CVData, PersonalInfo, ProfileSectionKey, DEFAULT_SECTION_ORDER } from '../../types';
 import { Trash } from '../icons';
@@ -62,7 +63,7 @@ const TemplateProfessional: React.FC<TemplateProps> = ({ cvData, personalInfo, i
   const Bullet: React.FC<{ html: string; editProps?: any }> = ({ html, editProps }) => (
     <li className="flex gap-2.5 text-sm leading-relaxed text-zinc-700">
       <span className="mt-[7px] w-1 h-1 rounded-full shrink-0" style={{ backgroundColor: accent, opacity: 0.55 }} />
-      <span dangerouslySetInnerHTML={{ __html: html }} {...editProps} />
+      <span dangerouslySetInnerHTML={{ __html: cleanBulletHtml(html) }} {...editProps} />
     </li>
   );
 

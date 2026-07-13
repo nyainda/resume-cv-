@@ -1,4 +1,5 @@
 import React, { useCallback } from 'react';
+import { cleanBulletHtml } from './templateUtils';
 import HiddenATSKeywords from '../HiddenATSKeywords';
 import { CVData, PersonalInfo, ProfileSectionKey, DEFAULT_SECTION_ORDER } from '../../types';
 import { Trash } from '../icons';
@@ -80,7 +81,7 @@ const TemplateHarvardGold: React.FC<TemplateProps> = ({ cvData, personalInfo, is
                                     <p className="text-base font-semibold text-slate-700 italic mb-2" {...editableProps(['experience', index, 'company'])}>{job.company}</p>
                                     <ul className="list-disc list-outside ml-5 space-y-1.5 text-slate-700">
                                         {job.responsibilities.map((resp, i) => (
-                                            <li key={i} dangerouslySetInnerHTML={{ __html: resp }} {...editableProps(['experience', index, 'responsibilities', i])} />
+                                            <li key={i} dangerouslySetInnerHTML={{ __html: cleanBulletHtml(resp) }} {...editableProps(['experience', index, 'responsibilities', i])} />
                                         ))}
                                     </ul>
                                 </div>
@@ -100,7 +101,7 @@ const TemplateHarvardGold: React.FC<TemplateProps> = ({ cvData, personalInfo, is
                                         <span className="text-sm font-medium text-amber-800/80" {...editableProps(['education', index, 'year'])}>{edu.year}</span>
                                     </div>
                                     <p className="text-sm text-slate-600 italic" {...editableProps(['education', index, 'school'])}>{edu.school}</p>
-                                    {edu.description && <p className="text-xs text-slate-500 mt-0.5" dangerouslySetInnerHTML={{ __html: edu.description }} />}
+                                    {edu.description && <p className="text-sm text-slate-500 mt-0.5" dangerouslySetInnerHTML={{ __html: edu.description }} />}
                                 </div>
                             ))}
                         </div>

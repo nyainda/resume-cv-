@@ -4,6 +4,7 @@ import HiddenATSKeywords from '../HiddenATSKeywords';
 import { CVData, PersonalInfo, ProfileSectionKey, DEFAULT_SECTION_ORDER } from '../../types';
 import { Trash } from '../icons';
 import { TemplateCustomSections } from './sharedSections';
+import { cleanBulletHtml } from './templateUtils';
 
 interface TemplateProps {
     cvData: CVData;
@@ -78,7 +79,7 @@ const TemplateMinimalist: React.FC<TemplateProps> = ({ cvData, personalInfo, isE
                                     <p className="text-base text-slate-600 mb-2" {...editableProps(['experience', index, 'company'])}>{job.company}</p>
                                     <ul className="list-disc list-outside ml-5 space-y-1.5 text-slate-700">
                                         {job.responsibilities.map((resp, i) => (
-                                            <li key={i} dangerouslySetInnerHTML={{ __html: resp }} {...editableProps(['experience', index, 'responsibilities', i])} />
+                                            <li key={i} dangerouslySetInnerHTML={{ __html: cleanBulletHtml(resp) }} {...editableProps(['experience', index, 'responsibilities', i])} />
                                         ))}
                                     </ul>
                                 </div>
@@ -118,7 +119,7 @@ const TemplateMinimalist: React.FC<TemplateProps> = ({ cvData, personalInfo, isE
                                     {[0, 1, 2].map(ci => (
                                         <ul key={ci} className="list-disc list-outside ml-4 space-y-0.5">
                                             {sk.slice(ci * perCol, (ci + 1) * perCol).map((s, si) => (
-                                                <li key={si} className="text-sm text-slate-700">{s}</li>
+                                                <li key={si} className="text-base text-slate-700">{s}</li>
                                             ))}
                                         </ul>
                                     ))}

@@ -3,6 +3,7 @@ import { CVData, PersonalInfo, CustomSection, CustomSectionItem } from '../../..
 import HiddenATSKeywords from '../../HiddenATSKeywords';
 import { getTheme, TemplateTheme, ContentDensity, DensityScale, DENSITY_SCALES, applyFontScale } from './templateThemes';
 import { FONT_PAIRING_MAP } from './fontPairings';
+import { cleanBulletHtml } from '../templateUtils';
 
 interface TemplateV2Props {
   cvData: CVData;
@@ -276,7 +277,7 @@ const SidebarHead: React.FC<{ title: string; theme: TemplateTheme; sc: DensitySc
 const Bullet: React.FC<{ text: string; theme: TemplateTheme; sc: DensityScale; isEditing: boolean; onBlur: (v: string) => void }> = ({ text, theme, sc, isEditing, onBlur }) => (
   <div style={{ display: 'flex', gap: 5, marginBottom: sc.bulletGap, alignItems: 'flex-start' }}>
     <span style={{ color: theme.accent, fontSize: '8px', marginTop: '2.5px', flexShrink: 0, fontFamily: theme.fontBody }}>{theme.bulletChar}</span>
-    <span style={{ fontSize: sc.bodySize, color: theme.bodyText, lineHeight: sc.lineH, fontFamily: theme.fontBody, flex: 1 }} {...editable(isEditing, onBlur)}>{text}</span>
+    <span style={{ fontSize: sc.bodySize, color: theme.bodyText, lineHeight: sc.lineH, fontFamily: theme.fontBody, flex: 1 }} {...editable(isEditing, onBlur)}>{cleanBulletHtml(text)}</span>
   </div>
 );
 

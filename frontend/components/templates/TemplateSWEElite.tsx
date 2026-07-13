@@ -1,4 +1,5 @@
 import React, { useCallback } from 'react';
+import { cleanBulletHtml } from './templateUtils';
 import { CVData, PersonalInfo } from '../../types';
 
 interface TemplateProps {
@@ -217,7 +218,7 @@ const TemplateSWEElite: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdi
                                         {job.responsibilities.map((resp, j) => (
                                             <li key={j} className="flex items-start gap-2 text-xs text-slate-600 leading-relaxed">
                                                 <span className="mt-0.5 font-black flex-shrink-0" style={{ color: accent }}>▸</span>
-                                                <span {...editable(['experience', i, 'responsibilities', j])} dangerouslySetInnerHTML={{ __html: resp }} />
+                                                <span {...editable(['experience', i, 'responsibilities', j])} dangerouslySetInnerHTML={{ __html: cleanBulletHtml(resp) }} />
                                             </li>
                                         ))}
                                     </ul>

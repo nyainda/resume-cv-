@@ -1,4 +1,5 @@
 import React, { useCallback } from 'react';
+import { cleanBulletHtml } from './templateUtils';
 import HiddenATSKeywords from '../HiddenATSKeywords';
 import { CVData, PersonalInfo } from '../../types';
 import { TemplateCustomSections } from './sharedSections';
@@ -137,7 +138,7 @@ const TemplateCreative: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdi
                     <p className="text-[10px] font-medium text-slate-600" {...editableProps(['experience', index, 'company'])}>{job.company}</p>
                     <ul className="list-disc list-outside ml-4 mt-1 space-y-0.5 text-[10px] text-slate-700">
                       {job.responsibilities.map((resp, i) => (
-                        <li key={i} dangerouslySetInnerHTML={{ __html: resp }} {...editableProps(['experience', index, 'responsibilities', i])} />
+                        <li key={i} dangerouslySetInnerHTML={{ __html: cleanBulletHtml(resp) }} {...editableProps(['experience', index, 'responsibilities', i])} />
                       ))}
                     </ul>
                   </div>

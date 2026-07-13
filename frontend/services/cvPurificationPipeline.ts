@@ -1118,7 +1118,7 @@ function stripMarkupArtifacts(text: string): { text: string; changed: boolean } 
     out = out.replace(/__(.+?)__/g, '$1');                  // __bold__
     out = out.replace(/(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)/g, '$1'); // *italic*
     out = out.replace(/`([^`]+)`/g, '$1');                  // `code`
-    out = out.replace(/^[\s]*[-•·*»]\s+/, '');              // leading bullet glyph
+    out = out.replace(/^[\s]*[-•·*»►▶▸▹→‣⁃◆◇○●]\s+/, ''); // leading bullet glyph
     return { text: out, changed: out !== text };
 }
 

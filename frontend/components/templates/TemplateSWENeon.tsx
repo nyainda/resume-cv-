@@ -1,4 +1,5 @@
 import React, { useCallback } from 'react';
+import { cleanBulletHtml } from './templateUtils';
 import { CVData, PersonalInfo } from '../../types';
 import { TemplateCustomSections } from './sharedSections';
 
@@ -191,7 +192,7 @@ const TemplateSWENeon: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdit
                                         {job.responsibilities.map((r, j) => (
                                             <li key={j} className="flex items-start gap-1.5 text-[10px] leading-relaxed" style={{ color: '#8b949e' }}>
                                                 <span className="flex-shrink-0 font-black mt-0.5" style={{ color: accent }}>›</span>
-                                                <span {...ed(['experience', i, 'responsibilities', j])} dangerouslySetInnerHTML={{ __html: r }} />
+                                                <span {...ed(['experience', i, 'responsibilities', j])} dangerouslySetInnerHTML={{ __html: cleanBulletHtml(r) }} />
                                             </li>
                                         ))}
                                     </ul>

@@ -1,4 +1,5 @@
 import React, { useCallback } from 'react';
+import { cleanBulletHtml } from './templateUtils';
 import HiddenATSKeywords from '../HiddenATSKeywords';
 import { CVData, PersonalInfo, ProfileSectionKey, DEFAULT_SECTION_ORDER } from '../../types';
 import { Trash } from '../icons';
@@ -82,7 +83,7 @@ const TemplateLondonFinance: React.FC<TemplateProps> = ({ cvData, personalInfo, 
                                     </div>
                                     <ul className="list-disc list-outside ml-6 space-y-1 text-[12px] text-justify">
                                         {job.responsibilities.map((resp, i) => (
-                                            <li key={i} dangerouslySetInnerHTML={{ __html: resp }} {...editableProps(['experience', index, 'responsibilities', i])} />
+                                            <li key={i} dangerouslySetInnerHTML={{ __html: cleanBulletHtml(resp) }} {...editableProps(['experience', index, 'responsibilities', i])} />
                                         ))}
                                     </ul>
                                 </div>

@@ -1,4 +1,5 @@
 import React, { useCallback } from 'react';
+import { cleanBulletHtml } from './templateUtils';
 import HiddenATSKeywords from '../HiddenATSKeywords';
 import { CVData, PersonalInfo } from '../../types';
 import { Trash } from '../icons';
@@ -73,7 +74,7 @@ const TemplateMedicalStandard: React.FC<TemplateProps> = ({ cvData, personalInfo
                 <div className="col-span-12 lg:col-span-8">
                     <section className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm mb-5">
                         <h2 className="text-xs font-black uppercase tracking-widest mb-3" style={{ color: accent }}>Clinical Summary</h2>
-                        <p className="text-base leading-relaxed text-slate-600" dangerouslySetInnerHTML={{ __html: cvData.summary }} {...editableProps(['summary'])} />
+                        <p className="text-sm leading-relaxed text-slate-600" dangerouslySetInnerHTML={{ __html: cvData.summary }} {...editableProps(['summary'])} />
                     </section>
 
                     <section>
@@ -100,7 +101,7 @@ const TemplateMedicalStandard: React.FC<TemplateProps> = ({ cvData, personalInfo
                                         {job.responsibilities.map((resp, i) => (
                                             <li key={i} className="flex gap-4 items-start text-sm text-slate-600">
                                                 <div className="w-1.5 h-1.5 rounded-full mt-2 shrink-0" style={{ backgroundColor: accent + '66' }} />
-                                                <span dangerouslySetInnerHTML={{ __html: resp }} {...editableProps(['experience', index, 'responsibilities', i])} />
+                                                <span dangerouslySetInnerHTML={{ __html: cleanBulletHtml(resp) }} {...editableProps(['experience', index, 'responsibilities', i])} />
                                             </li>
                                         ))}
                                     </ul>

@@ -1,4 +1,5 @@
 import React, { useCallback } from 'react';
+import { cleanBulletHtml } from './templateUtils';
 import { CVData, PersonalInfo, ProfileSectionKey, DEFAULT_SECTION_ORDER } from '../../types';
 import { Trash } from '../icons';
 import { TemplateCustomSections } from './sharedSections';
@@ -113,7 +114,7 @@ const TemplateATSCleanPro: React.FC<TemplateProps> = ({ cvData, personalInfo, is
                                         {job.responsibilities.map((r, i) => (
                                             <li key={i} className="flex items-start gap-2 text-xs text-slate-700">
                                                 <span className="text-cyan-600 font-black mt-0.5 flex-shrink-0">•</span>
-                                                <span dangerouslySetInnerHTML={{ __html: r }} {...editableProps(['experience', index, 'responsibilities', i])} />
+                                                <span dangerouslySetInnerHTML={{ __html: cleanBulletHtml(r) }} {...editableProps(['experience', index, 'responsibilities', i])} />
                                             </li>
                                         ))}
                                     </ul>
