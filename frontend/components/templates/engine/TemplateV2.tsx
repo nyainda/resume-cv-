@@ -1076,6 +1076,28 @@ const TemplateV2: React.FC<TemplateV2Props> = ({ cvData, personalInfo, isEditing
     };
   }
 
+  // Apply user header-panel colour override.
+  // Auto-selects legible text colours based on whether the chosen background is dark or light,
+  // so the name and contact info always remain readable regardless of what colour is picked.
+  if (cvData.headerBgColor) {
+    const hbg = cvData.headerBgColor;
+    // Simple perceived-luminance check: (R×299 + G×587 + B×114) / 1000
+    const hex = hbg.replace('#', '');
+    const r = parseInt(hex.slice(0, 2), 16) || 0;
+    const g = parseInt(hex.slice(2, 4), 16) || 0;
+    const b = parseInt(hex.slice(4, 6), 16) || 0;
+    const luminance = (r * 299 + g * 587 + b * 114) / 1000;
+    const isDark = luminance < 140;
+    theme = {
+      ...theme,
+      headerBg: hbg,
+      headerText:      isDark ? '#ffffff'           : '#111827',
+      headerTitleColor: isDark ? 'rgba(255,255,255,0.80)' : '#374151',
+      // Sync accentBar with the header panel when the theme uses one
+      accentBar: theme.accentBar ? hbg : undefined,
+    };
+  }
+
   // Apply user font-pairing override
   if (cvData.fontPairing && FONT_PAIRING_MAP[cvData.fontPairing]) {
     const fp = FONT_PAIRING_MAP[cvData.fontPairing];

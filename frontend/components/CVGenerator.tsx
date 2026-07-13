@@ -2798,9 +2798,9 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
           {/* ── V2 Theme & Font Picker ────────────────────────────────────────
               Only visible for V2 engine templates. Lets the user override the
               accent colour and font pairing on any V2 template in real-time. */}
-          {V2_TEMPLATE_IDS.includes(template as string) && (
-            <V2ThemePicker cvData={currentCV} onChange={(cv) => { setCurrentCV(cv); syncCurrentCVToD1(cv); }} />
-          )}
+          {/* All templates now render via the V2 engine (legacy names redirect at load time),
+              so the picker is always shown. */}
+          <V2ThemePicker cvData={currentCV} onChange={(cv) => { setCurrentCV(cv); syncCurrentCVToD1(cv); }} />
 
           {/* ── Import Quality Report ─────────────────────────────────────── */}
           {showImportReport && (() => {

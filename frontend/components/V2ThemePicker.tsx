@@ -20,6 +20,18 @@ const ACCENT_COLORS = [
   { label: 'Black',     value: '#111111' },
 ];
 
+// Header panel presets — picked for contrast + elegance across themes
+const HEADER_BG_COLORS = [
+  { label: 'White',     value: '#ffffff' },
+  { label: 'Navy',      value: '#1B2B4B' },
+  { label: 'Charcoal',  value: '#1f2937' },
+  { label: 'Forest',    value: '#1a3a2a' },
+  { label: 'Burgundy',  value: '#5b1a2e' },
+  { label: 'Slate',     value: '#334155' },
+  { label: 'Warm',      value: '#2d2520' },
+  { label: 'Ink',       value: '#111111' },
+];
+
 // Font pairings are sourced from the shared fontPairings.ts — no local copy needed.
 const PICKER_FONT_PAIRINGS = FONT_PAIRINGS.filter(fp => fp.id !== 'default');
 
@@ -43,28 +55,20 @@ const BULLET_STYLES = [
 ] as const;
 
 const V2ThemePicker: React.FC<V2ThemePickerProps> = ({ cvData, onChange }) => {
-  const colorInputRef = useRef<HTMLInputElement>(null);
+  const colorInputRef    = useRef<HTMLInputElement>(null);
+  const headerInputRef   = useRef<HTMLInputElement>(null);
 
-  const setAccent = (value: string) => {
-    onChange({ ...cvData, accentColor: value });
-  };
+  const setAccent = (value: string) => onChange({ ...cvData, accentColor: value });
+  const setHeaderBg = (value: string) => onChange({ ...cvData, headerBgColor: value });
+  const setFont   = (id: string)   => onChange({ ...cvData, fontPairing: cvData.fontPairing === id ? undefined : id });
+  const setScale  = (v: number)    => onChange({ ...cvData, fontScale: v === 1.0 ? undefined : v });
+  const setBullet = (char: string) => onChange({ ...cvData, bulletStyle: cvData.bulletStyle === char ? undefined : char });
 
-  const setFont = (id: string) => {
-    onChange({ ...cvData, fontPairing: cvData.fontPairing === id ? undefined : id });
-  };
-
-  const setScale = (v: number) => {
-    onChange({ ...cvData, fontScale: v === 1.0 ? undefined : v });
-  };
-
-  const setBullet = (char: string) => {
-    onChange({ ...cvData, bulletStyle: cvData.bulletStyle === char ? undefined : char });
-  };
-
-  const currentAccent  = cvData.accentColor  ?? '';
-  const currentFont    = cvData.fontPairing  ?? '';
-  const currentScale   = cvData.fontScale    ?? 1.0;
-  const currentBullet  = cvData.bulletStyle  ?? '';
+  const currentAccent   = cvData.accentColor   ?? '';
+  const currentHeaderBg = cvData.headerBgColor ?? '';
+  const currentFont     = cvData.fontPairing   ?? '';
+  const currentScale    = cvData.fontScale     ?? 1.0;
+  const currentBullet   = cvData.bulletStyle   ?? '';
 
   return (
     <div className="mt-5 space-y-4">
@@ -142,6 +146,89 @@ const V2ThemePicker: React.FC<V2ThemePickerProps> = ({ cvData, onChange }) => {
               style={{ background: currentAccent + '22', color: currentAccent }}
             >
               {currentAccent.toUpperCase()}
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* ── Header panel colour ──────────────────────────────────────────── */}
+      <div>
+        <div className="flex items-center justify-between mb-2">
+          <div>
+            <span className="text-[10px] font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-widest">
+              Header Panel
+            </span>
+            <span className="ml-2 text-[9px] text-zinc-400 dark:text-zinc-500">Name &amp; contact background</span>
+          </div>
+          {currentHeaderBg && (
+            <button
+              type="button"
+              onClick={() => onChange({ ...cvData, headerBgColor: undefined })}
+              className="text-[10px] text-zinc-400 hover:text-rose-500 dark:text-zinc-500 dark:hover:text-rose-400 transition-colors"
+            >
+              Reset
+            </button>
+          )}
+        </div>
+        <div className="flex flex-wrap items-center gap-2 p-2.5 rounded-lg bg-zinc-50 dark:bg-neutral-800/50 border border-zinc-200 dark:border-neutral-700">
+          {HEADER_BG_COLORS.map(({ label, value }) => {
+            const active = currentHeaderBg.toLowerCase() === value.toLowerCase();
+            return (
+              <button
+                key={value}
+                type="button"
+                title={label}
+                onClick={() => setHeaderBg(value)}
+                className={`w-6 h-6 rounded-full border-2 transition-all duration-100 hover:scale-110 focus:outline-none ${
+                  active
+                    ? 'border-white ring-2 ring-offset-1 ring-zinc-400 dark:ring-zinc-500 scale-110'
+                    : value === '#ffffff'
+                      ? 'border-zinc-300 dark:border-neutral-600 hover:border-zinc-400'
+                      : 'border-transparent hover:border-white/60'
+                }`}
+                style={{ background: value }}
+                aria-pressed={active}
+                aria-label={label}
+              />
+            );
+          })}
+
+          {/* Custom colour */}
+          <div className="relative">
+            <button
+              type="button"
+              title="Custom colour"
+              onClick={() => headerInputRef.current?.click()}
+              className={`w-6 h-6 rounded-full border-2 transition-all duration-100 hover:scale-110 focus:outline-none flex items-center justify-center overflow-hidden ${
+                currentHeaderBg && !HEADER_BG_COLORS.some(c => c.value.toLowerCase() === currentHeaderBg.toLowerCase())
+                  ? 'border-white ring-2 ring-offset-1 ring-zinc-400 dark:ring-zinc-500 scale-110'
+                  : 'border-dashed border-zinc-300 dark:border-neutral-600'
+              }`}
+              style={
+                currentHeaderBg && !HEADER_BG_COLORS.some(c => c.value.toLowerCase() === currentHeaderBg.toLowerCase())
+                  ? { background: currentHeaderBg }
+                  : { background: 'conic-gradient(red, orange, yellow, green, blue, violet, red)' }
+              }
+              aria-label="Custom colour"
+            />
+            <input
+              ref={headerInputRef}
+              type="color"
+              value={currentHeaderBg || '#1B2B4B'}
+              onChange={e => setHeaderBg(e.target.value)}
+              className="absolute inset-0 opacity-0 w-full h-full cursor-pointer"
+              aria-hidden="true"
+              tabIndex={-1}
+            />
+          </div>
+
+          {/* Active preview */}
+          {currentHeaderBg && currentHeaderBg !== '#ffffff' && (
+            <span
+              className="ml-auto text-[11px] font-mono font-medium px-2 py-0.5 rounded"
+              style={{ background: currentHeaderBg + '22', color: currentHeaderBg }}
+            >
+              {currentHeaderBg.toUpperCase()}
             </span>
           )}
         </div>

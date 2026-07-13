@@ -255,11 +255,12 @@ export interface CVData {
   achievements?: string[]; // key achievements, awards, honors
   customSections?: CustomSection[]; // user-defined extra sections
   sectionOrder?: ProfileSectionKey[]; // mirrors the profile's preferred section ordering
-  accentColor?: string; // custom accent color for the selected template
-  fontPairing?: string; // custom font pairing key for V2 templates (e.g. 'playfair-dm')
-  fontScale?: number;   // user-adjustable text-size multiplier for V2 templates (0.88–1.20, default 1.0)
-  bulletStyle?: string; // user-chosen bullet character for V2 templates (e.g. '▸', '◆', '–')
-  onePage?: boolean;   // user wants content compressed to fit a single A4 page
+  accentColor?: string;    // section label colour (EXPERIENCE, EDUCATION …) — Tier 1 only
+  headerBgColor?: string;  // header panel background override; text colour auto-adjusted for contrast
+  fontPairing?: string;    // custom font pairing key for V2 templates (e.g. 'playfair-dm')
+  fontScale?: number;      // user-adjustable text-size multiplier for V2 templates (0.88–1.20, default 1.0)
+  bulletStyle?: string;    // user-chosen bullet character for V2 templates (e.g. '▸', '◆', '–')
+  onePage?: boolean;       // user wants content compressed to fit a single A4 page
   density?: number;
   /** Resolved spacing compression level (0–3) from the two-phase convergence loop. Persisted alongside density. */
   spacingLevel?: number;    // resolved zoom level from the one-page convergence loop (0.85–1.0); persisted so re-open matches last PDF
