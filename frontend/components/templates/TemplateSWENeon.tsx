@@ -213,7 +213,7 @@ const TemplateSWENeon: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdit
                         </div>
                         <div className="grid grid-cols-1 gap-2">
                             {cvData.projects.map((proj, i) => (
-                                <div key={i} className="p-3 rounded-lg" style={{ background: accent + '0a', border: '1px solid rgba(6,182,212,0.12)' }}>
+                                <div key={i} className="p-3 rounded-lg" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
                                     <div className="flex items-center justify-between gap-2 mb-1">
                                         <h3 className="font-bold text-xs font-mono" style={{ color: '#e6edf3' }} {...ed(['projects', i, 'name'])} dangerouslySetInnerHTML={{ __html: proj.name }} />
                                         <div className="flex items-center gap-2 flex-shrink-0">
@@ -241,7 +241,7 @@ const TemplateSWENeon: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdit
                         </div>
                         <div className="flex flex-wrap gap-2">
                             {cvData.languages.map((l, i) => (
-                                <span key={i} className="text-[10px] px-2 py-0.5 rounded font-semibold" style={{ background: accent + '14', border: '1px solid rgba(6,182,212,0.2)', color: '#c9d1d9' }}>
+                                <span key={i} className="text-[10px] px-2 py-0.5 rounded font-semibold" style={{ background: 'rgba(139,148,158,0.12)', border: '1px solid rgba(139,148,158,0.2)', color: '#c9d1d9' }}>
                                     {l.name} <span style={{ color: '#484f58' }}>· {l.proficiency}</span>
                                 </span>
                             ))}

@@ -76,11 +76,11 @@ const TemplateTokyoNight: React.FC<TemplateProps> = ({ cvData, personalInfo, isE
                     <h3 className="text-sm font-bold text-white uppercase italic" {...editableProps(['experience', index, 'jobTitle'])}>{job.jobTitle}</h3>
                     <span className="text-[10px] font-black shrink-0 ml-2 text-slate-500" {...editableProps(['experience', index, 'dates'])}>{job.dates}</span>
                   </div>
-                  <p className="text-xs font-bold text-fuchsia-400 mb-1" {...editableProps(['experience', index, 'company'])}>{job.company}</p>
+                  <p className="text-xs font-bold text-slate-300 mb-1" {...editableProps(['experience', index, 'company'])}>{job.company}</p>
                   <ul className="space-y-1 text-xs text-slate-400">
                     {job.responsibilities.map((resp, i) => (
                       <li key={i} className="flex gap-2">
-                        <span className="text-fuchsia-500 shrink-0">{'>'}</span>
+                        <span className="text-slate-500 shrink-0">{'>'}</span>
                         <span dangerouslySetInnerHTML={{ __html: resp }} {...editableProps(['experience', index, 'responsibilities', i])} />
                       </li>
                     ))}
@@ -144,7 +144,7 @@ const TemplateTokyoNight: React.FC<TemplateProps> = ({ cvData, personalInfo, isE
               {cvData.education.map((edu, index) => (
                 <div key={index} className="border-l border-slate-800 pl-3 py-0.5">
                   <h3 className="text-[10px] font-black text-white uppercase leading-snug" {...editableProps(['education', index, 'degree'])}>{edu.degree}</h3>
-                  <p className="text-[10px] text-fuchsia-400 font-bold" {...editableProps(['education', index, 'school'])}>{edu.school}</p>
+                  <p className="text-[10px] text-slate-400 font-bold" {...editableProps(['education', index, 'school'])}>{edu.school}</p>
                   <p className="text-[10px] text-slate-500" {...editableProps(['education', index, 'year'])}>{edu.year}</p>
                 </div>
               ))}

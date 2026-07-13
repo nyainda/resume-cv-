@@ -276,7 +276,7 @@ const SidebarHead: React.FC<{ title: string; theme: TemplateTheme; sc: DensitySc
 // ─── Bullet row ───────────────────────────────────────────────────────────────
 const Bullet: React.FC<{ text: string; theme: TemplateTheme; sc: DensityScale; isEditing: boolean; onBlur: (v: string) => void }> = ({ text, theme, sc, isEditing, onBlur }) => (
   <div style={{ display: 'flex', gap: 5, marginBottom: sc.bulletGap, alignItems: 'flex-start' }}>
-    <span style={{ color: theme.accent, fontSize: '8px', marginTop: '2.5px', flexShrink: 0, fontFamily: theme.fontBody }}>{theme.bulletChar}</span>
+    <span style={{ color: theme.bodyMuted, fontSize: '8px', marginTop: '2.5px', flexShrink: 0, fontFamily: theme.fontBody }}>{theme.bulletChar}</span>
     <span style={{ fontSize: sc.bodySize, color: theme.bodyText, lineHeight: sc.lineH, fontFamily: theme.fontBody, flex: 1 }} {...editable(isEditing, onBlur)}>{cleanBulletHtml(text)}</span>
   </div>
 );
@@ -295,7 +295,7 @@ const RowMeta: React.FC<{ left: string; right?: string; sub?: string; theme: Tem
       <span style={{ fontSize: sc.bodySize, fontWeight: 700, color: theme.bodyText, fontFamily: theme.fontBody }}>{left}</span>
       {right && <span style={{ fontSize: sc.metaSize, color: theme.bodyMuted, fontFamily: theme.fontBody, flexShrink: 0 }}>{right}</span>}
     </div>
-    {sub && <div style={{ fontSize: sc.metaSize, color: theme.accent, fontWeight: 600, fontFamily: theme.fontBody, marginTop: 1 }}>{sub}</div>}
+    {sub && <div style={{ fontSize: sc.metaSize, color: theme.bodyMuted, fontWeight: 600, fontFamily: theme.fontBody, marginTop: 1 }}>{sub}</div>}
   </div>
 );
 
@@ -348,7 +348,7 @@ const ExperienceSection: React.FC<{ cvData: CVData; theme: TemplateTheme; sc: De
                 {...editable(isEditing, v => { const d = JSON.parse(JSON.stringify(cvData)); d.experience[ei].dates = v; onChange(d); })}>{exp.dates}</span>
             </span>
           </div>
-          {exp.jobTitle && <div style={{ fontSize: sc.metaSize, color: theme.accent, fontWeight: 600, fontFamily: theme.fontBody, marginBottom: 1 }}
+          {exp.jobTitle && <div style={{ fontSize: sc.metaSize, color: theme.bodyMuted, fontWeight: 600, fontFamily: theme.fontBody, marginBottom: 1 }}
             {...editable(isEditing, v => { const d = JSON.parse(JSON.stringify(cvData)); d.experience[ei].jobTitle = v; onChange(d); })}>{exp.jobTitle}</div>}
           {exp.location && <div style={{ fontSize: sc.metaSize, color: theme.bodyMuted, fontFamily: theme.fontBody, marginBottom: 2 }}
             {...editable(isEditing, v => { const d = JSON.parse(JSON.stringify(cvData)); d.experience[ei].location = v; onChange(d); })}>{exp.location}</div>}
@@ -394,7 +394,7 @@ const EducationSection: React.FC<{ cvData: CVData; theme: TemplateTheme; sc: Den
                 {edu.school}
               </span>
               {dateRange && (
-                <span style={{ fontSize: sc.metaSize, color: theme.accent, fontFamily: theme.fontBody, fontWeight: 600, flexShrink: 0 }}>
+                <span style={{ fontSize: sc.metaSize, color: theme.bodyMuted, fontFamily: theme.fontBody, fontWeight: 500, flexShrink: 0 }}>
                   {dateRange}
                 </span>
               )}
@@ -432,7 +432,7 @@ const ProjectsSection: React.FC<{ cvData: CVData; theme: TemplateTheme; sc: Dens
               {p.technologies.map((t, ti) => <Tag key={ti} label={t} theme={theme} sc={sc} />)}
             </div>
           ) : null}
-          {p.link && <div style={{ fontSize: sc.metaSize, color: theme.accent, marginTop: 2, fontFamily: theme.fontBody }}
+          {p.link && <div style={{ fontSize: sc.metaSize, color: theme.bodyMuted, marginTop: 2, fontFamily: theme.fontBody }}
             {...editable(isEditing, v => { const d = JSON.parse(JSON.stringify(cvData)); d.projects![i].link = v; onChange(d); })}>{p.link}</div>}
         </div>
       ))}
@@ -453,7 +453,7 @@ const SkillsSection: React.FC<{ skills: string[]; theme: TemplateTheme; sc: Dens
         <div style={{ display: 'grid', gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: `${sc.bulletGap + 1}px 12px` }}>
           {skills.map((s, i) => (
             <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 5, minWidth: 0 }}>
-              <span style={{ color: theme.accent, fontSize: '5px', flexShrink: 0, lineHeight: 1 }}>◆</span>
+              <span style={{ color: theme.bodyMuted, fontSize: '5px', flexShrink: 0, lineHeight: 1 }}>◆</span>
               <span style={{ fontSize: sc.bodySize, color: theme.bodyText, fontFamily: theme.fontBody, lineHeight: 1.4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {s}
               </span>
@@ -491,7 +491,7 @@ const LanguagesSection: React.FC<{ cvData: CVData; theme: TemplateTheme; sc: Den
             <span style={{ fontSize: sc.bodySize, fontFamily: theme.fontBody, color: theme.bodyText, fontWeight: 600 }}>{l.name}</span>
             <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
               {[1,2,3,4,5].map(n => (
-                <span key={n} style={{ width: 7, height: 7, borderRadius: '50%', background: n <= dots ? theme.accent : theme.borderColor, flexShrink: 0, display: 'inline-block' }} />
+                <span key={n} style={{ width: 7, height: 7, borderRadius: '50%', background: n <= dots ? theme.bodyMuted : theme.borderColor, flexShrink: 0, display: 'inline-block' }} />
               ))}
             </span>
           </div>
@@ -528,7 +528,7 @@ const CertificationsSection: React.FC<{ cvData: CVData; theme: TemplateTheme; sc
                 {...editable(isEditing, v => updateCert('issuer', v))}>{issuer}</div>}
             </div>
             {year && (
-              <span style={{ fontSize: sc.metaSize, color: theme.accent, fontFamily: theme.fontBody, fontWeight: 700, flexShrink: 0, marginTop: 1 }}
+              <span style={{ fontSize: sc.metaSize, color: theme.bodyMuted, fontFamily: theme.fontBody, fontWeight: 500, flexShrink: 0, marginTop: 1 }}
                 {...editable(isEditing, v => updateCert('year', v))}>{year}</span>
             )}
           </div>
@@ -560,7 +560,7 @@ const PublicationsSection: React.FC<{ cvData: CVData; theme: TemplateTheme; sc: 
         <div key={i} style={{ marginBottom: sc.itemGap }}>
           <div style={{ fontSize: sc.bodySize, fontWeight: 600, color: theme.bodyText, fontFamily: theme.fontBody }}>{p.title}</div>
           <div style={{ fontSize: sc.metaSize, color: theme.bodyMuted, fontFamily: theme.fontBody }}>{p.authors?.join(', ')} · {p.journal} · {p.year}</div>
-          {p.link && <div style={{ fontSize: sc.metaSize, color: theme.accent, fontFamily: theme.fontBody }}>{p.link}</div>}
+          {p.link && <div style={{ fontSize: sc.metaSize, color: theme.bodyMuted, fontFamily: theme.fontBody }}>{p.link}</div>}
         </div>
       ))}
     </Section>
@@ -577,7 +577,7 @@ const ReferencesSection: React.FC<{ cvData: CVData; theme: TemplateTheme; sc: De
           <div key={i} style={{ fontSize: sc.metaSize, fontFamily: theme.fontBody }}>
             <div style={{ fontWeight: 700, color: theme.bodyText }}>{r.name}</div>
             <div style={{ color: theme.bodyMuted }}>{r.title} · {r.company}</div>
-            <div style={{ color: theme.accent }}>{r.email}</div>
+            <div style={{ color: theme.bodyMuted }}>{r.email}</div>
           </div>
         ))}
       </div>
@@ -601,9 +601,9 @@ const CustomSectionsBlock: React.FC<{ sections: CustomSection[]; theme: Template
                 <span style={{ fontSize: sc.bodySize, fontWeight: 700, color: theme.bodyText, fontFamily: theme.fontBody }}>{item.title}</span>
                 {item.year && <span style={{ fontSize: sc.metaSize, color: theme.bodyMuted, fontFamily: theme.fontBody }}>{item.year}</span>}
               </div>
-              {item.subtitle && <div style={{ fontSize: sc.metaSize, color: theme.accent, fontWeight: 600, fontFamily: theme.fontBody }}>{item.subtitle}</div>}
+              {item.subtitle && <div style={{ fontSize: sc.metaSize, color: theme.bodyMuted, fontWeight: 600, fontFamily: theme.fontBody }}>{item.subtitle}</div>}
               {item.description && <div style={{ fontSize: sc.metaSize, color: theme.bodyMuted, lineHeight: sc.lineH, marginTop: 2, fontFamily: theme.fontBody }}>{item.description}</div>}
-              {item.link && <div style={{ fontSize: sc.metaSize, color: theme.accent, marginTop: 1, fontFamily: theme.fontBody }}>{item.link}</div>}
+              {item.link && <div style={{ fontSize: sc.metaSize, color: theme.bodyMuted, marginTop: 1, fontFamily: theme.fontBody }}>{item.link}</div>}
             </div>
           ))}
         </Section>
@@ -646,7 +646,7 @@ const SidebarContent: React.FC<SidebarContentProps> = ({ cvData, pi, theme, sc, 
           <SidebarHead title="Skills" theme={theme} sc={sc} />
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
             {cvData.skills.map((s, i) => (
-              <span key={i} style={{ fontSize: sc.tagSize, padding: '2px 6px', borderRadius: '3px', background: theme.accent + '22', color: textColor, border: `1px solid ${theme.accent}55`, fontFamily: theme.fontBody }}>
+              <span key={i} style={{ fontSize: sc.tagSize, padding: '2px 6px', borderRadius: '3px', background: theme.tagBg, color: theme.tagText, border: `1px solid ${theme.tagBorder}`, fontFamily: theme.fontBody }}>
                 {s}
               </span>
             ))}
@@ -694,7 +694,7 @@ const SidebarContent: React.FC<SidebarContentProps> = ({ cvData, pi, theme, sc, 
               <div key={i} style={{ marginBottom: 8 }}>
                 {edu.degree && <div style={{ fontSize: sc.sidebarBodySize, fontWeight: 700, color: textColor, fontFamily: theme.fontBody, lineHeight: 1.3 }}>{edu.degree}</div>}
                 <div style={{ fontSize: sc.metaSize, color: mutedColor, fontFamily: theme.fontBody, lineHeight: sc.lineH, marginTop: 1 }}>{edu.school}</div>
-                {dateRange && <div style={{ fontSize: sc.metaSize, color: theme.accent, fontFamily: theme.fontBody, marginTop: 1, fontWeight: 600 }}>{dateRange}</div>}
+                {dateRange && <div style={{ fontSize: sc.metaSize, color: mutedColor, fontFamily: theme.fontBody, marginTop: 1, fontWeight: 500 }}>{dateRange}</div>}
               </div>
             );
           })}
@@ -712,11 +712,11 @@ const SidebarContent: React.FC<SidebarContentProps> = ({ cvData, pi, theme, sc, 
               {p.technologies?.length ? (
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '2px 4px', marginTop: 3 }}>
                   {p.technologies.slice(0, 3).map((t, ti) => (
-                    <span key={ti} style={{ fontSize: sc.tagSize, color: theme.accent, fontFamily: theme.fontBody }}>#{t}</span>
+                    <span key={ti} style={{ fontSize: sc.tagSize, color: mutedColor, fontFamily: theme.fontBody }}>#{t}</span>
                   ))}
                 </div>
               ) : null}
-              {p.link && <div style={{ fontSize: sc.metaSize, color: theme.accent, fontFamily: theme.fontBody, marginTop: 1 }}>{p.link}</div>}
+              {p.link && <div style={{ fontSize: sc.metaSize, color: mutedColor, fontFamily: theme.fontBody, marginTop: 1 }}>{p.link}</div>}
             </div>
           ))}
         </div>
@@ -728,7 +728,7 @@ const SidebarContent: React.FC<SidebarContentProps> = ({ cvData, pi, theme, sc, 
           <SidebarHead title="Highlights" theme={theme} sc={sc} />
           {cvData.achievements.slice(0, 5).map((a, i) => (
             <div key={i} style={{ display: 'flex', gap: 5, marginBottom: 4, alignItems: 'flex-start' }}>
-              <span style={{ color: theme.accent, fontSize: sc.metaSize, marginTop: '1px', flexShrink: 0 }}>★</span>
+              <span style={{ color: mutedColor, fontSize: sc.metaSize, marginTop: '1px', flexShrink: 0 }}>★</span>
               <span style={{ fontSize: sc.sidebarBodySize, color: textColor, lineHeight: sc.lineH, fontFamily: theme.fontBody }}>{a}</span>
             </div>
           ))}
@@ -743,7 +743,7 @@ const SidebarContent: React.FC<SidebarContentProps> = ({ cvData, pi, theme, sc, 
             <div key={i} style={{ marginBottom: 6 }}>
               <div style={{ fontSize: sc.sidebarBodySize, fontWeight: 700, color: textColor, fontFamily: theme.fontBody }}>{r.name}</div>
               <div style={{ fontSize: sc.metaSize, color: mutedColor, fontFamily: theme.fontBody }}>{r.title}</div>
-              <div style={{ fontSize: sc.metaSize, color: theme.accent, fontFamily: theme.fontBody }}>{r.company}</div>
+              <div style={{ fontSize: sc.metaSize, color: mutedColor, fontFamily: theme.fontBody }}>{r.company}</div>
             </div>
           ))}
         </div>
@@ -778,7 +778,7 @@ const SidebarContent: React.FC<SidebarContentProps> = ({ cvData, pi, theme, sc, 
                 <span style={{ fontSize: sc.sidebarBodySize, fontWeight: 700, color: textColor, fontFamily: theme.fontBody, lineHeight: sc.lineH }}>{item.title}</span>
                 {item.year && <span style={{ fontSize: sc.metaSize, color: mutedColor, fontFamily: theme.fontBody, flexShrink: 0 }}>{item.year}</span>}
               </div>
-              {item.subtitle && <div style={{ fontSize: sc.metaSize, color: theme.accent, fontWeight: 600, fontFamily: theme.fontBody }}>{item.subtitle}</div>}
+              {item.subtitle && <div style={{ fontSize: sc.metaSize, color: mutedColor, fontWeight: 600, fontFamily: theme.fontBody }}>{item.subtitle}</div>}
               {item.description && <div style={{ fontSize: sc.metaSize, color: mutedColor, lineHeight: sc.lineH, marginTop: 2, fontFamily: theme.fontBody }}>{item.description}</div>}
             </div>
           ))}
@@ -963,7 +963,7 @@ const LayoutTwoColumn: React.FC<LayoutProps> = (props) => {
               <SidebarHead title="Skills" theme={theme} sc={sc} />
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
                 {cvData.skills.map((s, i) => (
-                  <span key={i} style={{ fontSize: sc.tagSize, padding: '2px 6px', borderRadius: '3px', background: theme.accent + '22', color: rightColTheme.bodyText, border: `1px solid ${theme.accent}55`, fontFamily: theme.fontBody }}>
+                  <span key={i} style={{ fontSize: sc.tagSize, padding: '2px 6px', borderRadius: '3px', background: rightColTheme.tagBg, color: rightColTheme.tagText, border: `1px solid ${rightColTheme.tagBorder}`, fontFamily: theme.fontBody }}>
                     {s}
                   </span>
                 ))}

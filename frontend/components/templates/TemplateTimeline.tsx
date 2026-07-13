@@ -2,6 +2,7 @@ import React, { useCallback } from 'react';
 import HiddenATSKeywords from '../HiddenATSKeywords';
 import { CVData, PersonalInfo, ProfileSectionKey, DEFAULT_SECTION_ORDER } from '../../types';
 import { TemplateCustomSections } from './sharedSections';
+import { INK_LINK } from './styleTokens';
 
 interface TemplateProps {
   cvData: CVData;
@@ -112,7 +113,7 @@ const TemplateTimeline: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdi
                 <div key={index}>
                   <h3 className="text-lg font-bold" {...editableProps(['projects', index, 'name'])}>{proj.name}</h3>
                   <p className="text-base mt-1" dangerouslySetInnerHTML={{ __html: proj.description }} {...editableProps(['projects', index, 'description'])} />
-                  {proj.link && <a href={proj.link} className="text-sm text-blue-600 underline" {...editableProps(['projects', index, 'link'])}>{proj.link}</a>}
+                  {proj.link && <a href={proj.link} className="text-sm underline" style={{ color: INK_LINK }} {...editableProps(['projects', index, 'link'])}>{proj.link}</a>}
                 </div>
               ))}
             </div>
@@ -158,10 +159,10 @@ const TemplateTimeline: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdi
           <span>&bull;</span>
           <span>{personalInfo.location}</span>
         </div>
-        <div className="flex flex-wrap justify-center gap-x-4 text-md text-blue-600 mt-2">
-          {personalInfo.linkedin && <a href={personalInfo.linkedin} className="hover:underline">LinkedIn</a>}
-          {personalInfo.website && <a href={personalInfo.website} className="hover:underline">Website</a>}
-          {personalInfo.github && <a href={personalInfo.github} className="hover:underline">GitHub</a>}
+        <div className="flex flex-wrap justify-center gap-x-4 text-md mt-2">
+          {personalInfo.linkedin && <a href={personalInfo.linkedin} className="hover:underline" style={{ color: INK_LINK }}>LinkedIn</a>}
+          {personalInfo.website && <a href={personalInfo.website} className="hover:underline" style={{ color: INK_LINK }}>Website</a>}
+          {personalInfo.github && <a href={personalInfo.github} className="hover:underline" style={{ color: INK_LINK }}>GitHub</a>}
         </div>
       </header>
 

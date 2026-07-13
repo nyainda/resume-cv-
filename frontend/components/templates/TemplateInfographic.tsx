@@ -171,7 +171,7 @@ const TemplateInfographic: React.FC<TemplateProps> = ({ cvData, personalInfo, is
               customSections={cvData.customSections} references={cvData.references}
               renderHeader={title => <h2 className="text-[10px] font-black uppercase tracking-[0.2em] mb-3 pb-1 border-b" style={{ color: accent, borderColor: accent + '30' }}>{title}</h2>}
               sectionClassName="mb-4" titleClass="font-semibold text-xs"
-              subtitleClass="text-[10px] text-blue-600" descClass="text-[10px] text-slate-600 mt-0.5" yearClass="text-[10px] text-slate-400"
+              subtitleClass="text-[10px] text-slate-500" descClass="text-[10px] text-slate-600 mt-0.5" yearClass="text-[10px] text-slate-400"
             />
           </main>
         </div>

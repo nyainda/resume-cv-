@@ -17,6 +17,7 @@ const GitHubIcon = () => (
 );
 
 const TemplateSWEClean: React.FC<TemplateProps> = ({ cvData, personalInfo, isEditing, onDataChange }) => {
+    const accent = cvData.accentColor ?? '#111827';
     const handleUpdate = useCallback((path: (string | number)[], value: any) => {
         const d = JSON.parse(JSON.stringify(cvData));
         let cur: any = d;
@@ -32,8 +33,8 @@ const TemplateSWEClean: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdi
         style: { outline: 'none', borderBottom: '1px dashed #d1d5db', cursor: 'text' },
     } : {};
 
-    const SectionHeader: React.FC<{ title: string }> = ({ title }) => (
-        <h2 className="font-mono font-black text-gray-900 text-[10px] uppercase tracking-widest mb-2">{title}</h2>
+    const SectionHeader: React.FC<{ title: string; large?: boolean }> = ({ title, large }) => (
+        <h2 className={`font-mono font-black text-[10px] uppercase tracking-widest ${large ? 'mb-3' : 'mb-2'}`} style={{ color: accent }}>{title}</h2>
     );
 
     const orderedSections = cvData.sectionOrder || DEFAULT_SECTION_ORDER;
@@ -43,7 +44,7 @@ const TemplateSWEClean: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdi
             case 'skills':
                 return cvData.skills && cvData.skills.length > 0 ? (
                     <section key="skills" className="mb-5">
-                        <h2 className="font-mono font-black text-gray-900 text-[10px] uppercase tracking-widest mb-2">Skills</h2>
+                        <SectionHeader title="Skills" />
                         <div className="flex flex-wrap gap-1.5">
                             {cvData.skills.map((s, i) => (
                                 <span key={i} className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded text-gray-700" style={{ background: '#f9fafb', border: '1px solid #e5e7eb' }}>{s}</span>
@@ -54,14 +55,14 @@ const TemplateSWEClean: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdi
             case 'summary':
                 return cvData.summary ? (
                     <section key="summary" className="mb-5">
-                        <h2 className="font-mono font-black text-gray-900 text-[10px] uppercase tracking-widest mb-2">Summary</h2>
+                        <SectionHeader title="Summary" />
                         <p className="text-xs text-gray-700 leading-relaxed" {...ed(['summary'])} dangerouslySetInnerHTML={{ __html: cvData.summary }} />
                     </section>
                 ) : null;
             case 'workExperience':
                 return cvData.experience.length > 0 ? (
                     <section key="workExperience" className="mb-5">
-                        <h2 className="font-mono font-black text-gray-900 text-[10px] uppercase tracking-widest mb-3">Experience</h2>
+                        <SectionHeader title="Experience" large />
                         <div className="space-y-4">
                             {cvData.experience.map((job, i) => (
                                 <div key={i}>
@@ -96,7 +97,7 @@ const TemplateSWEClean: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdi
             case 'projects':
                 return cvData.projects && cvData.projects.length > 0 ? (
                     <section key="projects" className="mb-5">
-                        <h2 className="font-mono font-black text-gray-900 text-[10px] uppercase tracking-widest mb-3">Projects</h2>
+                        <SectionHeader title="Projects" large />
                         <div className="space-y-2">
                             {cvData.projects.map((proj, i) => (
                                 <div key={i} className="flex items-start gap-3">
@@ -119,7 +120,7 @@ const TemplateSWEClean: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdi
             case 'education':
                 return cvData.education.length > 0 ? (
                     <section key="education" className="mb-5">
-                        <h2 className="font-mono font-black text-gray-900 text-[10px] uppercase tracking-widest mb-2">Education</h2>
+                        <SectionHeader title="Education" />
                         {cvData.education.map((edu, i) => (
                             <div key={i} className="mb-1.5">
                                 <p className="font-bold text-gray-900 text-xs" {...ed(['education', i, 'degree'])} dangerouslySetInnerHTML={{ __html: edu.degree }} />
@@ -132,7 +133,7 @@ const TemplateSWEClean: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdi
             case 'languages':
                 return cvData.languages && cvData.languages.length > 0 ? (
                     <section key="languages" className="mb-5">
-                        <h2 className="font-mono font-black text-gray-900 text-[10px] uppercase tracking-widest mb-2">Languages</h2>
+                        <SectionHeader title="Languages" />
                         {cvData.languages.map((l, i) => (
                             <div key={i} className="flex justify-between text-[10px] mb-0.5">
                                 <span className="text-gray-700 font-medium">{l.name}</span>
@@ -144,7 +145,7 @@ const TemplateSWEClean: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdi
             case 'references':
                 return cvData.references && cvData.references.length > 0 ? (
                     <section key="references" className="mb-5">
-                        <h2 className="font-mono font-black text-gray-900 text-[10px] uppercase tracking-widest mb-2">References</h2>
+                        <SectionHeader title="References" />
                         {cvData.references.map((ref, i) => (
                             <div key={i} className="mb-1.5 text-[10px]">
                                 <p className="font-bold text-gray-900">{ref.name}</p>

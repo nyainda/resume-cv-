@@ -93,7 +93,7 @@ const TemplateParisVibe: React.FC<TemplateProps> = ({ cvData, personalInfo, isEd
               <div className="space-y-2">
                 {cvData.education.map((edu, idx) => (
                   <div key={idx}>
-                    <h3 className="text-xs font-bold border-l-2 pl-3 leading-snug" style={{ borderColor: accent + '80' }} {...editableProps(['education', idx, 'degree'])}>{edu.degree}</h3>
+                    <h3 className="text-xs font-bold border-l-2 pl-3 leading-snug border-zinc-300" {...editableProps(['education', idx, 'degree'])}>{edu.degree}</h3>
                     <p className="text-[10px] uppercase tracking-widest text-zinc-400 pl-3">{edu.school} / {edu.year}</p>
                   </div>
                 ))}
@@ -122,7 +122,7 @@ const TemplateParisVibe: React.FC<TemplateProps> = ({ cvData, personalInfo, isEd
 
           {/* Experience */}
           <section>
-            <h2 className="text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-900 mb-3 border-b border-zinc-900 pb-1.5 inline-block">Parcours Professionnel</h2>
+            <h2 className="text-[10px] font-bold uppercase tracking-[0.3em] mb-3 border-b pb-1.5 inline-block" style={{ color: accent, borderColor: accent }}>Parcours Professionnel</h2>
             <div className="space-y-5">
               {cvData.experience.map((job, index) => (
                 <div key={index} className="relative group">
@@ -150,7 +150,7 @@ const TemplateParisVibe: React.FC<TemplateProps> = ({ cvData, personalInfo, isEd
           {/* Projects */}
           {cvData.projects && cvData.projects.length > 0 && (
             <section>
-              <h2 className="text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-900 mb-3 border-b border-zinc-900 pb-1.5 inline-block">Réalisations</h2>
+              <h2 className="text-[10px] font-bold uppercase tracking-[0.3em] mb-3 border-b pb-1.5 inline-block" style={{ color: accent, borderColor: accent }}>Réalisations</h2>
               <div className="space-y-2">
                 {cvData.projects.map((proj, index) => (
                   <div key={index}>
