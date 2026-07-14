@@ -141,6 +141,7 @@ const AppInner: React.FC = () => {
           setRuntimeKeys({
             apiKey: s.apiKey ?? null,
             claudeApiKey: (s as any).claudeApiKey ?? null,
+            groqApiKey: (s as any).groqApiKey ?? null,
             tavilyApiKey: (s as any).tavilyApiKey ?? null,
             brevoApiKey: (s as any).brevoApiKey ?? null,
             jsearchApiKey: (s as any).jsearchApiKey ?? null,
@@ -160,6 +161,7 @@ const AppInner: React.FC = () => {
       setRuntimeKeys({
         apiKey: plaintext.apiKey ?? null,
         claudeApiKey: (plaintext as any).claudeApiKey ?? null,
+        groqApiKey: (plaintext as any).groqApiKey ?? null,
         tavilyApiKey: (plaintext as any).tavilyApiKey ?? null,
         brevoApiKey: (plaintext as any).brevoApiKey ?? null,
         jsearchApiKey: (plaintext as any).jsearchApiKey ?? null,

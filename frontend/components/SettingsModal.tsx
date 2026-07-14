@@ -294,9 +294,29 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
                   activeBg: 'bg-blue-50 dark:bg-blue-900/20',
                   onKeyChange: setGeminiKey,
                 },
+                {
+                  id: 'groq' as AiProvider,
+                  icon: '⚡',
+                  label: 'Groq',
+                  badge: 'Free — your key',
+                  badgeColor: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300',
+                  desc: 'Ultra-fast inference — Llama 3.3 70B, Kimi K2, DeepSeek R1 and more. Free tier available.',
+                  keyNeeded: true,
+                  keyValue: groqKey,
+                  keyPlaceholder: 'gsk_...',
+                  keyLink: 'https://console.groq.com/keys',
+                  keyLinkLabel: 'Get Groq API key →',
+                  borderColor: 'border-orange-200 dark:border-orange-700/60',
+                  activeBg: 'bg-orange-50 dark:bg-orange-900/20',
+                  onKeyChange: setGroqKey,
+                },
               ]).map((opt) => {
                 const active = selectedAiProvider === opt.id;
-                const hasKey = !opt.keyNeeded || (opt.id === 'claude' ? !!claudeKey.trim() : !!geminiKey.trim());
+                const hasKey = !opt.keyNeeded || (
+                  opt.id === 'claude' ? !!claudeKey.trim() :
+                  opt.id === 'groq'   ? !!groqKey.trim()   :
+                                        !!geminiKey.trim()
+                );
                 const isLocked = opt.id === 'workers-ai' && !canUseWorkersAI;
                 return (
                   <div
@@ -346,21 +366,23 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
                           placeholder={opt.keyPlaceholder}
                           className="font-mono text-sm"
                         />
-                        {(opt.id === 'claude' || opt.id === 'gemini') && (
+                        {(opt.id === 'claude' || opt.id === 'gemini' || opt.id === 'groq') && (
                           <div className="space-y-1">
                             <label className="text-[10px] font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide">Model</label>
                             <select
-                              value={opt.id === 'claude' ? claudeModel : geminiModel}
-                              onChange={(e) => opt.id === 'claude' ? setClaudeModelState(e.target.value) : setGeminiModelState(e.target.value)}
+                              value={opt.id === 'claude' ? claudeModel : opt.id === 'groq' ? groqModel : geminiModel}
+                              onChange={(e) => opt.id === 'claude' ? setClaudeModelState(e.target.value) : opt.id === 'groq' ? setGroqModelState(e.target.value) : setGeminiModelState(e.target.value)}
                               className="w-full text-sm rounded-lg border border-zinc-200 dark:border-neutral-600 bg-white dark:bg-neutral-800 px-2 py-1.5 text-zinc-700 dark:text-zinc-200"
                             >
-                              {(opt.id === 'claude' ? CLAUDE_MODEL_OPTIONS : GEMINI_MODEL_OPTIONS).map((m) => (
+                              {(opt.id === 'claude' ? CLAUDE_MODEL_OPTIONS : opt.id === 'groq' ? GROQ_MODEL_OPTIONS : GEMINI_MODEL_OPTIONS).map((m) => (
                                 <option key={m.id} value={m.id}>{m.label}</option>
                               ))}
                             </select>
-                            <p className="text-[10px] text-zinc-400 dark:text-zinc-500">
-                              If a model is retired or renamed by the provider, we automatically fall back to another {opt.id === 'claude' ? 'Claude' : 'Gemini'} model so generation keeps working.
-                            </p>
+                            {opt.id !== 'groq' && (
+                              <p className="text-[10px] text-zinc-400 dark:text-zinc-500">
+                                If a model is retired or renamed by the provider, we automatically fall back to another {opt.id === 'claude' ? 'Claude' : 'Gemini'} model so generation keeps working.
+                              </p>
+                            )}
                           </div>
                         )}
                         <div className="flex items-center gap-3">
