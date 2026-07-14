@@ -954,16 +954,9 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
       onUpgrade?.();
       return;
     }
-    // Server-authoritative check-and-increment: atomically verifies the limit
-    // hasn't been exceeded on another device and increments the D1 counter.
-    // This closes the "clear localStorage to reset your limit" exploit.
-    // Fails open on network errors so a flaky connection never blocks generation.
-    const genAllowed = await serverCheckAndIncrement('cv_gen');
-    if (!genAllowed) {
-      onUpgrade?.();
-      return;
-    }
-
+    // CV generation is unlimited for all tiers — only PDF downloads are gated.
+    // serverCheckAndIncrement('pdf_dl') enforces the free-tier PDF cap when the
+    // user clicks Download. There is no server-side block here.
     setIsLoading(true);
     setDraftCV(null);
     setError(null);

@@ -42,9 +42,9 @@ export async function handleUsageGet(request: Request, env: Env): Promise<Respon
     }, request, env);
 }
 
-// ─── Free-tier hard limits (must match FREE_GENERATION_LIMIT / FREE_PDF_LIMIT in accountTierService.ts) ──
-const FREE_GEN_LIMIT  = 3;
-const FREE_PDF_LIMIT  = 2;
+// ─── Free-tier hard limit (PDF downloads only — generation is unlimited for all tiers) ──
+// CV generation is never blocked server-side: free users generate freely, PDFs are the gate.
+const FREE_PDF_LIMIT = 2;
 
 // ─── POST /api/cv/usage/increment ────────────────────────────────────────────
 
@@ -62,34 +62,31 @@ export async function handleUsageIncrement(request: Request, env: Env): Promise<
         return json({ error: 'invalid_type', valid: ['cv_gen', 'pdf_dl'] }, request, env, 400);
     }
 
-    const col   = type === 'cv_gen' ? 'cv_gen_count' : 'pdf_dl_count';
-    const limit = type === 'cv_gen' ? FREE_GEN_LIMIT  : FREE_PDF_LIMIT;
+    const col = type === 'cv_gen' ? 'cv_gen_count' : 'pdf_dl_count';
 
-    // ── Server-side limit enforcement ─────────────────────────────────────────
-    // Premium and BYOK users are unlimited; only pure-free users are capped.
-    // We check BEFORE incrementing so the count returned on a 429 is the actual
-    // current value, not an over-limit value that was written and then rolled back.
-    const identity = await env.CV_DB.prepare(
-        `SELECT plan, byok_enabled FROM user_identities WHERE id = ?`
-    ).bind(session.userId).first<{ plan: string; byok_enabled: number }>();
+    // ── PDF download limit enforcement (free tier only) ───────────────────────
+    // CV generation is unlimited for all tiers — it costs almost nothing and
+    // blocking generation hurts retention without protecting revenue.
+    // The PDF download is the deliverable users pay for.
+    if (type === 'pdf_dl') {
+        const identity = await env.CV_DB.prepare(
+            `SELECT plan, byok_enabled FROM user_identities WHERE id = ?`
+        ).bind(session.userId).first<{ plan: string; byok_enabled: number }>();
 
-    const isFree = (identity?.plan ?? 'free') === 'free' && !identity?.byok_enabled;
+        const isFree = (identity?.plan ?? 'free') === 'free' && !identity?.byok_enabled;
 
-    if (isFree) {
-        const current = await env.CV_DB.prepare(
-            `SELECT cv_gen_count, pdf_dl_count FROM user_usage WHERE user_id = ?`
-        ).bind(session.userId).first<{ cv_gen_count: number; pdf_dl_count: number }>();
+        if (isFree) {
+            const current = await env.CV_DB.prepare(
+                `SELECT cv_gen_count, pdf_dl_count FROM user_usage WHERE user_id = ?`
+            ).bind(session.userId).first<{ cv_gen_count: number; pdf_dl_count: number }>();
 
-        const currentCount = type === 'cv_gen'
-            ? (current?.cv_gen_count ?? 0)
-            : (current?.pdf_dl_count ?? 0);
-
-        if (currentCount >= limit) {
-            return json({
-                error: 'limit_exceeded',
-                cv_gen_count: current?.cv_gen_count ?? 0,
-                pdf_dl_count: current?.pdf_dl_count ?? 0,
-            }, request, env, 429);
+            if ((current?.pdf_dl_count ?? 0) >= FREE_PDF_LIMIT) {
+                return json({
+                    error: 'limit_exceeded',
+                    cv_gen_count: current?.cv_gen_count ?? 0,
+                    pdf_dl_count: current?.pdf_dl_count ?? 0,
+                }, request, env, 429);
+            }
         }
     }
 

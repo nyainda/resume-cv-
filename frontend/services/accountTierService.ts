@@ -5,13 +5,14 @@
  * This is a pure service (no React). Hooks and components import from here.
  *
  * Three-tier model:
- *   free    — No API key, no subscription. Workers AI free models (Mistral 24B).
- *             Hard cap: 3 lifetime CV generations, 2 watermarked PDFs, 1 profile slot.
- *   byok    — Bring Your Own Key (Gemini / Claude). Unlimited generations on their
- *             quota. Watermarked PDFs. Most tools unlocked. LinkedIn, Salary Coach,
- *             Career Pivot, and clean PDFs require Premium.
+ *   free    — No API key, no subscription. Workers AI (Mistral 24B) runs silently
+ *             in the background — user never sees or configures it.
+ *             Gate: 2 lifetime watermarked PDF downloads. CV generation is unlimited.
+ *   byok    — Bring Your Own Key (Gemini / Claude / Groq). Unlimited generations on
+ *             their own API quota. Unlimited watermarked PDFs. No Workers AI access
+ *             or fallback — their key is the sole AI source.
  *   premium — Subscription ($19/mo or $149/yr). Workers AI best models (Llama 70B +
- *             DeepSeek R1) OR their own keys. Clean PDFs. Full career suite.
+ *             DeepSeek R1) run silently. Clean (watermark-free) PDFs. Full career suite.
  *
  * Storage: 'cv_builder:accountTier' in localStorage holds 'free' | 'premium'.
  *          BYOK is detected at runtime via key presence — not stored separately.
@@ -34,9 +35,14 @@ export const TIER_CHANGED_EVENT = 'procv:tierChanged';
 
 // ─── Limits ──────────────────────────────────────────────────────────────────
 
-/** Lifetime CV generations allowed on the pure free tier (no keys, no sub). */
-export const FREE_GENERATION_LIMIT = 3;
-/** Lifetime PDF downloads allowed on the pure free tier. */
+/**
+ * CV generation is unlimited for all tiers.
+ * Blocking generation hurts retention without protecting revenue — the PDF
+ * download is the deliverable users pay for.
+ * @deprecated No longer enforced. Use FREE_PDF_LIMIT instead.
+ */
+export const FREE_GENERATION_LIMIT = Infinity;
+/** Lifetime PDF downloads allowed on the pure free tier (no keys, no sub). */
 export const FREE_PDF_LIMIT = 2;
 /** Max tracked applications for free users. */
 export const FREE_TRACKER_LIMIT = 15;
@@ -309,36 +315,37 @@ export function getGenerationCount(): number {
 }
 
 /**
- * Server-authoritative check-and-increment for a usage counter.
+ * Server-authoritative check-and-increment for PDF downloads.
  *
- * - BYOK / Premium → always returns true without a network round-trip.
- * - Free tier      → asks the server to atomically check then increment.
- *                    Returns false (limit exceeded) if the server replies 429.
- *                    Returns true on any network failure (fail-open so a flaky
- *                    connection never permanently blocks the user).
+ * - cv_gen  → always allowed (generation is unlimited for all tiers).
+ * - pdf_dl  → BYOK / Premium: always allowed; Free: server checks D1 limit.
+ *             Returns false (limit exceeded) if the server replies 429.
+ *             Returns true on any network failure (fail-open so a flaky
+ *             connection never permanently blocks the user).
  *
- * On every outcome the server's authoritative counts are synced back to
- * localStorage so subsequent synchronous canGenerate() / canDownloadPdf()
- * calls reflect reality.
+ * On every outcome the server's authoritative PDF count is synced back to
+ * localStorage so subsequent synchronous canDownloadPdf() calls reflect reality.
  */
 export async function serverCheckAndIncrement(type: 'cv_gen' | 'pdf_dl'): Promise<boolean> {
-  if (getEffectiveTier() !== 'free') return true; // unlimited — skip round-trip
+  // CV generation is unlimited for all tiers — no server call needed.
+  if (type === 'cv_gen') return true;
+
+  // PDF downloads: unlimited for BYOK and Premium.
+  if (getEffectiveTier() !== 'free') return true;
 
   try {
-    const result = await incrementUsageCount(type);
+    const result = await incrementUsageCount('pdf_dl');
     if (result) {
       try {
-        localStorage.setItem(GENERATION_COUNT_KEY, String(result.cv_gen_count));
-        localStorage.setItem(PDF_DOWNLOAD_KEY,     String(result.pdf_dl_count));
+        localStorage.setItem(PDF_DOWNLOAD_KEY, String(result.pdf_dl_count));
       } catch { /* ignore storage errors */ }
     }
     return true;
   } catch (err) {
     if (err instanceof UsageLimitExceededError) {
-      // Sync the authoritative counts so the local gate reflects reality.
+      // Sync the authoritative count so the local gate reflects reality.
       try {
-        localStorage.setItem(GENERATION_COUNT_KEY, String(err.counts.cv_gen_count));
-        localStorage.setItem(PDF_DOWNLOAD_KEY,     String(err.counts.pdf_dl_count));
+        localStorage.setItem(PDF_DOWNLOAD_KEY, String(err.counts.pdf_dl_count));
       } catch { /* ignore */ }
       return false; // blocked
     }
@@ -347,21 +354,15 @@ export async function serverCheckAndIncrement(type: 'cv_gen' | 'pdf_dl'): Promis
   }
 }
 
-/** @deprecated Use serverCheckAndIncrement('cv_gen') instead. No-op kept for safety. */
-export function incrementGenerationCount(): void {
-  // Intentional no-op: server-side check-and-increment replaced this.
-  // Callers in CVGenerator.tsx now call serverCheckAndIncrement() before the
-  // LLM call, which atomically checks the limit AND increments server-side.
-}
+/** @deprecated Generation is now unlimited. No-op kept for safety. */
+export function incrementGenerationCount(): void { /* intentional no-op */ }
 
 /**
  * Returns true if the user is allowed to start a CV generation.
- * - Premium / BYOK → always true.
- * - Free           → true until FREE_GENERATION_LIMIT lifetime generations.
+ * CV generation is unlimited for all tiers — the PDF download is the gate.
  */
 export function canGenerate(): boolean {
-  if (getEffectiveTier() !== 'free') return true;
-  return getGenerationCount() < FREE_GENERATION_LIMIT;
+  return true;
 }
 
 // ─── PDF download counter (pure free tier only) ───────────────────────────────

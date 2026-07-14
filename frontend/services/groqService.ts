@@ -72,13 +72,28 @@ const _AI_PROVIDER_KEY = 'cv_builder:aiProvider';
 export function getSelectedProvider(): AiProvider {
     try {
         const v = localStorage.getItem(_AI_PROVIDER_KEY);
-        if (v === 'claude' || v === 'gemini' || v === 'workers-ai' || v === 'groq') return v;
-        // Derive from which key is configured if never explicitly set
-        if (getClaudeApiKey()) return 'claude';
-        if (getGeminiApiKey()) return 'gemini';
-        if (getGroqApiKey()) return 'groq';
+        const hasClaudeKey  = !!getClaudeApiKey();
+        const hasGeminiKey  = !!getGeminiApiKey();
+        const hasGroqKey    = !!getGroqApiKey();
+        const hasByok       = hasClaudeKey || hasGeminiKey || hasGroqKey;
+
+        if (v === 'claude' || v === 'gemini' || v === 'groq') return v;
+
+        // Stored as workers-ai but user has BYOK keys → they're on BYOK tier.
+        // Silently redirect to their first configured key so they never accidentally
+        // run on Workers AI (which is infrastructure for Free/Premium, not BYOK).
+        if (v === 'workers-ai' && hasByok) {
+            if (hasClaudeKey)  return 'claude';
+            if (hasGeminiKey)  return 'gemini';
+            if (hasGroqKey)    return 'groq';
+        }
+
+        // Not set in storage — derive from which key is configured.
+        if (hasClaudeKey)  return 'claude';
+        if (hasGeminiKey)  return 'gemini';
+        if (hasGroqKey)    return 'groq';
     } catch { /* ignore */ }
-    return 'workers-ai';
+    return 'workers-ai'; // free/premium default — Workers AI runs automatically
 }
 
 export function setSelectedProvider(p: AiProvider): void {

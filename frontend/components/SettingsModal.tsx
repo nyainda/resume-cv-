@@ -13,8 +13,7 @@ import {
 } from '../services/groqService';
 import { rewarmCVEngineModels } from '../services/cvEngineClient';
 import { setRuntimeKeys } from '../services/security/RuntimeKeys';
-import { usePremiumGate } from '../hooks/usePremiumGate';
-import { PremiumUpgradeModal } from './premium/PremiumUpgradeModal';
+import { useAccountTier } from '../hooks/useAccountTier';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -33,21 +32,17 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
   const [geminiModel, setGeminiModelState] = useState<string>(getGeminiModel());
   const [groqModel, setGroqModelState] = useState<string>(getGroqModel());
 
-  // Premium gate for Workers AI — free users see the upgrade modal on click
-  const {
-    allowed: canUseWorkersAI,
-    isUpgradeOpen: workersAiUpgradeOpen,
-    openUpgrade: openWorkersAiUpgrade,
-    closeUpgrade: closeWorkersAiUpgrade,
-  } = usePremiumGate('workers-ai');
+  const { effectiveTier } = useAccountTier();
+  // BYOK = user has at least one of their own API keys configured
+  const isByok  = effectiveTier === 'byok';
+  const isFree  = effectiveTier === 'free';
+  const isPremium = effectiveTier === 'premium';
 
+  // For BYOK users the active provider is whichever key-based provider they chose.
+  // Workers AI is not an option for them — redirect any stored 'workers-ai' value.
   const handleProviderSelect = useCallback((id: AiProvider) => {
-    if (id === 'workers-ai' && !canUseWorkersAI) {
-      openWorkersAiUpgrade();
-      return;
-    }
     setSelectedAiProvider(id);
-  }, [canUseWorkersAI, openWorkersAiUpgrade]);
+  }, []);
 
   const { user: workerUser, isAuthenticated: isWorkerAuthenticated } = useAuth();
 
@@ -234,228 +229,254 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
             );
           })()}
 
-          {/* ── AI Provider Selection ── */}
-          <div className="rounded-xl border-2 border-[#1B2B4B]/20 dark:border-zinc-700 p-4 space-y-4 bg-zinc-50/50 dark:bg-neutral-800/30">
-            <div className="flex items-center gap-2">
-              <span className="text-lg">🤖</span>
-              <div>
-                <h3 className="text-xs font-bold uppercase tracking-widest text-zinc-700 dark:text-zinc-300">AI Provider</h3>
-                <p className="text-[10px] text-zinc-500 dark:text-zinc-400">Choose which AI powers everything in the app</p>
-              </div>
-            </div>
-
-            {/* 3-way provider selector */}
-            <div className="grid grid-cols-1 gap-2">
-              {([
-                {
-                  id: 'workers-ai' as AiProvider,
-                  icon: '✨',
-                  label: 'Workers AI',
-                  badge: canUseWorkersAI ? 'Premium · Best quality' : 'Free · 1 trial included',
-                  badgeColor: canUseWorkersAI
-                    ? 'bg-[#C9A84C]/20 text-[#7a620e] dark:bg-yellow-900/30 dark:text-yellow-300'
-                    : 'bg-zinc-100 text-zinc-600 dark:bg-zinc-700 dark:text-zinc-300',
-                  desc: canUseWorkersAI
-                    ? 'Cloudflare Workers AI — full pipeline, best models. No API key needed.'
-                    : 'Try 1 free generation. After that, add a Gemini or Claude key to continue.',
-                  keyNeeded: false,
-                  borderColor: 'border-[#C9A84C]/60 dark:border-yellow-700/60',
-                  activeBg: 'bg-amber-50 dark:bg-amber-900/20',
-                },
-                {
-                  id: 'claude' as AiProvider,
-                  icon: '🧠',
-                  label: 'Claude (Anthropic)',
-                  badge: 'Free — your key',
-                  badgeColor: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300',
-                  desc: 'Claude Haiku via secure server proxy. Fast, 200K context. Prompt caching active — repeated generations cost 90% less and run faster.',
-                  keyNeeded: true,
-                  keyValue: claudeKey,
-                  keyPlaceholder: 'sk-ant-xxxxxxxxxxxxxxxxxxxxxxxx',
-                  keyLink: 'https://console.anthropic.com/settings/keys',
-                  keyLinkLabel: 'Get Claude API key →',
-                  borderColor: 'border-purple-200 dark:border-purple-700/60',
-                  activeBg: 'bg-purple-50 dark:bg-purple-900/20',
-                  onKeyChange: setClaudeKey,
-                },
-                {
-                  id: 'gemini' as AiProvider,
-                  icon: '🔍',
-                  label: 'Gemini (Google)',
-                  badge: 'Free — your key',
-                  badgeColor: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
-                  desc: 'Gemini 2.0 Flash via secure server proxy. 1M context. Also needed for PDF/image CV upload.',
-                  keyNeeded: true,
-                  keyValue: geminiKey,
-                  keyPlaceholder: 'AIzaSy...',
-                  keyLink: 'https://aistudio.google.com/app/apikey',
-                  keyLinkLabel: 'Get Gemini API key →',
-                  borderColor: 'border-blue-200 dark:border-blue-700/60',
-                  activeBg: 'bg-blue-50 dark:bg-blue-900/20',
-                  onKeyChange: setGeminiKey,
-                },
-                {
-                  id: 'groq' as AiProvider,
-                  icon: '⚡',
-                  label: 'Groq',
-                  badge: 'Free — your key',
-                  badgeColor: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300',
-                  desc: 'Ultra-fast inference — Llama 3.3 70B, Kimi K2, DeepSeek R1 and more. Free tier available.',
-                  keyNeeded: true,
-                  keyValue: groqKey,
-                  keyPlaceholder: 'gsk_...',
-                  keyLink: 'https://console.groq.com/keys',
-                  keyLinkLabel: 'Get Groq API key →',
-                  borderColor: 'border-orange-200 dark:border-orange-700/60',
-                  activeBg: 'bg-orange-50 dark:bg-orange-900/20',
-                  onKeyChange: setGroqKey,
-                },
-              ]).map((opt) => {
-                const active = selectedAiProvider === opt.id;
-                const hasKey = !opt.keyNeeded || (
-                  opt.id === 'claude' ? !!claudeKey.trim() :
-                  opt.id === 'groq'   ? !!groqKey.trim()   :
-                                        !!geminiKey.trim()
-                );
-                const isLocked = opt.id === 'workers-ai' && !canUseWorkersAI;
-                return (
-                  <div
-                    key={opt.id}
-                    onClick={() => handleProviderSelect(opt.id)}
-                    className={`relative rounded-lg border-2 p-3 cursor-pointer transition-all space-y-2 ${
-                      isLocked
-                        ? 'border-[#C9A84C]/40 bg-amber-50/40 dark:bg-amber-900/10 opacity-90'
-                        : active
-                          ? `${opt.borderColor} ${opt.activeBg}`
-                          : 'border-zinc-200 dark:border-zinc-700 bg-white dark:bg-neutral-800/40 hover:border-zinc-300 dark:hover:border-zinc-600'
-                    }`}
-                  >
-                    {/* Lock overlay for gated options */}
-                    {isLocked && (
-                      <div className="absolute top-2 right-2 flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#C9A84C]/20 text-[#7a620e] dark:text-yellow-300">
-                        🔒 Premium
+          {/* ── AI Engine ── */}
+          {/* Reusable key-provider card used by BYOK section */}
+          {(() => {
+            /** A single Claude / Gemini / Groq provider card */
+            const ByokProviderCard = ({
+              id, icon, label, badge, badgeColor, desc, keyValue, keyPlaceholder, keyLink, keyLinkLabel,
+              borderColor, activeBg, onKeyChange, modelValue, modelOptions, onModelChange, showCaching,
+            }: {
+              id: AiProvider; icon: string; label: string; badge: string; badgeColor: string;
+              desc: string; keyValue: string; keyPlaceholder: string; keyLink: string; keyLinkLabel: string;
+              borderColor: string; activeBg: string; onKeyChange: (v: string) => void;
+              modelValue: string; modelOptions: { id: string; label: string }[];
+              onModelChange: (v: string) => void; showCaching?: boolean;
+            }) => {
+              const active = selectedAiProvider === id;
+              const hasKey = !!keyValue.trim();
+              return (
+                <div
+                  onClick={() => handleProviderSelect(id)}
+                  className={`rounded-lg border-2 p-3 cursor-pointer transition-all space-y-2 ${
+                    active ? `${borderColor} ${activeBg}` : 'border-zinc-200 dark:border-zinc-700 bg-white dark:bg-neutral-800/40 hover:border-zinc-300 dark:hover:border-zinc-600'
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-base">{icon}</span>
+                      <span className={`text-sm font-bold ${active ? 'text-zinc-900 dark:text-zinc-50' : 'text-zinc-600 dark:text-zinc-300'}`}>{label}</span>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${badgeColor}`}>{badge}</span>
+                    </div>
+                    <div className={`w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center ${active ? `${borderColor} bg-white dark:bg-neutral-700` : 'border-zinc-300 dark:border-zinc-600'}`}>
+                      {active && <div className="w-2 h-2 rounded-full bg-zinc-800 dark:bg-zinc-200" />}
+                    </div>
+                  </div>
+                  <p className="text-[11px] text-zinc-500 dark:text-zinc-400 leading-relaxed">{desc}</p>
+                  {/* Key input + model picker — only when active */}
+                  {active && (
+                    <div className="space-y-2 pt-1" onClick={(e) => e.stopPropagation()}>
+                      <a href={keyLink} target="_blank" rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-xs font-semibold underline text-zinc-600 dark:text-zinc-300">
+                        {keyLinkLabel}
+                      </a>
+                      <Input type="password" value={keyValue} onChange={(e) => onKeyChange(e.target.value)}
+                        placeholder={keyPlaceholder} className="font-mono text-sm" />
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide">Model</label>
+                        <select value={modelValue} onChange={(e) => onModelChange(e.target.value)}
+                          className="w-full text-sm rounded-lg border border-zinc-200 dark:border-neutral-600 bg-white dark:bg-neutral-800 px-2 py-1.5 text-zinc-700 dark:text-zinc-200">
+                          {modelOptions.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
+                        </select>
                       </div>
-                    )}
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-2">
-                        <span className="text-base">{opt.icon}</span>
-                        <span className={`text-sm font-bold ${active ? 'text-zinc-900 dark:text-zinc-50' : 'text-zinc-600 dark:text-zinc-300'}`}>{opt.label}</span>
-                        {!isLocked && (
-                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${opt.badgeColor}`}>{opt.badge}</span>
-                        )}
+                      <div className="flex items-center gap-3">
+                        <Button type="button" onClick={runProviderTest}
+                          disabled={providerTest.status === 'testing' || !hasKey}
+                          className="text-xs px-3 py-1.5 bg-zinc-700 hover:bg-zinc-800 dark:bg-zinc-600 dark:hover:bg-zinc-500 text-white">
+                          {providerTest.status === 'testing' ? 'Testing…' : 'Test connection'}
+                        </Button>
+                        {providerTest.status === 'ok' && <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">✓ {providerTest.message}</span>}
+                        {providerTest.status === 'fail' && <span className="text-xs font-semibold text-red-600 dark:text-red-400">✗ {providerTest.message}</span>}
                       </div>
-                      {!isLocked && (
-                        <div className={`w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center ${active ? `${opt.borderColor} bg-white dark:bg-neutral-700` : 'border-zinc-300 dark:border-zinc-600'}`}>
-                          {active && <div className="w-2 h-2 rounded-full bg-zinc-800 dark:bg-zinc-200" />}
+                      <p className="text-[10px] text-zinc-400 dark:text-zinc-500">Your key is proxied through our secure server — never exposed in DevTools.</p>
+                      {showCaching && hasKey && (
+                        <div className="flex items-center gap-1.5 pt-0.5">
+                          <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300">⚡ Prompt caching active</span>
+                          <span className="text-[10px] text-zinc-400 dark:text-zinc-500">— 90% cheaper on repeats</span>
                         </div>
                       )}
                     </div>
-                    <p className="text-[11px] text-zinc-500 dark:text-zinc-400 leading-relaxed">{opt.desc}</p>
+                  )}
+                  {/* Key status when collapsed */}
+                  {!active && (
+                    <div className="flex items-center gap-1">
+                      {hasKey ? <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold">● Key configured</span>
+                               : <span className="text-[10px] text-zinc-400 dark:text-zinc-500">○ No key yet</span>}
+                    </div>
+                  )}
+                </div>
+              );
+            };
 
-                    {/* Key input — shown when this option is active and needs a key */}
-                    {active && opt.keyNeeded && (
-                      <div className="space-y-2 pt-1" onClick={(e) => e.stopPropagation()}>
-                        <a href={opt.keyLink} target="_blank" rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 text-xs font-semibold underline text-zinc-600 dark:text-zinc-300">
-                          {opt.keyLinkLabel}
-                        </a>
-                        <Input
-                          type="password"
-                          value={opt.keyValue ?? ''}
-                          onChange={(e) => opt.onKeyChange?.(e.target.value)}
-                          placeholder={opt.keyPlaceholder}
-                          className="font-mono text-sm"
-                        />
-                        {(opt.id === 'claude' || opt.id === 'gemini' || opt.id === 'groq') && (
-                          <div className="space-y-1">
-                            <label className="text-[10px] font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide">Model</label>
-                            <select
-                              value={opt.id === 'claude' ? claudeModel : opt.id === 'groq' ? groqModel : geminiModel}
-                              onChange={(e) => opt.id === 'claude' ? setClaudeModelState(e.target.value) : opt.id === 'groq' ? setGroqModelState(e.target.value) : setGeminiModelState(e.target.value)}
-                              className="w-full text-sm rounded-lg border border-zinc-200 dark:border-neutral-600 bg-white dark:bg-neutral-800 px-2 py-1.5 text-zinc-700 dark:text-zinc-200"
-                            >
-                              {(opt.id === 'claude' ? CLAUDE_MODEL_OPTIONS : opt.id === 'groq' ? GROQ_MODEL_OPTIONS : GEMINI_MODEL_OPTIONS).map((m) => (
-                                <option key={m.id} value={m.id}>{m.label}</option>
-                              ))}
-                            </select>
-                            {opt.id !== 'groq' && (
-                              <p className="text-[10px] text-zinc-400 dark:text-zinc-500">
-                                If a model is retired or renamed by the provider, we automatically fall back to another {opt.id === 'claude' ? 'Claude' : 'Gemini'} model so generation keeps working.
-                              </p>
-                            )}
-                          </div>
-                        )}
-                        <div className="flex items-center gap-3">
-                          <Button
-                            type="button"
-                            onClick={runProviderTest}
-                            disabled={providerTest.status === 'testing' || !hasKey}
-                            className="text-xs px-3 py-1.5 bg-zinc-700 hover:bg-zinc-800 dark:bg-zinc-600 dark:hover:bg-zinc-500 text-white"
-                          >
-                            {providerTest.status === 'testing' ? 'Testing…' : 'Test connection'}
-                          </Button>
-                          {providerTest.status === 'ok' && (
-                            <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">✓ {providerTest.message}</span>
-                          )}
-                          {providerTest.status === 'fail' && (
-                            <span className="text-xs font-semibold text-red-600 dark:text-red-400">✗ {providerTest.message}</span>
-                          )}
-                        </div>
-                        <p className="text-[10px] text-zinc-400 dark:text-zinc-500">
-                          Your key is proxied through our secure server — it is never exposed in browser DevTools.
-                        </p>
-                        {opt.id === 'claude' && !!claudeKey.trim() && (
-                          <div className="flex items-center gap-1.5 pt-0.5">
-                            <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300">
-                              ⚡ Prompt caching active
-                            </span>
-                            <span className="text-[10px] text-zinc-400 dark:text-zinc-500">— system prompt cached between runs, 90% cheaper on repeats</span>
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Wake AI models — Workers AI has no key, just a warm-up trigger */}
-                    {active && opt.id === 'workers-ai' && (
-                      <div className="space-y-1.5 pt-1" onClick={(e) => e.stopPropagation()}>
-                        <div className="flex items-center gap-3">
-                          <Button
-                            type="button"
-                            onClick={handleWakeModels}
-                            disabled={wakeStatus.status === 'waking'}
-                            className="text-xs px-3 py-1.5 bg-zinc-700 hover:bg-zinc-800 dark:bg-zinc-600 dark:hover:bg-zinc-500 text-white"
-                          >
-                            {wakeStatus.status === 'waking' ? 'Waking…' : 'Wake AI models now'}
-                          </Button>
-                          {wakeStatus.status === 'ok' && (
-                            <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">✓ {wakeStatus.message}</span>
-                          )}
-                          {wakeStatus.status === 'fail' && (
-                            <span className="text-xs font-semibold text-red-600 dark:text-red-400">✗ {wakeStatus.message}</span>
-                          )}
-                        </div>
-                        <p className="text-[10px] text-zinc-400 dark:text-zinc-500">
-                          Free Cloudflare models can go cold after a few minutes idle — the first request after that may come back empty. Click this to warm them up before importing or generating.
-                        </p>
-                      </div>
-                    )}
-
-                    {/* Key status badge when not active */}
-                    {!active && opt.keyNeeded && (
-                      <div className="flex items-center gap-1">
-                        {hasKey
-                          ? <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold">● Key configured</span>
-                          : <span className="text-[10px] text-zinc-400 dark:text-zinc-500">○ No key yet</span>
-                        }
-                      </div>
-                    )}
+            // ── BYOK tier: own keys only, no Workers AI ──────────────────────
+            if (isByok) {
+              return (
+                <div className="rounded-xl border-2 border-[#1B2B4B]/20 dark:border-zinc-700 p-4 space-y-4 bg-zinc-50/50 dark:bg-neutral-800/30">
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg">🔑</span>
+                    <div>
+                      <h3 className="text-xs font-bold uppercase tracking-widest text-zinc-700 dark:text-zinc-300">Your API Keys</h3>
+                      <p className="text-[10px] text-zinc-500 dark:text-zinc-400">Pick which key powers generation — unlimited CVs &amp; PDFs on your quota</p>
+                    </div>
                   </div>
-                );
-              })}
-            </div>
+                  <div className="grid grid-cols-1 gap-2">
+                    <ByokProviderCard id="claude" icon="🧠" label="Claude (Anthropic)"
+                      badge="Your key" badgeColor="bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300"
+                      desc="Claude Haiku/Sonnet via secure server proxy. Fast, 200K context. Prompt caching cuts repeat costs 90%."
+                      keyValue={claudeKey} keyPlaceholder="sk-ant-xxxxxxxxxxxxxxxxxxxxxxxx"
+                      keyLink="https://console.anthropic.com/settings/keys" keyLinkLabel="Get Claude API key →"
+                      borderColor="border-purple-200 dark:border-purple-700/60" activeBg="bg-purple-50 dark:bg-purple-900/20"
+                      onKeyChange={setClaudeKey} modelValue={claudeModel} modelOptions={CLAUDE_MODEL_OPTIONS}
+                      onModelChange={setClaudeModelState} showCaching />
+                    <ByokProviderCard id="gemini" icon="🔍" label="Gemini (Google)"
+                      badge="Your key" badgeColor="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
+                      desc="Gemini 2.5 Flash via secure server proxy. 1M context. Also enables PDF/image CV upload."
+                      keyValue={geminiKey} keyPlaceholder="AIzaSy..."
+                      keyLink="https://aistudio.google.com/app/apikey" keyLinkLabel="Get Gemini API key →"
+                      borderColor="border-blue-200 dark:border-blue-700/60" activeBg="bg-blue-50 dark:bg-blue-900/20"
+                      onKeyChange={setGeminiKey} modelValue={geminiModel} modelOptions={GEMINI_MODEL_OPTIONS}
+                      onModelChange={setGeminiModelState} />
+                    <ByokProviderCard id="groq" icon="⚡" label="Groq"
+                      badge="Your key" badgeColor="bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300"
+                      desc="Ultra-fast inference — Llama 3.3 70B, Kimi K2, DeepSeek R1 and more. Free tier available."
+                      keyValue={groqKey} keyPlaceholder="gsk_..."
+                      keyLink="https://console.groq.com/keys" keyLinkLabel="Get Groq API key →"
+                      borderColor="border-orange-200 dark:border-orange-700/60" activeBg="bg-orange-50 dark:bg-orange-900/20"
+                      onKeyChange={setGroqKey} modelValue={groqModel} modelOptions={GROQ_MODEL_OPTIONS}
+                      onModelChange={setGroqModelState} />
+                  </div>
+                  {/* Hard rule: no Workers AI fallback on BYOK */}
+                  <div className="flex items-start gap-2 rounded-lg bg-zinc-100 dark:bg-neutral-700/50 border border-zinc-200 dark:border-neutral-600 p-3">
+                    <span className="text-zinc-400 flex-shrink-0 mt-0.5 text-sm">ℹ</span>
+                    <p className="text-[11px] text-zinc-500 dark:text-zinc-400 leading-relaxed">
+                      Workers AI is not available on BYOK. Your key is the sole AI source — if your quota runs out, generation stops rather than silently switching engines. This keeps your billing predictable.
+                    </p>
+                  </div>
+                </div>
+              );
+            }
 
+            // ── Free tier: Workers AI runs automatically, offer keys to unlock BYOK ──
+            if (isFree) {
+              return (
+                <div className="rounded-xl border-2 border-[#1B2B4B]/20 dark:border-zinc-700 p-4 space-y-4 bg-zinc-50/50 dark:bg-neutral-800/30">
+                  {/* Workers AI status — not a choice, just informational */}
+                  <div className="rounded-lg border border-amber-200 dark:border-yellow-700/50 bg-amber-50 dark:bg-amber-900/10 p-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="text-base">✨</span>
+                        <span className="text-sm font-bold text-zinc-800 dark:text-zinc-100">Workers AI</span>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#C9A84C]/20 text-[#7a620e] dark:text-yellow-300">Active · Free</span>
+                      </div>
+                      <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">● Running</span>
+                    </div>
+                    <p className="text-[11px] text-zinc-500 dark:text-zinc-400 leading-relaxed">
+                      Cloudflare Workers AI (Mistral 24B) powers your CVs automatically — no setup needed. Unlimited CV generation, 2 free PDF downloads.
+                    </p>
+                    <div className="flex items-center gap-3" onClick={(e) => e.stopPropagation()}>
+                      <Button type="button" onClick={handleWakeModels} disabled={wakeStatus.status === 'waking'}
+                        className="text-xs px-3 py-1.5 bg-zinc-700 hover:bg-zinc-800 dark:bg-zinc-600 dark:hover:bg-zinc-500 text-white">
+                        {wakeStatus.status === 'waking' ? 'Waking…' : 'Wake models'}
+                      </Button>
+                      {wakeStatus.status === 'ok' && <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">✓ {wakeStatus.message}</span>}
+                      {wakeStatus.status === 'fail' && <span className="text-xs font-semibold text-red-600 dark:text-red-400">✗ {wakeStatus.message}</span>}
+                      <span className="text-[10px] text-zinc-400 dark:text-zinc-500">Models can go cold after a few minutes idle</span>
+                    </div>
+                  </div>
+                  {/* Offer BYOK upgrade */}
+                  <div>
+                    <p className="text-[11px] font-semibold text-zinc-600 dark:text-zinc-300 mb-2">
+                      Want unlimited PDFs? Add your own API key — free from any provider:
+                    </p>
+                    <div className="grid grid-cols-1 gap-2">
+                      <ByokProviderCard id="claude" icon="🧠" label="Claude (Anthropic)"
+                        badge="Free key · Unlock BYOK" badgeColor="bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300"
+                        desc="Claude Haiku — fast, 200K context. Adding a key unlocks unlimited PDFs and most tools instantly."
+                        keyValue={claudeKey} keyPlaceholder="sk-ant-xxxxxxxxxxxxxxxxxxxxxxxx"
+                        keyLink="https://console.anthropic.com/settings/keys" keyLinkLabel="Get free Claude API key →"
+                        borderColor="border-purple-200 dark:border-purple-700/60" activeBg="bg-purple-50 dark:bg-purple-900/20"
+                        onKeyChange={setClaudeKey} modelValue={claudeModel} modelOptions={CLAUDE_MODEL_OPTIONS}
+                        onModelChange={setClaudeModelState} showCaching />
+                      <ByokProviderCard id="gemini" icon="🔍" label="Gemini (Google)"
+                        badge="Free key · Unlock BYOK" badgeColor="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
+                        desc="Gemini 2.5 Flash — 1M context, also enables PDF/image CV upload. Adding a key unlocks unlimited PDFs."
+                        keyValue={geminiKey} keyPlaceholder="AIzaSy..."
+                        keyLink="https://aistudio.google.com/app/apikey" keyLinkLabel="Get free Gemini API key →"
+                        borderColor="border-blue-200 dark:border-blue-700/60" activeBg="bg-blue-50 dark:bg-blue-900/20"
+                        onKeyChange={setGeminiKey} modelValue={geminiModel} modelOptions={GEMINI_MODEL_OPTIONS}
+                        onModelChange={setGeminiModelState} />
+                      <ByokProviderCard id="groq" icon="⚡" label="Groq"
+                        badge="Free key · Unlock BYOK" badgeColor="bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300"
+                        desc="Ultra-fast — Llama 70B, DeepSeek R1 and more. Free tier available, no card needed."
+                        keyValue={groqKey} keyPlaceholder="gsk_..."
+                        keyLink="https://console.groq.com/keys" keyLinkLabel="Get free Groq API key →"
+                        borderColor="border-orange-200 dark:border-orange-700/60" activeBg="bg-orange-50 dark:bg-orange-900/20"
+                        onKeyChange={setGroqKey} modelValue={groqModel} modelOptions={GROQ_MODEL_OPTIONS}
+                        onModelChange={setGroqModelState} />
+                    </div>
+                  </div>
+                </div>
+              );
+            }
 
-          </div>
+            // ── Premium tier: Workers AI best models run automatically ───────
+            return (
+              <div className="rounded-xl border-2 border-[#1B2B4B]/20 dark:border-zinc-700 p-4 space-y-4 bg-zinc-50/50 dark:bg-neutral-800/30">
+                {/* Workers AI premium status */}
+                <div className="rounded-lg border border-amber-200 dark:border-yellow-700/50 bg-amber-50 dark:bg-amber-900/10 p-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="text-base">✨</span>
+                      <span className="text-sm font-bold text-zinc-800 dark:text-zinc-100">Workers AI</span>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#C9A84C]/20 text-[#7a620e] dark:text-yellow-300">Active · Premium</span>
+                    </div>
+                    <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">● Running</span>
+                  </div>
+                  <p className="text-[11px] text-zinc-500 dark:text-zinc-400 leading-relaxed">
+                    Llama 3.3 70B + DeepSeek R1 via Cloudflare — the best available models, running automatically. No API key needed.
+                  </p>
+                  <div className="flex items-center gap-3" onClick={(e) => e.stopPropagation()}>
+                    <Button type="button" onClick={handleWakeModels} disabled={wakeStatus.status === 'waking'}
+                      className="text-xs px-3 py-1.5 bg-zinc-700 hover:bg-zinc-800 dark:bg-zinc-600 dark:hover:bg-zinc-500 text-white">
+                      {wakeStatus.status === 'waking' ? 'Waking…' : 'Wake models'}
+                    </Button>
+                    {wakeStatus.status === 'ok' && <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">✓ {wakeStatus.message}</span>}
+                    {wakeStatus.status === 'fail' && <span className="text-xs font-semibold text-red-600 dark:text-red-400">✗ {wakeStatus.message}</span>}
+                  </div>
+                </div>
+                {/* Optional own keys */}
+                <div>
+                  <p className="text-[11px] font-semibold text-zinc-600 dark:text-zinc-300 mb-2">Optional: use your own key instead of Workers AI</p>
+                  <div className="grid grid-cols-1 gap-2">
+                    <ByokProviderCard id="claude" icon="🧠" label="Claude (Anthropic)"
+                      badge="Optional" badgeColor="bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300"
+                      desc="Claude Haiku/Sonnet — use your own key if you prefer Anthropic's models."
+                      keyValue={claudeKey} keyPlaceholder="sk-ant-xxxxxxxxxxxxxxxxxxxxxxxx"
+                      keyLink="https://console.anthropic.com/settings/keys" keyLinkLabel="Get Claude API key →"
+                      borderColor="border-purple-200 dark:border-purple-700/60" activeBg="bg-purple-50 dark:bg-purple-900/20"
+                      onKeyChange={setClaudeKey} modelValue={claudeModel} modelOptions={CLAUDE_MODEL_OPTIONS}
+                      onModelChange={setClaudeModelState} showCaching />
+                    <ByokProviderCard id="gemini" icon="🔍" label="Gemini (Google)"
+                      badge="Optional" badgeColor="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
+                      desc="Gemini 2.5 Flash — also enables PDF/image CV upload regardless of active AI provider."
+                      keyValue={geminiKey} keyPlaceholder="AIzaSy..."
+                      keyLink="https://aistudio.google.com/app/apikey" keyLinkLabel="Get Gemini API key →"
+                      borderColor="border-blue-200 dark:border-blue-700/60" activeBg="bg-blue-50 dark:bg-blue-900/20"
+                      onKeyChange={setGeminiKey} modelValue={geminiModel} modelOptions={GEMINI_MODEL_OPTIONS}
+                      onModelChange={setGeminiModelState} />
+                    <ByokProviderCard id="groq" icon="⚡" label="Groq"
+                      badge="Optional" badgeColor="bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300"
+                      desc="Ultra-fast Groq inference if you want fastest possible generation speed."
+                      keyValue={groqKey} keyPlaceholder="gsk_..."
+                      keyLink="https://console.groq.com/keys" keyLinkLabel="Get Groq API key →"
+                      borderColor="border-orange-200 dark:border-orange-700/60" activeBg="bg-orange-50 dark:bg-orange-900/20"
+                      onKeyChange={setGroqKey} modelValue={groqModel} modelOptions={GROQ_MODEL_OPTIONS}
+                      onModelChange={setGroqModelState} />
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
 
           {/* ── Session Token Usage & Key Security ── */}
           <div className="rounded-xl border border-zinc-200 dark:border-neutral-700 p-4 space-y-4 bg-white dark:bg-neutral-800/40">
@@ -574,12 +595,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
       </div>
     </div>
 
-    {/* Workers AI upgrade modal — rendered outside the scrollable panel */}
-    <PremiumUpgradeModal
-      isOpen={workersAiUpgradeOpen}
-      onClose={closeWorkersAiUpgrade}
-      blockedFeature="workers-ai"
-    />
     </>
   );
 };
