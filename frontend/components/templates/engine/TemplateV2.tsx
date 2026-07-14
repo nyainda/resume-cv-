@@ -484,13 +484,11 @@ const ProjectsCompactGrid: React.FC<{
                 <span style={{ fontSize: sc.bodySize, fontWeight: 700, color: theme.bodyText, fontFamily: theme.fontBody, lineHeight: 1.3 }}>{p.name}</span>
                 {p.year && <span style={{ fontSize: sc.metaSize, color: theme.bodyMuted, fontFamily: theme.fontBody, flexShrink: 0 }}>{p.year}</span>}
               </div>
-              {/* Description — hard-clamped to 2 lines */}
+              {/* Description — full text, no clamp */}
               {blurb && (
                 <div style={{
                   fontSize: sc.metaSize, color: theme.bodyMuted, fontFamily: theme.fontBody,
                   lineHeight: 1.45, marginTop: 2,
-                  overflow: 'hidden', display: '-webkit-box',
-                  WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as any,
                 }}>{blurb}</div>
               )}
               {/* Tech chips — up to 3, overflow as +N */}
@@ -811,13 +809,11 @@ const SidebarContent: React.FC<SidebarContentProps> = ({ cvData, pi, theme, sc, 
                     )}
                   </div>
 
-                  {/* Description — hard-clamped to 2 lines so long text never blows the sidebar */}
+                  {/* Description — full text */}
                   {blurb && (
                     <div style={{
                       fontSize: sc.metaSize, color: mutedColor,
                       fontFamily: theme.fontBody, lineHeight: 1.45, marginTop: 2,
-                      overflow: 'hidden', display: '-webkit-box',
-                      WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as any,
                     }}>{blurb}</div>
                   )}
 
