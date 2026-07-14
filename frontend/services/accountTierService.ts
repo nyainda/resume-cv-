@@ -443,6 +443,23 @@ export function canAddProfileSlot(currentCount: number): boolean {
 // ─── Phase 2 stub ────────────────────────────────────────────────────────────
 
 /**
+ * Reconcile the locally-cached plan with the server-confirmed plan from a
+ * validated session (AuthContext calls this on every boot/login/session
+ * refresh — the only place a session's `plan` is confirmed by the server).
+ *
+ * This is a two-way sync, not a one-way "upgrade seed": it also DOWNGRADES
+ * `cv_builder:accountTier` back to 'free' when the server says the account
+ * is no longer premium (subscription canceled/expired/manually revoked by
+ * an admin). Without the downgrade branch, a premium user whose plan lapses
+ * would keep unlimited/clean PDFs forever, because nothing else in the app
+ * ever re-checks the stored tier against the server.
+ */
+export function syncTierFromSession(serverPlan: string | null | undefined): void {
+  const next: AccountTier = serverPlan === 'premium' ? 'premium' : 'free';
+  if (getTier() !== next) setTier(next);
+}
+
+/**
  * Fetch the canonical tier + usage counts from the cv-engine-worker D1 database
  * and seed localStorage so all subsequent synchronous reads are up-to-date.
  * Called after the user authenticates. Silently no-ops on any network failure.
@@ -452,10 +469,11 @@ export async function syncTierFromServer(_authToken: string): Promise<void> {
     const info = await fetchTierInfo();
     if (!info) return;
 
-    // Seed plan (premium wins over localStorage default of 'free').
-    if (info.plan === 'premium') {
-      try { localStorage.setItem(STORAGE_KEY, 'premium'); } catch { /* ignore */ }
-    }
+    // Two-way sync: premium is seeded, but a lapsed/canceled subscription
+    // must also downgrade back to 'free' — see syncTierFromSession() above
+    // for why a one-way "upgrade only" seed silently strands ex-premium
+    // users on unlimited/clean PDFs forever.
+    syncTierFromSession(info.plan);
 
     // Seed usage counters — use the server value if it is higher than the local
     // value (devices could have incremented independently; we want the max).
@@ -469,7 +487,5 @@ export async function syncTierFromServer(_authToken: string): Promise<void> {
         localStorage.setItem(PDF_DOWNLOAD_KEY, String(info.pdf_dl_count));
       }
     } catch { /* ignore */ }
-
-    window.dispatchEvent(new CustomEvent(TIER_CHANGED_EVENT, { detail: { tier: info.plan } }));
   } catch { /* non-fatal — fall back to localStorage values */ }
 }

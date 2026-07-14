@@ -43,6 +43,7 @@ import {
     deleteAccountWorker,
     clearSessionFallback,
 } from '../services/authService';
+import { syncTierFromSession } from '../services/accountTierService';
 import { getDeviceId } from '../services/userDataCloudService';
 import { clearQueueForAccount } from '../services/storage/syncQueue';
 import {
@@ -367,6 +368,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             if (u) localStorage.setItem(USER_CACHE_KEY, JSON.stringify(u));
             else   localStorage.removeItem(USER_CACHE_KEY);
         } catch { /* quota — non-fatal */ }
+        // Reconcile the feature-gating tier (accountTierService) with the plan
+        // the server just confirmed. `u` here is always server-validated (never
+        // the localStorage display cache, which has `plan` force-reset to
+        // 'free' above) — so this is the one place a premium→free downgrade
+        // (subscription canceled/expired/admin-revoked) actually takes effect.
+        // On sign-out (u === null) also drop back to 'free' so a stale premium
+        // flag can't linger for whoever signs in next on this device.
+        syncTierFromSession(u?.plan ?? null);
     }, []);
 
     // ── Core: apply a confirmed session ──────────────────────────────────────

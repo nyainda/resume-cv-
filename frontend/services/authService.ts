@@ -31,7 +31,10 @@ export interface WorkerUser {
     email: string;
     name: string;
     picture: string;
-    plan: 'free' | 'byok' | 'pro';
+    // Mirrors the D1 `user_identities.plan` column, which only ever holds
+    // 'free' or 'premium'. BYOK is a separate, client-detected runtime state
+    // (key presence) — never a stored plan value — see accountTierService.ts.
+    plan: 'free' | 'premium';
 }
 
 /** Lightweight slot shape returned alongside every auth response. */

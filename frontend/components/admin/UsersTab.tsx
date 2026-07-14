@@ -26,8 +26,7 @@ function fmtRelative(unix: number | null) {
 }
 
 function planStyle(plan: string, isDark: boolean) {
-  if (plan === 'pro')  return isDark ? { bg: '#0D2A1A', text: '#4ADE80' } : { bg: '#E6F9F0', text: '#1B7A4A' };
-  if (plan === 'byok') return isDark ? { bg: '#0E1E38', text: '#60A5FA' } : { bg: '#E8F0FE', text: '#1A73E8' };
+  if (plan === 'premium') return isDark ? { bg: '#0D2A1A', text: '#4ADE80' } : { bg: '#E6F9F0', text: '#1B7A4A' };
   return isDark ? { bg: '#1A1A0E', text: '#A0A060' } : { bg: '#F0EDE6', text: '#5A4A2A' };
 }
 
@@ -106,8 +105,7 @@ export default function UsersTab() {
           style={{ ...inputStyle, cursor: 'pointer' }}>
           <option value="">All plans</option>
           <option value="free">Free</option>
-          <option value="byok">BYOK</option>
-          <option value="pro">Pro</option>
+          <option value="premium">Premium</option>
         </select>
         <button onClick={() => load(0)} style={{ padding: '9px 18px', background: theme.navy, color: 'white', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
           Search
@@ -150,8 +148,7 @@ export default function UsersTab() {
                           onChange={e => { e.stopPropagation(); handlePlanChange(u.id, e.target.value); }}
                           style={{ padding: '4px 9px', borderRadius: 99, background: bg, color: text, border: 'none', fontSize: 11, fontWeight: 700, cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                           <option value="free">Free</option>
-                          <option value="byok">BYOK</option>
-                          <option value="pro">Pro</option>
+                          <option value="premium">Premium</option>
                         </select>
                       </Td>
                       <Td>

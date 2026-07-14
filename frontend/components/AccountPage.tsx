@@ -6,6 +6,7 @@ import React, { useState, useEffect } from 'react';
 import type { WorkerUser } from '../services/authService';
 import type { UserProfileSlot } from '../types';
 import { getSelectedProvider } from '../services/groqService';
+import { useAccountTier } from '../hooks/useAccountTier';
 
 interface AccountPageProps {
     workerUser: WorkerUser | null;
@@ -19,9 +20,9 @@ interface AccountPageProps {
 }
 
 const PLAN_CONFIG: Record<string, { label: string; color: string; bg: string; darkBg: string; ring: string; darkRing: string; desc: string; icon: string }> = {
-    free:  { label: 'Free',     color: '#4b5563', bg: '#f3f4f6',   darkBg: 'rgba(255,255,255,0.08)', ring: '#d1d5db', darkRing: 'rgba(255,255,255,0.12)', desc: 'All core features included',     icon: '🌱' },
-    byok:  { label: 'BYOK Pro', color: '#1B2B4B', bg: '#eef1f7',   darkBg: 'rgba(27,43,75,0.5)',     ring: '#1B2B4B30', darkRing: 'rgba(201,168,76,0.3)',   desc: 'Bring-your-own-key plan',        icon: '🔑' },
-    pro:   { label: 'Pro',      color: '#92400e', bg: '#fffbeb',   darkBg: 'rgba(201,168,76,0.15)',  ring: '#fde68a',   darkRing: 'rgba(201,168,76,0.4)',   desc: 'Full access · Priority support', icon: '⭐' },
+    free:    { label: 'Free',     color: '#4b5563', bg: '#f3f4f6',   darkBg: 'rgba(255,255,255,0.08)', ring: '#d1d5db', darkRing: 'rgba(255,255,255,0.12)', desc: 'All core features included',     icon: '🌱' },
+    byok:    { label: 'BYOK Pro', color: '#1B2B4B', bg: '#eef1f7',   darkBg: 'rgba(27,43,75,0.5)',     ring: '#1B2B4B30', darkRing: 'rgba(201,168,76,0.3)',   desc: 'Bring-your-own-key plan',        icon: '🔑' },
+    premium: { label: 'Premium',  color: '#92400e', bg: '#fffbeb',   darkBg: 'rgba(201,168,76,0.15)',  ring: '#fde68a',   darkRing: 'rgba(201,168,76,0.4)',   desc: 'Full access · Priority support', icon: '⭐' },
 };
 
 const PROVIDER_CONFIG: Record<string, { label: string; model: string; color: string; bg: string; darkBg: string; icon: string; desc: string }> = {
@@ -59,7 +60,11 @@ export default function AccountPage({ workerUser, profiles, onSignOut, onDeleteA
 
     useEffect(() => { setProvider(getSelectedProvider()); }, []);
 
-    const plan = workerUser?.plan ?? 'free';
+    // Server confirms 'free' | 'premium' only — BYOK is client-detected via
+    // key presence, so use the reactive effective tier (not the raw plan
+    // field) to get an accurate 'byok' badge here.
+    const { effectiveTier } = useAccountTier();
+    const plan = effectiveTier;
     const planCfg = PLAN_CONFIG[plan] ?? PLAN_CONFIG.free;
     const provCfg = PROVIDER_CONFIG[provider] ?? PROVIDER_CONFIG['workers-ai'];
 

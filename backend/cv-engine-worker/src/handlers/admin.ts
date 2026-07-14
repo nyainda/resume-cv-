@@ -524,7 +524,13 @@ export async function handleUsersUpdatePlan(request: Request, env: Env): Promise
     const body = await safeJson(request);
     const userId = body?.user_id ? Number(body.user_id) : null;
     const plan   = typeof body?.plan === 'string' ? body.plan : '';
-    if (!userId || !['free','byok','pro'].includes(plan)) return json({ error: 'invalid_params' }, request, env, 400);
+    // 'byok' is intentionally not a valid plan value — BYOK is a separate,
+    // client-detected runtime state (has its own `byok_enabled` column), not
+    // stored in `plan`. The rest of the codebase (requirePremium.ts,
+    // accountTierService.ts, PricingModal) only ever checks `plan === 'premium'`;
+    // this used to allow 'pro' instead, which meant granting "Pro" via the
+    // admin panel never actually unlocked anything.
+    if (!userId || !['free','premium'].includes(plan)) return json({ error: 'invalid_params' }, request, env, 400);
     await env.CV_DB.prepare(`UPDATE user_identities SET plan = ? WHERE id = ?`).bind(plan, userId).run();
     return json({ ok: true }, request, env);
 }

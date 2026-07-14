@@ -60,7 +60,7 @@ function Cell({ val, col, theme }: { val: any; col: string; theme: any }) {
           color: val === null || val === undefined ? theme.muted
                : display === '✓' ? '#4ADE80'
                : display === '✗' ? '#F87171'
-               : col === 'plan' ? (val === 'pro' ? theme.gold : val === 'byok' ? '#60A5FA' : theme.text)
+               : col === 'plan' ? (val === 'premium' ? theme.gold : theme.text)
                : theme.text,
           cursor: truncated ? 'pointer' : 'default',
           textDecoration: truncated ? 'underline dotted' : 'none',
