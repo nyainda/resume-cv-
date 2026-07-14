@@ -20,6 +20,7 @@
 
 import type { AccountTier, EffectiveTier, TierFeature, TierFeatureConfig } from '../types/accountTier';
 import { fetchTierInfo, incrementUsageCount, markByok, UsageLimitExceededError } from './cvUsageClient';
+import { getUserPrefix } from './storage/userStorageNamespace';
 
 export { markByok };
 
@@ -228,7 +229,15 @@ export function setTier(tier: AccountTier): void {
  */
 export function hasByokKeys(): boolean {
   try {
+    // Settings are persisted by useStorage()/LocalStorageService under the
+    // user-namespaced key `u_<userId>:cv_builder:apiSettings` (or `anon:...`
+    // when signed out) — NOT the bare `cv_builder:apiSettings` key. Checking
+    // only the bare key meant this always returned false post-login, so a
+    // BYOK user with a saved key was permanently misclassified as 'free'
+    // (still saw the free-tier PDF download limit, etc).
+    const userPrefix = getUserPrefix();
     const raw =
+      localStorage.getItem(`${userPrefix}cv_builder:apiSettings`) ||
       localStorage.getItem('cv_builder:apiSettings') ||
       localStorage.getItem('apiSettings');
     if (!raw) return false;
