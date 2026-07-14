@@ -25,21 +25,22 @@ import { useToast } from "./hooks/useToast";
 import { ToastContainer } from "./components/ui/Toast";
 import PricingModal from "./components/PricingModal";
 import FreePlanNudge from "./components/FreePlanNudge";
-import SharedCVView from "./components/SharedCVView";
-import PublicProfilePage from "./components/PublicProfilePage";
+import { lazy, Suspense } from "react";
+const SharedCVView     = lazy(() => import("./components/SharedCVView"));
+const PublicProfilePage = lazy(() => import("./components/PublicProfilePage"));
 import { decodeSharePayload, SharedCVPayload } from "./components/ShareCVModal";
 import { fetchSharePayload } from "./services/shareService";
 import { fetchPublicProfile } from "./services/publicProfileService";
 import SettingsModal from "./components/SettingsModal";
 import InactivityWarningModal from "./components/InactivityWarningModal";
-import LandingPage from "./components/LandingPage";
-import VideoTemplate from "./components/video/VideoTemplate";
+const LandingPage    = lazy(() => import("./components/LandingPage"));
+const VideoTemplate  = lazy(() => import("./components/video/VideoTemplate"));
 import OfflineBanner from "./components/OfflineBanner";
 import { OnboardingWizard, type PendingImportType } from "./components/OnboardingWizard";
 import { generateProfileFromFileWithGemini, generateProfileFromFileClaude, generateProfile } from "./services/geminiService";
 import { runImportPipeline } from "./services/importPipeline";
 import { purifyProfile } from "./services/cvPurificationPipeline";
-import AdminApp from "./components/admin/AdminApp";
+const AdminApp = lazy(() => import("./components/admin/AdminApp"));
 import JsonImportDialog from "./components/JsonImportDialog";
 import ImportChoiceModal from "./components/ImportChoiceModal";
 import { isCVEngineConfigured, workerExtractDoc } from "./services/cvEngineClient";
@@ -581,7 +582,8 @@ const AppInner: React.FC = () => {
   // ── Landing page ──────────────────────────────────────────────────────────
   if (showLanding) {
     return (
-      <>
+      <Suspense fallback={null}>
+        <>
         <LandingPage
           onGetStarted={async () => {
             if (profileExists && isAuthenticated) {
@@ -615,7 +617,8 @@ const AppInner: React.FC = () => {
           onDismiss={onAuthDismiss}
           mode={authModalMode}
         />
-      </>
+        </>
+      </Suspense>
     );
   }
 
@@ -650,6 +653,7 @@ const AppInner: React.FC = () => {
 
   if (sharedCVPayload) {
     return (
+      <Suspense fallback={null}>
       <SharedCVView
         cvData={sharedCVPayload.cvData}
         personalInfo={sharedCVPayload.personalInfo}
@@ -684,11 +688,13 @@ const AppInner: React.FC = () => {
           window.history.replaceState(null, "", window.location.pathname + window.location.search);
         }}
       />
+      </Suspense>
     );
   }
 
   if (publicProfilePayload) {
     return (
+      <Suspense fallback={null}>
       <PublicProfilePage
         cvData={publicProfilePayload.cvData}
         personalInfo={publicProfilePayload.personalInfo}
@@ -704,6 +710,7 @@ const AppInner: React.FC = () => {
           window.history.replaceState(null, "", window.location.pathname + window.location.search);
         }}
       />
+      </Suspense>
     );
   }
 
@@ -925,10 +932,10 @@ const AppInner: React.FC = () => {
 // ── Root App ─────────────────────────────────────────────────────────────────
 const App: React.FC = () => {
   if (window.location.pathname.startsWith("/admin")) {
-    return <AdminApp />;
+    return <Suspense fallback={null}><AdminApp /></Suspense>;
   }
   if (window.location.pathname.startsWith("/how-it-works")) {
-    return <VideoTemplate />;
+    return <Suspense fallback={null}><VideoTemplate /></Suspense>;
   }
   return (
     <AuthProvider>

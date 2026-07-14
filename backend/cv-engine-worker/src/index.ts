@@ -70,6 +70,11 @@ import {
 } from './handlers/user';
 
 import {
+    handleUsageGet, handleUsageIncrement,
+    handleTierGet, handleMarkByok,
+} from './handlers/usage';
+
+import {
     handleAuthGoogle, handleAuthMagicSend, handleAuthMagicVerify,
     handleAuthSession, handleAuthSignout, handleAuthDeleteAccount,
 } from './handlers/auth';
@@ -272,6 +277,12 @@ async function _dispatch(request: Request, env: Env, ctx: ExecutionContext, url:
     // Lightweight timestamp poll — used by the 6-second cross-device freshness poller.
     // Returns MAX(updated_at) across slots; MUST NOT be edge-cached (see handler).
     if (p === '/api/cv/slot-status'    && m === 'GET')                      return handleSlotStatusGet(request, env);
+
+    // ── Usage counters + tier ─────────────────────────────────────────────────
+    if (p === '/api/cv/usage'           && m === 'GET')                     return handleUsageGet(request, env);
+    if (p === '/api/cv/usage/increment' && m === 'POST')                    return handleUsageIncrement(request, env);
+    if (p === '/api/cv/tier'            && m === 'GET')                     return handleTierGet(request, env);
+    if (p === '/api/cv/mark-byok'       && m === 'POST')                    return handleMarkByok(request, env);
 
     // ── Auth ──────────────────────────────────────────────────────────────────
     if (p === '/api/auth/google'              && m === 'POST')   return handleAuthGoogle(request, env, ctx);

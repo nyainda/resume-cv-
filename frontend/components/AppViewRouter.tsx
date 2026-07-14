@@ -1,25 +1,37 @@
 // Routes the main content area to the correct view component based on currentView.
-import React from 'react';
+import React, { lazy, Suspense } from 'react';
 import { CVData, UserProfile, UserProfileSlot, SavedCV, SavedCoverLetter, TrackedApplication, STARStory } from '../types';
 import type { WorkerUser } from '../services/authService';
-import ProfileForm from './ProfileForm';
-import CVGenerator from './CVGenerator';
-import LinkedInGenerator from './LinkedInGenerator';
-import InterviewPrep from './InterviewPrep';
-import ScholarshipEssayWriter from './ScholarshipEssayWriter';
-import DashboardHome from './DashboardHome';
-import CVHistory from './CVHistory';
-import CVToolkit from './CVToolkit';
-import EmailApply from './EmailApply';
-import Tracker from './Tracker';
-import NegotiationCoach from './NegotiationCoach';
-import AnalyticsDashboard from './AnalyticsDashboard';
-import ScoreMyCVPage from './ScoreMyCVPage';
-import CareerPivotPage from './CareerPivotPage';
-import AdminLeaksPage from './AdminLeaksPage';
-import AdminCVEnginePage from './AdminCVEnginePage';
-import StorageMapPage from './StorageMapPage';
-import AccountPage from './AccountPage';
+
+// ── Lazy views — each gets its own JS chunk, loaded on first navigation ────────
+const ProfileForm          = lazy(() => import('./ProfileForm'));
+const CVGenerator          = lazy(() => import('./CVGenerator'));
+const LinkedInGenerator    = lazy(() => import('./LinkedInGenerator'));
+const InterviewPrep        = lazy(() => import('./InterviewPrep'));
+const ScholarshipEssayWriter = lazy(() => import('./ScholarshipEssayWriter'));
+const DashboardHome        = lazy(() => import('./DashboardHome'));
+const CVHistory            = lazy(() => import('./CVHistory'));
+const CVToolkit            = lazy(() => import('./CVToolkit'));
+const EmailApply           = lazy(() => import('./EmailApply'));
+const Tracker              = lazy(() => import('./Tracker'));
+const NegotiationCoach     = lazy(() => import('./NegotiationCoach'));
+const AnalyticsDashboard   = lazy(() => import('./AnalyticsDashboard'));
+const ScoreMyCVPage        = lazy(() => import('./ScoreMyCVPage'));
+const CareerPivotPage      = lazy(() => import('./CareerPivotPage'));
+const AdminLeaksPage       = lazy(() => import('./AdminLeaksPage'));
+const AdminCVEnginePage    = lazy(() => import('./AdminCVEnginePage'));
+const StorageMapPage       = lazy(() => import('./StorageMapPage'));
+const AccountPage          = lazy(() => import('./AccountPage'));
+
+// ── Shared fallback spinner ────────────────────────────────────────────────────
+const ViewFallback: React.FC = () => (
+  <div className="flex items-center justify-center py-20 text-zinc-400 dark:text-zinc-600">
+    <svg className="w-6 h-6 animate-spin" viewBox="0 0 24 24" fill="none">
+      <circle cx="12" cy="12" r="10" stroke="currentColor" strokeOpacity=".2" strokeWidth="3"/>
+      <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="3" strokeLinecap="round"/>
+    </svg>
+  </div>
+);
 
 import { clearQueueForAccount, enqueueSlotSync } from '../services/storage/syncQueue';
 
@@ -137,6 +149,7 @@ const AppViewRouter: React.FC<AppViewRouterProps> = ({
       <div>
         {/* ── Main content column (full-width) ── */}
         <div>
+          <Suspense fallback={<ViewFallback />}>
           {(!profileExists || isEditingProfile) && d1SyncPending ? (
             <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 text-zinc-400">
               <div className="w-8 h-8 border-3 border-zinc-200 border-t-[#C9A84C] rounded-full animate-spin" style={{ borderWidth: '3px' }} />
@@ -394,6 +407,7 @@ const AppViewRouter: React.FC<AppViewRouterProps> = ({
               )}
             </div>
           )}
+          </Suspense>
         </div>
       </div>
     </main>

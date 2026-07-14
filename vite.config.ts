@@ -9,6 +9,27 @@ export default defineConfig(() => {
     build: {
       outDir: path.resolve(__dirname, 'dist'),
       emptyOutDir: true,
+      rollupOptions: {
+        output: {
+          manualChunks(id) {
+            // React core — tiny, hot-cached by browsers
+            if (id.includes('node_modules/react/') ||
+                id.includes('node_modules/react-dom/') ||
+                id.includes('node_modules/react/jsx-runtime')) {
+              return 'vendor-react';
+            }
+            // Framer Motion (large animation lib used by several components)
+            if (id.includes('node_modules/framer-motion')) return 'vendor-framer';
+            // Google GenAI SDK
+            if (id.includes('node_modules/@google/genai')) return 'vendor-genai';
+            // Admin panel — only loaded at /admin
+            if (id.includes('/components/admin/')) return 'chunk-admin';
+            // PDF service (Playwright-backed — only used on download)
+            if (id.includes('/services/pdfService') ||
+                id.includes('/services/cvDownloadService')) return 'chunk-pdf';
+          },
+        },
+      },
     },
     server: {
       port: 5000,

@@ -18,6 +18,9 @@
  */
 
 import type { AccountTier, EffectiveTier, TierFeature, TierFeatureConfig } from '../types/accountTier';
+import { fetchTierInfo, incrementUsageCount, markByok } from './cvUsageClient';
+
+export { markByok };
 
 // ─── Storage key ────────────────────────────────────────────────────────────
 
@@ -307,10 +310,14 @@ export function getGenerationCount(): number {
 
 /** Increments the free-tier generation counter. No-op for BYOK/Premium. */
 export function incrementGenerationCount(): void {
-  if (getEffectiveTier() !== 'free') return;
+  // Always write locally first (synchronous, used for immediate gate checks).
   try {
     localStorage.setItem(GENERATION_COUNT_KEY, String(getGenerationCount() + 1));
   } catch { /* ignore */ }
+  // Mirror to server (fire-and-forget). Free tier only; BYOK/Premium unlimited.
+  if (getEffectiveTier() === 'free') {
+    incrementUsageCount('cv_gen').catch(() => {});
+  }
 }
 
 /**
@@ -338,9 +345,14 @@ export function getPdfDownloadCount(): number {
 
 /** Increments the lifetime PDF download counter. */
 export function incrementPdfDownloadCount(): void {
+  // Write locally first for synchronous gate checks.
   try {
     localStorage.setItem(PDF_DOWNLOAD_KEY, String(getPdfDownloadCount() + 1));
   } catch { /* ignore */ }
+  // Mirror to server (fire-and-forget). Free tier only.
+  if (getEffectiveTier() === 'free') {
+    incrementUsageCount('pdf_dl').catch(() => {});
+  }
 }
 
 /**
@@ -392,9 +404,33 @@ export function canAddProfileSlot(currentCount: number): boolean {
 // ─── Phase 2 stub ────────────────────────────────────────────────────────────
 
 /**
- * (Phase 2) Fetch the canonical tier from the cv-engine-worker D1 database
- * and sync it to localStorage. Called after the user authenticates.
+ * Fetch the canonical tier + usage counts from the cv-engine-worker D1 database
+ * and seed localStorage so all subsequent synchronous reads are up-to-date.
+ * Called after the user authenticates. Silently no-ops on any network failure.
  */
 export async function syncTierFromServer(_authToken: string): Promise<void> {
-  // TODO Phase 2: implement server sync
+  try {
+    const info = await fetchTierInfo();
+    if (!info) return;
+
+    // Seed plan (premium wins over localStorage default of 'free').
+    if (info.plan === 'premium') {
+      try { localStorage.setItem(STORAGE_KEY, 'premium'); } catch { /* ignore */ }
+    }
+
+    // Seed usage counters — use the server value if it is higher than the local
+    // value (devices could have incremented independently; we want the max).
+    try {
+      const localGen = getGenerationCount();
+      if (info.cv_gen_count > localGen) {
+        localStorage.setItem(GENERATION_COUNT_KEY, String(info.cv_gen_count));
+      }
+      const localPdf = getPdfDownloadCount();
+      if (info.pdf_dl_count > localPdf) {
+        localStorage.setItem(PDF_DOWNLOAD_KEY, String(info.pdf_dl_count));
+      }
+    } catch { /* ignore */ }
+
+    window.dispatchEvent(new CustomEvent(TIER_CHANGED_EVENT, { detail: { tier: info.plan } }));
+  } catch { /* non-fatal — fall back to localStorage values */ }
 }
