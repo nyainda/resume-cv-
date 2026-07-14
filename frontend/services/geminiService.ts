@@ -3765,38 +3765,55 @@ Rules: keep the original meaning and any real metrics, fix the listed issues, do
     }
 }
 
-// --- Multimodal: Extract text from PDF/image — routes strictly through selected provider ---
+// --- Multimodal: Extract text from PDF/image ---
+// Prefers the user's actively selected provider, but any vision-capable key
+// they've configured (Claude or Gemini) can serve this — a BYOK user isn't
+// locked out just because Groq happens to be active, since Groq has no
+// vision support. Workers AI (free/premium, no key needed) handles images
+// automatically in the background; only PDFs need a vision-capable key.
 export const extractProfileTextFromFile = async (base64Data: string, mimeType: string): Promise<string> => {
     const prompt = "This file is a resume, CV, or professional profile. Extract ALL text content from it. Return only the raw, complete text, preserving original line breaks and structure as much as possible. DO NOT add any commentary, summaries, or markdown formatting.";
 
-    // ── Route strictly by selected provider — no cross-provider fallbacks ─────
     const provider = getSelectedProvider();
+    const claudeKey = getClaudeApiKey();
+    const isImage = /^image\//i.test(mimeType);
 
-    if (provider === 'workers-ai') {
-        if (!/^image\//i.test(mimeType)) throw new Error('Workers AI does not support PDF extraction. Please paste your CV text or switch to Claude/Gemini in Settings.');
+    const viaClaude = async () => {
+        const text = await claudeMultimodalCall(claudeKey!, base64Data, mimeType, prompt, { maxTokens: 4096 });
+        if (!text || text.trim().length < 20) throw new Error('Claude returned an empty response. Please try again.');
+        return text;
+    };
+    const viaGemini = async () => {
+        const ai = getGeminiClient();
+        const filePart = { inlineData: { data: base64Data, mimeType } };
+        const response = await retryGemini<GenerateContentResponse>(() => ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: { parts: [filePart, { text: prompt }] },
+            config: { systemInstruction: SYSTEM_INSTRUCTION_PARSER }
+        }));
+        if (!response.text || response.text.trim().length < 20) throw new Error('Gemini returned an empty response. Please try again.');
+        return response.text;
+    };
+    const viaWorkersAi = async () => {
+        if (!isImage) throw new Error('Workers AI does not support PDF extraction. Please paste your CV text, or add a Claude/Gemini key in Settings.');
         const text = await workerVisionExtract(base64Data, mimeType, prompt, { maxTokens: 4096 });
         if (!text || text.trim().length < 20) throw new Error('Workers AI could not extract text from this image. Please paste your CV text instead.');
         return text;
-    }
+    };
 
-    if (provider === 'claude') {
-        const claudeKey = getClaudeApiKey();
-        if (!claudeKey) throw new Error('Claude API key is not set. Please add it in Settings.');
-        const text = await claudeMultimodalCall(claudeKey, base64Data, mimeType, prompt, { maxTokens: 4096 });
-        if (!text || text.trim().length < 20) throw new Error('Claude returned an empty response. Please try again.');
-        return text;
-    }
+    // 1) Honor the actively selected provider first, when it can actually do vision.
+    if (provider === 'claude' && claudeKey) return viaClaude();
+    if (provider === 'gemini') { try { return await viaGemini(); } catch (e) { if (!claudeKey) throw e; /* fall through to Claude below */ } }
+    if (provider === 'workers-ai' && isImage) return viaWorkersAi();
 
-    // Gemini
-    const ai = getGeminiClient();
-    const filePart = { inlineData: { data: base64Data, mimeType } };
-    const response = await retryGemini<GenerateContentResponse>(() => ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: { parts: [filePart, { text: prompt }] },
-        config: { systemInstruction: SYSTEM_INSTRUCTION_PARSER }
-    }));
-    if (!response.text || response.text.trim().length < 20) throw new Error('Gemini returned an empty response. Please try again.');
-    return response.text;
+    // 2) Active provider can't handle it (e.g. Groq has no vision, or Gemini key
+    //    missing, or Workers AI + PDF) — fall back to whichever vision-capable
+    //    key the user actually has configured, rather than demanding a specific one.
+    if (claudeKey) return viaClaude();
+    try { return await viaGemini(); } catch (e) {
+        if (isImage) return viaWorkersAi();
+        throw new Error('This file needs a vision-capable key. Add a Claude or Gemini key in Settings, or paste your CV text instead.');
+    }
 };
 
 /**

@@ -498,42 +498,35 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
             </div>
           </div>
 
-          {/* ── Gemini key for PDF/image upload (when not using Gemini as AI provider) ──
-              BYOK/Premium only — Free tier has nothing to configure (Workers AI vision
-              handles PDF/image import automatically for them). */}
-          {(isByok || isPremium || forceByokView) && selectedAiProvider !== 'gemini' && (
-            <div className="rounded-2xl border border-blue-200 dark:border-blue-800/40 p-5 space-y-3 bg-blue-50/40 dark:bg-blue-900/10 shadow-sm">
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2.5">
-                  <span className="w-9 h-9 rounded-xl bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-lg flex-shrink-0">🔍</span>
-                  <div>
-                    <h3 className="text-sm font-bold text-blue-700 dark:text-blue-400">Gemini — PDF &amp; Image Upload</h3>
-                    <p className="text-xs text-zinc-500 dark:text-zinc-400">Optional — only needed to upload PDF/image CVs</p>
+          {/* ── PDF/image upload status — informational only, no duplicate key input ──
+              BYOK/Premium only. Claude and Gemini can both read PDFs/images directly —
+              whichever of those two the user has already keyed in above covers this,
+              so there's no separate "just for uploads" key to fill in. Workers AI reads
+              images automatically for Free tier with no key at all. */}
+          {(isByok || isPremium || forceByokView) && (() => {
+            const hasVisionKey = !!claudeKey.trim() || !!geminiKey.trim();
+            return (
+              <div className={`rounded-2xl border p-5 space-y-2 shadow-sm ${hasVisionKey ? 'border-emerald-200 dark:border-emerald-800/40 bg-emerald-50/40 dark:bg-emerald-900/10' : 'border-amber-200 dark:border-amber-800/40 bg-amber-50/40 dark:bg-amber-900/10'}`}>
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2.5">
+                    <span className={`w-9 h-9 rounded-xl flex items-center justify-center text-lg flex-shrink-0 ${hasVisionKey ? 'bg-emerald-100 dark:bg-emerald-900/30' : 'bg-amber-100 dark:bg-amber-900/30'}`}>📄</span>
+                    <div>
+                      <h3 className="text-sm font-bold text-zinc-800 dark:text-zinc-100">PDF &amp; Image Upload</h3>
+                      <p className="text-xs text-zinc-500 dark:text-zinc-400">Uses whichever key you've set above</p>
+                    </div>
                   </div>
+                  <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full shrink-0 ${hasVisionKey ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'}`}>
+                    {hasVisionKey ? '● Ready' : '○ Needs a key'}
+                  </span>
                 </div>
-                {geminiKey ? (
-                  <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 shrink-0">● Key set</span>
-                ) : (
-                  <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-zinc-100 text-zinc-500 dark:bg-neutral-700 dark:text-zinc-400 shrink-0">○ Not set</span>
-                )}
+                <p className="text-xs text-zinc-600 dark:text-zinc-400 leading-relaxed">
+                  {hasVisionKey
+                    ? 'Your Claude or Gemini key (set above) reads PDF and image CVs directly — nothing extra to add.'
+                    : 'Groq has no vision support. Add a Claude or Gemini key above to upload a PDF or image CV — or just paste your CV text instead.'}
+                </p>
               </div>
-              <p className="text-xs text-zinc-600 dark:text-zinc-400 leading-relaxed">
-                Your AI provider is <strong>{selectedAiProvider === 'workers-ai' ? 'Workers AI' : 'Claude'}</strong>. A Gemini key is still needed if you want to <strong>upload a PDF or image CV</strong> for parsing.
-              </p>
-              <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 underline underline-offset-2 font-semibold">
-                Get your free Gemini API key →
-              </a>
-              <Input
-                id="gemini-key-extra"
-                type="password"
-                value={geminiKey}
-                onChange={(e) => setGeminiKey(e.target.value)}
-                placeholder="AIzaSy..."
-                className="font-mono text-sm"
-              />
-            </div>
-          )}
+            );
+          })()}
 
           {/* ── Mobile Save/Cancel buttons ── */}
           <div className="sm:hidden flex flex-col gap-2 pb-2">

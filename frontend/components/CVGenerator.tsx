@@ -1462,7 +1462,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
 
   const handleFileUploads = async (event: ChangeEvent<HTMLInputElement>) => {
     if (!apiKeySet) {
-      setError("File uploads require a Gemini API key (for multimodal parsing). Please add it in Settings → AI Settings.");
+      setError("File uploads need an AI engine configured. Please check Settings — Free/Premium work automatically, or add a Claude/Gemini key if you're on BYOK.");
       openSettings();
       return;
     }
