@@ -11,7 +11,6 @@ import {
   CLAUDE_MODEL_OPTIONS, GEMINI_MODEL_OPTIONS, GROQ_MODEL_OPTIONS,
   getGroqApiKey,
 } from '../services/groqService';
-import { rewarmCVEngineModels } from '../services/cvEngineClient';
 import { setRuntimeKeys } from '../services/security/RuntimeKeys';
 import { useAccountTier } from '../hooks/useAccountTier';
 
@@ -21,9 +20,10 @@ interface SettingsModalProps {
   onSave: (settings: ApiSettings) => void;
   currentApiSettings: ApiSettings;
   onOpenOnboarding?: () => void;
+  onOpenPricing?: () => void;
 }
 
-const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, currentApiSettings, onOpenOnboarding }) => {
+const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, currentApiSettings, onOpenOnboarding, onOpenPricing }) => {
   const [geminiKey, setGeminiKey] = useState(currentApiSettings.apiKey || '');
   const [claudeKey, setClaudeKey] = useState(currentApiSettings.claudeApiKey || '');
   const [groqKey, setGroqKey] = useState(currentApiSettings.groqApiKey || getGroqApiKey() || '');
@@ -90,29 +90,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
   }, [selectedAiProvider, claudeKey, geminiKey, groqKey]);
 
   useEffect(() => { setProviderTest({ status: 'idle' }); }, [selectedAiProvider, claudeKey, geminiKey]);
-
-  // ── Wake AI models (Workers AI warm-up) ────────────────────────────────
-  type WakeState = { status: 'idle' | 'waking' | 'ok' | 'fail'; message?: string };
-  const [wakeStatus, setWakeStatus] = useState<WakeState>({ status: 'idle' });
-
-  const handleWakeModels = useCallback(async () => {
-    setWakeStatus({ status: 'waking' });
-    try {
-      const results = await rewarmCVEngineModels();
-      const okCount = results.filter((r) => r.ok).length;
-      if (results.length === 0) {
-        setWakeStatus({ status: 'fail', message: 'Workers AI is not configured.' });
-      } else if (okCount === results.length) {
-        setWakeStatus({ status: 'ok', message: `All ${okCount} models are warm.` });
-      } else if (okCount > 0) {
-        setWakeStatus({ status: 'ok', message: `${okCount}/${results.length} models warm — retry if imports still fail.` });
-      } else {
-        setWakeStatus({ status: 'fail', message: 'Models are still cold — wait a moment and try again.' });
-      }
-    } catch (e: any) {
-      setWakeStatus({ status: 'fail', message: e?.message || 'Wake-up failed.' });
-    }
-  }, []);
 
   useEffect(() => {
     setGeminiKey(currentApiSettings.apiKey || '');
@@ -356,64 +333,25 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
               );
             }
 
-            // ── Free tier: Workers AI runs automatically, offer keys to unlock BYOK ──
+            // ── Free tier: Workers AI runs silently in the background — nothing to show or configure ──
             if (isFree) {
               return (
-                <div className="rounded-xl border-2 border-[#1B2B4B]/20 dark:border-zinc-700 p-4 space-y-4 bg-zinc-50/50 dark:bg-neutral-800/30">
-                  {/* Workers AI status — not a choice, just informational */}
-                  <div className="rounded-lg border border-amber-200 dark:border-yellow-700/50 bg-amber-50 dark:bg-amber-900/10 p-3 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="text-base">✨</span>
-                        <span className="text-sm font-bold text-zinc-800 dark:text-zinc-100">Workers AI</span>
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#C9A84C]/20 text-[#7a620e] dark:text-yellow-300">Active · Free</span>
-                      </div>
-                      <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">● Running</span>
-                    </div>
-                    <p className="text-[11px] text-zinc-500 dark:text-zinc-400 leading-relaxed">
-                      Cloudflare Workers AI (Mistral 24B) powers your CVs automatically — no setup needed. Unlimited CV generation, 2 free PDF downloads.
-                    </p>
-                    <div className="flex items-center gap-3" onClick={(e) => e.stopPropagation()}>
-                      <Button type="button" onClick={handleWakeModels} disabled={wakeStatus.status === 'waking'}
-                        className="text-xs px-3 py-1.5 bg-zinc-700 hover:bg-zinc-800 dark:bg-zinc-600 dark:hover:bg-zinc-500 text-white">
-                        {wakeStatus.status === 'waking' ? 'Waking…' : 'Wake models'}
-                      </Button>
-                      {wakeStatus.status === 'ok' && <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">✓ {wakeStatus.message}</span>}
-                      {wakeStatus.status === 'fail' && <span className="text-xs font-semibold text-red-600 dark:text-red-400">✗ {wakeStatus.message}</span>}
-                      <span className="text-[10px] text-zinc-400 dark:text-zinc-500">Models can go cold after a few minutes idle</span>
+                <div className="rounded-xl border-2 border-[#1B2B4B]/20 dark:border-zinc-700 p-4 space-y-3 bg-zinc-50/50 dark:bg-neutral-800/30">
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg">✨</span>
+                    <div>
+                      <h3 className="text-xs font-bold uppercase tracking-widest text-zinc-700 dark:text-zinc-300">AI Engine</h3>
+                      <p className="text-[10px] text-zinc-500 dark:text-zinc-400">Runs automatically — nothing to set up. Unlimited CV generation, 2 free PDF downloads.</p>
                     </div>
                   </div>
-                  {/* Offer BYOK upgrade */}
-                  <div>
-                    <p className="text-[11px] font-semibold text-zinc-600 dark:text-zinc-300 mb-2">
-                      Want unlimited PDFs? Add your own API key — free from any provider:
+                  <div className="rounded-lg bg-white dark:bg-neutral-800/60 border border-zinc-200 dark:border-neutral-700 p-3">
+                    <p className="text-[11px] text-zinc-500 dark:text-zinc-400 leading-relaxed mb-2">
+                      Want unlimited PDFs and more tools? Bring your own API key (BYOK) or go Premium.
                     </p>
-                    <div className="grid grid-cols-1 gap-2">
-                      <ByokProviderCard id="claude" icon="🧠" label="Claude (Anthropic)"
-                        badge="Free key · Unlock BYOK" badgeColor="bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300"
-                        desc="Claude Haiku — fast, 200K context. Adding a key unlocks unlimited PDFs and most tools instantly."
-                        keyValue={claudeKey} keyPlaceholder="sk-ant-xxxxxxxxxxxxxxxxxxxxxxxx"
-                        keyLink="https://console.anthropic.com/settings/keys" keyLinkLabel="Get free Claude API key →"
-                        borderColor="border-purple-200 dark:border-purple-700/60" activeBg="bg-purple-50 dark:bg-purple-900/20"
-                        onKeyChange={setClaudeKey} modelValue={claudeModel} modelOptions={CLAUDE_MODEL_OPTIONS}
-                        onModelChange={setClaudeModelState} showCaching />
-                      <ByokProviderCard id="gemini" icon="🔍" label="Gemini (Google)"
-                        badge="Free key · Unlock BYOK" badgeColor="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
-                        desc="Gemini 2.5 Flash — 1M context, also enables PDF/image CV upload. Adding a key unlocks unlimited PDFs."
-                        keyValue={geminiKey} keyPlaceholder="AIzaSy..."
-                        keyLink="https://aistudio.google.com/app/apikey" keyLinkLabel="Get free Gemini API key →"
-                        borderColor="border-blue-200 dark:border-blue-700/60" activeBg="bg-blue-50 dark:bg-blue-900/20"
-                        onKeyChange={setGeminiKey} modelValue={geminiModel} modelOptions={GEMINI_MODEL_OPTIONS}
-                        onModelChange={setGeminiModelState} />
-                      <ByokProviderCard id="groq" icon="⚡" label="Groq"
-                        badge="Free key · Unlock BYOK" badgeColor="bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300"
-                        desc="Ultra-fast — Llama 70B, DeepSeek R1 and more. Free tier available, no card needed."
-                        keyValue={groqKey} keyPlaceholder="gsk_..."
-                        keyLink="https://console.groq.com/keys" keyLinkLabel="Get free Groq API key →"
-                        borderColor="border-orange-200 dark:border-orange-700/60" activeBg="bg-orange-50 dark:bg-orange-900/20"
-                        onKeyChange={setGroqKey} modelValue={groqModel} modelOptions={GROQ_MODEL_OPTIONS}
-                        onModelChange={setGroqModelState} />
-                    </div>
+                    <Button type="button" onClick={onOpenPricing}
+                      className="text-xs px-3 py-1.5 bg-[#1B2B4B] hover:bg-[#1B2B4B]/90 text-white">
+                      See upgrade options
+                    </Button>
                   </div>
                 </div>
               );
@@ -422,28 +360,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
             // ── Premium tier: Workers AI best models run automatically ───────
             return (
               <div className="rounded-xl border-2 border-[#1B2B4B]/20 dark:border-zinc-700 p-4 space-y-4 bg-zinc-50/50 dark:bg-neutral-800/30">
-                {/* Workers AI premium status */}
-                <div className="rounded-lg border border-amber-200 dark:border-yellow-700/50 bg-amber-50 dark:bg-amber-900/10 p-3 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="text-base">✨</span>
-                      <span className="text-sm font-bold text-zinc-800 dark:text-zinc-100">Workers AI</span>
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#C9A84C]/20 text-[#7a620e] dark:text-yellow-300">Active · Premium</span>
-                    </div>
-                    <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">● Running</span>
-                  </div>
-                  <p className="text-[11px] text-zinc-500 dark:text-zinc-400 leading-relaxed">
-                    Llama 3.3 70B + DeepSeek R1 via Cloudflare — the best available models, running automatically. No API key needed.
-                  </p>
-                  <div className="flex items-center gap-3" onClick={(e) => e.stopPropagation()}>
-                    <Button type="button" onClick={handleWakeModels} disabled={wakeStatus.status === 'waking'}
-                      className="text-xs px-3 py-1.5 bg-zinc-700 hover:bg-zinc-800 dark:bg-zinc-600 dark:hover:bg-zinc-500 text-white">
-                      {wakeStatus.status === 'waking' ? 'Waking…' : 'Wake models'}
-                    </Button>
-                    {wakeStatus.status === 'ok' && <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">✓ {wakeStatus.message}</span>}
-                    {wakeStatus.status === 'fail' && <span className="text-xs font-semibold text-red-600 dark:text-red-400">✗ {wakeStatus.message}</span>}
-                  </div>
-                </div>
                 {/* Optional own keys */}
                 <div>
                   <p className="text-[11px] font-semibold text-zinc-600 dark:text-zinc-300 mb-2">Optional: use your own key instead of Workers AI</p>

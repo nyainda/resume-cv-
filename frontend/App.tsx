@@ -817,6 +817,7 @@ const AppInner: React.FC = () => {
         onSave={handleApiSettingsSave}
         currentApiSettings={apiSettings}
         onOpenOnboarding={() => { setIsSettingsOpen(false); setShowOnboarding(true); }}
+        onOpenPricing={() => { setIsSettingsOpen(false); setIsPricingOpen(true); }}
       />
 
       <InactivityWarningModal

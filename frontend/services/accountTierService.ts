@@ -50,7 +50,7 @@ export const FREE_TRACKER_LIMIT = 15;
 export const FREE_HISTORY_LIMIT = 5;
 /** Max profile slots per effective tier. */
 export const SLOT_LIMITS: Record<EffectiveTier, number> = {
-  free:    1,
+  free:    5,
   byok:    3,
   premium: 5,
 };
