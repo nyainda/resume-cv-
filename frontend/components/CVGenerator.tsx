@@ -2731,7 +2731,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
                         ? 'ring-2 ring-[#C9A84C] shadow-md shadow-[#C9A84C]/20 scale-105'
                         : 'ring-1 ring-zinc-200 dark:ring-neutral-700 hover:ring-[#C9A84C]/60 hover:shadow-sm group-hover:scale-[1.03]'
                     }`}>
-                      <TemplateThumbnail templateName={t} />
+                      <TemplateThumbnail templateName={t} cvData={displayCV ?? undefined} personalInfo={userProfile.personalInfo} />
                     </div>
                     <span className={`text-[8px] font-medium max-w-[44px] text-center leading-tight truncate ${
                       isActive ? 'text-[#C9A84C] font-bold' : 'text-zinc-400 dark:text-zinc-500 group-hover:text-zinc-600 dark:group-hover:text-zinc-300'
@@ -2796,11 +2796,16 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
           )}
 
           {/* ── V2 Theme & Font Picker ────────────────────────────────────────
-              Only visible for V2 engine templates. Lets the user override the
-              accent colour and font pairing on any V2 template in real-time. */}
-          {/* All templates now render via the V2 engine (legacy names redirect at load time),
-              so the picker is always shown. */}
-          <V2ThemePicker cvData={currentCV} onChange={(cv) => { setCurrentCV(cv); syncCurrentCVToD1(cv); }} />
+              Requires a generated CV — accent colour, header panel, font
+              pairing and bullet style are stored inside the CV object itself,
+              so there must be a CV to write to. */}
+          {currentCV ? (
+            <V2ThemePicker cvData={currentCV} onChange={(cv) => { setCurrentCV(cv); syncCurrentCVToD1(cv); }} />
+          ) : (
+            <div className="mt-5 rounded-xl border border-dashed border-zinc-200 dark:border-neutral-700 px-4 py-5 text-center">
+              <p className="text-xs text-zinc-400 dark:text-zinc-500">Generate a CV first to unlock accent colour, header panel, font pairing &amp; more.</p>
+            </div>
+          )}
 
           {/* ── Import Quality Report ─────────────────────────────────────── */}
           {showImportReport && (() => {
