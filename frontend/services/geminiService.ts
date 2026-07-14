@@ -4681,7 +4681,7 @@ export const checkCVAgainstJob = async (
         }
     `;
 
-    const text = await groqChat(GROQ_FAST, SYSTEM_INSTRUCTION_PARSER, prompt, { temperature: 0.2, json: true, maxTokens: 1024 });
+    const text = await groqChat(GROQ_FAST, SYSTEM_INSTRUCTION_PARSER, prompt, { temperature: 0.2, json: true, maxTokens: 1024, task: 'cvAudit' });
     const parsed = JSON.parse(text.trim());
     return {
         overallScore:    parsed.overallScore    ?? 0,
