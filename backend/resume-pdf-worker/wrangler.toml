@@ -1,6 +1,7 @@
 name = "resume-pdf-worker"
 main = "src/index.ts"
 compatibility_date = "2025-01-01"
+account_id = "3b2dc03a15c292df3054249f73a321bb"
 compatibility_flags = ["nodejs_compat"]
 
 [browser]
