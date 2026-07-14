@@ -12,6 +12,7 @@ import {
   generateProfile,
   generateProfileFromFileWithGemini,
   generateProfileFromFileClaude,
+  generateProfileFromFileWithGroq,
   generateEnhancedSummary,
   generateEnhancedResponsibilities,
   generateEnhancedProjectDescription,
@@ -441,6 +442,13 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
             setImportStage({ step: 2, label: 'Extracting via Gemini…', sub: 'Multimodal AI reading your PDF' });
             const { base64 } = await fileToBase64(uploadedFile);
             profile = purifyProfile(await generateProfileFromFileWithGemini(base64, mimeType, undefined));
+          } else if (activeProvider === 'groq') {
+            // Groq has no PDF vision — extract text layer for free, then structure with Groq
+            setImportStage({ step: 2, label: 'Extracting PDF text…', sub: 'Free text extraction' });
+            const text = await workerExtractDoc(uploadedFile);
+            if (!text || text.trim().length < 50) throw new Error('Could not extract text from this PDF. Try pasting your CV text instead.');
+            setImportStage({ step: 3, label: 'Structuring with Groq…', sub: 'Groq AI building your profile' });
+            profile = purifyProfile(await generateProfile(text, undefined));
           } else {
             // Workers AI (free/premium) — toMarkdown handles the whole PDF server-side;
             // text-layer PDFs cost zero tokens, scanned PDFs use vision quota.
@@ -476,6 +484,10 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
             setImportStage({ step: 2, label: 'Extracting via Gemini…', sub: 'Multimodal AI reading your image' });
             const { base64 } = await fileToBase64(uploadedFile);
             profile = purifyProfile(await generateProfileFromFileWithGemini(base64, mimeType, undefined));
+          } else if (activeProvider === 'groq') {
+            setImportStage({ step: 2, label: 'Extracting via Groq…', sub: 'Groq vision reading your image' });
+            const { base64 } = await fileToBase64(uploadedFile);
+            profile = purifyProfile(await generateProfileFromFileWithGroq(base64, mimeType));
           } else {
             // Workers AI — toMarkdown handles images via vision server-side
             setImportStage({ step: 2, label: 'Extracting via Workers AI…', sub: 'Free — no key required' });

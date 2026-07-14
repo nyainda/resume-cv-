@@ -1,7 +1,7 @@
 import { GoogleGenAI, GenerateContentResponse } from '@google/genai';
 import { truncate } from '../utils/textTruncate';
 import { UserProfile, CVData, PersonalInfo, JobAnalysisResult, CVGenerationMode, ScholarshipFormat, EnhancedJobAnalysis } from '../types';
-import { groqChat, groqChatStream, GROQ_LARGE, GROQ_FAST, getLastAiEngine, getSelectedProvider, getClaudeModel } from './groqService';
+import { groqChat, groqChatStream, GROQ_LARGE, GROQ_FAST, getLastAiEngine, getSelectedProvider, getClaudeModel, getGroqApiKey } from './groqService';
 import { purifyCV, purifyText, cleanImportedText, purifyProfile, purifyInboundCV, revertCorruptedMetrics, enforceOpenerDiversity, type PurifyReport } from './cvPurificationPipeline';
 import { remotePrePurify } from './cvPurifyClient';
 import { detectField, detectFieldWithSource, lockRealNumbers, buildPromptAnchorBlock, fixPronounsInCV } from './cvPromptHelpers';
@@ -3766,11 +3766,9 @@ Rules: keep the original meaning and any real metrics, fix the listed issues, do
 }
 
 // --- Multimodal: Extract text from PDF/image ---
-// Prefers the user's actively selected provider, but any vision-capable key
-// they've configured (Claude or Gemini) can serve this — a BYOK user isn't
-// locked out just because Groq happens to be active, since Groq has no
-// vision support. Workers AI (free/premium, no key needed) handles images
-// automatically in the background; only PDFs need a vision-capable key.
+// Routes strictly to the selected provider — no silent cross-provider fallback.
+// Groq handles images via its vision model (llama-3.2-11b-vision-preview).
+// PDFs + Groq: caller should use workerExtractDoc (text extraction) then generateProfile.
 export const extractProfileTextFromFile = async (base64Data: string, mimeType: string): Promise<string> => {
     const prompt = "This file is a resume, CV, or professional profile. Extract ALL text content from it. Return only the raw, complete text, preserving original line breaks and structure as much as possible. DO NOT add any commentary, summaries, or markdown formatting.";
 
@@ -3794,6 +3792,15 @@ export const extractProfileTextFromFile = async (base64Data: string, mimeType: s
         if (!response.text || response.text.trim().length < 20) throw new Error('Gemini returned an empty response. Please try again.');
         return response.text;
     };
+    const viaGroq = async () => {
+        const groqKey = getGroqApiKey();
+        if (!groqKey) throw new Error('No Groq API key configured. Go to Settings → AI Keys to add your Groq API key.');
+        if (!isImage) throw new Error('Groq vision only supports images. For PDFs, paste your CV text instead.');
+        const { workerProxyMultimodal } = await import('./cvEngineClient');
+        const text = await workerProxyMultimodal(groqKey, base64Data, mimeType, prompt, { maxTokens: 4096, provider: 'groq' });
+        if (!text || text.trim().length < 20) throw new Error('Groq returned an empty response. Please try again.');
+        return text;
+    };
     const viaWorkersAi = async () => {
         if (!isImage) throw new Error('Workers AI does not support PDF extraction. Please paste your CV text, or add a Claude/Gemini key in Settings.');
         const text = await workerVisionExtract(base64Data, mimeType, prompt, { maxTokens: 4096 });
@@ -3801,18 +3808,17 @@ export const extractProfileTextFromFile = async (base64Data: string, mimeType: s
         return text;
     };
 
-    // 1) Honor the actively selected provider first, when it can actually do vision.
+    // Route strictly to the selected provider first.
+    if (provider === 'groq') return viaGroq();
     if (provider === 'claude' && claudeKey) return viaClaude();
     if (provider === 'gemini') { try { return await viaGemini(); } catch (e) { if (!claudeKey) throw e; /* fall through to Claude below */ } }
     if (provider === 'workers-ai' && isImage) return viaWorkersAi();
 
-    // 2) Active provider can't handle it (e.g. Groq has no vision, or Gemini key
-    //    missing, or Workers AI + PDF) — fall back to whichever vision-capable
-    //    key the user actually has configured, rather than demanding a specific one.
+    // Gemini failed + Claude available — use Claude as same-tier fallback.
     if (claudeKey) return viaClaude();
     try { return await viaGemini(); } catch (e) {
         if (isImage) return viaWorkersAi();
-        throw new Error('This file needs a vision-capable key. Add a Claude or Gemini key in Settings, or paste your CV text instead.');
+        throw new Error('This file needs a vision-capable key. Add a Claude, Gemini, or Groq key in Settings, or paste your CV text instead.');
     }
 };
 
@@ -3923,6 +3929,54 @@ export const generateProfileFromFileClaude = async (
 
     const raw = await claudeMultimodalCall(claudeKey, base64Data, mimeType, prompt, { maxTokens: 8192, temperature: 0.1 });
     if (!raw || raw.trim().length < 20) throw new Error('Claude returned an empty response. Please try again.');
+
+    const profileData: UserProfile = _normalizeProfileIds(parseProfileJson(raw));
+    profileData.projects       = profileData.projects       || [];
+    profileData.education      = profileData.education      || [];
+    profileData.workExperience = profileData.workExperience || [];
+    profileData.languages      = profileData.languages      || [];
+    profileData.customSections = normaliseCustomSections(profileData.customSections || []);
+    return profileData;
+};
+
+/**
+ * Parse a UserProfile from an image file using Groq vision ONLY.
+ * Uses llama-3.2-11b-vision-preview routed through the CF Worker proxy.
+ * For PDFs, use workerExtractDoc (text extraction) + generateProfile instead.
+ */
+export const generateProfileFromFileWithGroq = async (
+    base64Data: string,
+    mimeType: string,
+): Promise<UserProfile> => {
+    const groqKey = getGroqApiKey();
+    if (!groqKey) throw new Error('Groq API key is not set. Please add your Groq API key in Settings.');
+    if (!/^image\//i.test(mimeType)) throw new Error('Groq vision only supports image files. For PDFs, the text will be extracted automatically.');
+
+    const prompt = `RESPOND WITH ONLY A RAW JSON OBJECT. NO GREETING. NO PREAMBLE. NO EXPLANATION. START YOUR RESPONSE WITH "{" AND END WITH "}".
+
+        You are a professional CV data extractor. You are looking at a resume, CV, or professional profile document.
+        Your ONLY job is to extract EVERY piece of information visible — nothing more, nothing less.
+
+        ### CRITICAL EXTRACTION RULES
+        ${EXTRACTION_RULE_LANGUAGES}
+        2. Preserve ALL responsibility bullets in full — do NOT summarise, paraphrase, or drop any bullet point.
+        3. Preserve EVERY skill listed — do NOT drop any.
+        4. Standardize all dates to 'YYYY-MM-DD'. First day of month/year if only month/year given. Current roles → endDate = 'Present'.
+        5. Generate a unique simple string 'id' for every array item (e.g. 'exp1', 'edu1', 'cs1').
+        6. Do NOT invent data that is not visibly present in the document.
+        7. Return ONLY the raw JSON object — no markdown, no code fences, no commentary, no preamble of any kind.
+
+        ${USER_PROFILE_SCHEMA}
+    `;
+
+    const { workerProxyMultimodal } = await import('./cvEngineClient');
+    const raw = await workerProxyMultimodal(groqKey, base64Data, mimeType, prompt, {
+        maxTokens: 8192,
+        temperature: 0.1,
+        provider: 'groq',
+        timeoutMs: 90_000,
+    });
+    if (!raw || raw.trim().length < 20) throw new Error('Groq returned an empty response. Please try again.');
 
     const profileData: UserProfile = _normalizeProfileIds(parseProfileJson(raw));
     profileData.projects       = profileData.projects       || [];

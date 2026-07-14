@@ -508,7 +508,12 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
               so there's no separate "just for uploads" key to fill in. Workers AI reads
               images automatically for Free tier with no key at all. */}
           {(isByok || isPremium || forceByokView) && (() => {
-            const hasVisionKey = !!claudeKey.trim() || !!geminiKey.trim();
+            const hasVisionKey = !!claudeKey.trim() || !!geminiKey.trim() || !!groqKey.trim();
+            const visionDesc = groqKey.trim() && !claudeKey.trim() && !geminiKey.trim()
+              ? 'Groq reads image CVs directly. PDFs are text-extracted for free, then structured by Groq — no extra key needed.'
+              : hasVisionKey
+              ? 'Your key (set above) reads PDF and image CVs directly — nothing extra to add.'
+              : 'Add a Groq, Claude, or Gemini key above to upload a PDF or image CV — or just paste your CV text instead.';
             return (
               <div className={`rounded-2xl border p-5 space-y-2 shadow-sm ${hasVisionKey ? 'border-emerald-200 dark:border-emerald-800/40 bg-emerald-50/40 dark:bg-emerald-900/10' : 'border-amber-200 dark:border-amber-800/40 bg-amber-50/40 dark:bg-amber-900/10'}`}>
                 <div className="flex items-center justify-between gap-2">
@@ -524,9 +529,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
                   </span>
                 </div>
                 <p className="text-xs text-zinc-600 dark:text-zinc-400 leading-relaxed">
-                  {hasVisionKey
-                    ? 'Your Claude or Gemini key (set above) reads PDF and image CVs directly — nothing extra to add.'
-                    : 'Groq has no vision support. Add a Claude or Gemini key above to upload a PDF or image CV — or just paste your CV text instead.'}
+                  {visionDesc}
                 </p>
               </div>
             );

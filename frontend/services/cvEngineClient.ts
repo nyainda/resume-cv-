@@ -1261,7 +1261,7 @@ export async function workerProxyMultimodal(
     base64Data: string,
     mimeType: string,
     textPrompt: string,
-    opts: { maxTokens?: number; temperature?: number; timeoutMs?: number } = {},
+    opts: { maxTokens?: number; temperature?: number; timeoutMs?: number; provider?: 'claude' | 'gemini' | 'groq' } = {},
 ): Promise<string | null> {
     if (!isCVEngineConfigured()) return null;
     if (!apiKey || !base64Data) return null;
@@ -1278,7 +1278,7 @@ export async function workerProxyMultimodal(
                 body: JSON.stringify({
                     task:        'parser',
                     prompt:      textPrompt,
-                    provider:    'claude',
+                    provider:    opts.provider ?? 'claude',
                     apiKey,
                     base64Data,
                     mimeType,

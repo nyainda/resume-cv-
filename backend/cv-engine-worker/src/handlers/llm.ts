@@ -962,12 +962,26 @@ export async function handleProxyLLM(request: Request, env: Env): Promise<Respon
 
         // ── Groq (OpenAI-compatible) ──────────────────────────────────────────
         if (provider === 'groq') {
-            const groqModel = model || 'llama-3.3-70b-versatile';
+            // Use a vision model when an image is attached; fall back to the
+            // user-selected text model otherwise. Groq does not support PDF vision.
+            const isVisionReq = !!(base64Data && /^image\//i.test(mimeType));
+            const groqModel = isVisionReq ? 'llama-3.2-11b-vision-preview' : (model || 'llama-3.3-70b-versatile');
             const groqUrl   = 'https://api.groq.com/openai/v1/chat/completions';
 
-            const msgs: Array<{ role: string; content: string }> = [];
+            type MsgContent = string | Array<Record<string, unknown>>;
+            const msgs: Array<{ role: string; content: MsgContent }> = [];
             if (effectiveSystem) msgs.push({ role: 'system', content: effectiveSystem });
-            msgs.push({ role: 'user', content: prompt });
+            if (isVisionReq) {
+                msgs.push({
+                    role: 'user',
+                    content: [
+                        { type: 'image_url', image_url: { url: `data:${mimeType};base64,${base64Data}` } },
+                        { type: 'text', text: prompt },
+                    ],
+                });
+            } else {
+                msgs.push({ role: 'user', content: prompt });
+            }
 
             const groqBody: Record<string, unknown> = {
                 model:       groqModel,
@@ -975,8 +989,8 @@ export async function handleProxyLLM(request: Request, env: Env): Promise<Respon
                 max_tokens:  maxTokens,
                 temperature,
             };
-            // Groq supports response_format for json_object on most models
-            if (wantJson) groqBody.response_format = { type: 'json_object' };
+            // Groq supports response_format for json_object on text models only
+            if (wantJson && !isVisionReq) groqBody.response_format = { type: 'json_object' };
 
             const groqHeaders: Record<string, string> = {
                 'Content-Type': 'application/json',
