@@ -192,8 +192,30 @@ export function useProfileManager({
           mergedSlots.push(local);
         }
       } else {
-        mergedSlots.push(local);
-        toPush.push(local);
+        // Local wins on profile/CV data — but union-merge additive collections
+        // (trackedApps, starStories) so items added on another device since the
+        // last push aren't silently discarded. Only entries absent from local
+        // (by id) are pulled in from D1; existing local entries are untouched.
+        let slotToUse = local;
+        if (remoteChangedSinceOurLastPush) {
+          const d1Parsed = parseSlotData(d1Slot);
+          if (d1Parsed) {
+            const localAppIds   = new Set((local.trackedApps ?? []).map(a => a.id));
+            const localStoryIds = new Set((local.starStories  ?? []).map(s => s.id));
+            const d1OnlyApps    = (d1Parsed.trackedApps ?? []).filter(a => !localAppIds.has(a.id));
+            const d1OnlyStories = (d1Parsed.starStories  ?? []).filter(s => !localStoryIds.has(s.id));
+            if (d1OnlyApps.length > 0 || d1OnlyStories.length > 0) {
+              slotToUse = {
+                ...local,
+                trackedApps: [...(local.trackedApps ?? []), ...d1OnlyApps],
+                starStories:  [...(local.starStories  ?? []), ...d1OnlyStories],
+              };
+              anyD1Newer = true; // trigger setProfiles so the UI reflects the merged list
+            }
+          }
+        }
+        mergedSlots.push(slotToUse);
+        toPush.push(slotToUse);
         // Establish/refresh the server-clock baseline for this slot so the
         // next poll compares apples-to-apples instead of falling back to the
         // client-clock heuristic again.
