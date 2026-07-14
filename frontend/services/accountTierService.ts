@@ -18,7 +18,7 @@
  */
 
 import type { AccountTier, EffectiveTier, TierFeature, TierFeatureConfig } from '../types/accountTier';
-import { fetchTierInfo, incrementUsageCount, markByok } from './cvUsageClient';
+import { fetchTierInfo, incrementUsageCount, markByok, UsageLimitExceededError } from './cvUsageClient';
 
 export { markByok };
 
@@ -308,16 +308,50 @@ export function getGenerationCount(): number {
   }
 }
 
-/** Increments the free-tier generation counter. No-op for BYOK/Premium. */
-export function incrementGenerationCount(): void {
-  // Always write locally first (synchronous, used for immediate gate checks).
+/**
+ * Server-authoritative check-and-increment for a usage counter.
+ *
+ * - BYOK / Premium → always returns true without a network round-trip.
+ * - Free tier      → asks the server to atomically check then increment.
+ *                    Returns false (limit exceeded) if the server replies 429.
+ *                    Returns true on any network failure (fail-open so a flaky
+ *                    connection never permanently blocks the user).
+ *
+ * On every outcome the server's authoritative counts are synced back to
+ * localStorage so subsequent synchronous canGenerate() / canDownloadPdf()
+ * calls reflect reality.
+ */
+export async function serverCheckAndIncrement(type: 'cv_gen' | 'pdf_dl'): Promise<boolean> {
+  if (getEffectiveTier() !== 'free') return true; // unlimited — skip round-trip
+
   try {
-    localStorage.setItem(GENERATION_COUNT_KEY, String(getGenerationCount() + 1));
-  } catch { /* ignore */ }
-  // Mirror to server (fire-and-forget). Free tier only; BYOK/Premium unlimited.
-  if (getEffectiveTier() === 'free') {
-    incrementUsageCount('cv_gen').catch(() => {});
+    const result = await incrementUsageCount(type);
+    if (result) {
+      try {
+        localStorage.setItem(GENERATION_COUNT_KEY, String(result.cv_gen_count));
+        localStorage.setItem(PDF_DOWNLOAD_KEY,     String(result.pdf_dl_count));
+      } catch { /* ignore storage errors */ }
+    }
+    return true;
+  } catch (err) {
+    if (err instanceof UsageLimitExceededError) {
+      // Sync the authoritative counts so the local gate reflects reality.
+      try {
+        localStorage.setItem(GENERATION_COUNT_KEY, String(err.counts.cv_gen_count));
+        localStorage.setItem(PDF_DOWNLOAD_KEY,     String(err.counts.pdf_dl_count));
+      } catch { /* ignore */ }
+      return false; // blocked
+    }
+    // Unknown error (network down, worker cold-start, etc.) — fail open.
+    return true;
   }
+}
+
+/** @deprecated Use serverCheckAndIncrement('cv_gen') instead. No-op kept for safety. */
+export function incrementGenerationCount(): void {
+  // Intentional no-op: server-side check-and-increment replaced this.
+  // Callers in CVGenerator.tsx now call serverCheckAndIncrement() before the
+  // LLM call, which atomically checks the limit AND increments server-side.
 }
 
 /**
@@ -343,16 +377,11 @@ export function getPdfDownloadCount(): number {
   }
 }
 
-/** Increments the lifetime PDF download counter. */
+/** @deprecated Use serverCheckAndIncrement('pdf_dl') instead. No-op kept for safety. */
 export function incrementPdfDownloadCount(): void {
-  // Write locally first for synchronous gate checks.
-  try {
-    localStorage.setItem(PDF_DOWNLOAD_KEY, String(getPdfDownloadCount() + 1));
-  } catch { /* ignore */ }
-  // Mirror to server (fire-and-forget). Free tier only.
-  if (getEffectiveTier() === 'free') {
-    incrementUsageCount('pdf_dl').catch(() => {});
-  }
+  // Intentional no-op: server-side check-and-increment replaced this.
+  // Callers in cvDownloadService.ts now call serverCheckAndIncrement() before
+  // rendering, which atomically checks the limit AND increments server-side.
 }
 
 /**

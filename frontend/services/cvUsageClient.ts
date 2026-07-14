@@ -25,6 +25,17 @@ export interface UsageCounts {
     pdf_dl_count: number;
 }
 
+/**
+ * Thrown by incrementUsageCount when the server returns 429 (free-tier cap hit).
+ * Carries the server's authoritative current counts so callers can sync localStorage.
+ */
+export class UsageLimitExceededError extends Error {
+    constructor(public readonly counts: UsageCounts) {
+        super('limit_exceeded');
+        this.name = 'UsageLimitExceededError';
+    }
+}
+
 /** Shape returned by GET /api/cv/tier */
 export interface TierInfo {
     plan: 'free' | 'premium';
@@ -50,8 +61,10 @@ export async function fetchUsageCounts(): Promise<UsageCounts | null> {
 }
 
 /**
- * Atomically increment a usage counter on the server.
- * Returns the updated counts, or null on failure.
+ * Atomically check-and-increment a usage counter on the server.
+ * Returns the updated counts on success.
+ * Throws UsageLimitExceededError (with current counts) if the free-tier cap is hit (HTTP 429).
+ * Returns null on any other network/server error (caller should fail-open).
  */
 export async function incrementUsageCount(
     type: 'cv_gen' | 'pdf_dl',
@@ -63,11 +76,25 @@ export async function incrementUsageCount(
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ type }),
         });
+        if (res.status === 429) {
+            // Server says free-tier limit exceeded. Parse the counts it echoes back
+            // so we can sync localStorage to the authoritative value.
+            let counts: UsageCounts = { cv_gen_count: 0, pdf_dl_count: 0 };
+            try {
+                const data = await res.json() as { cv_gen_count?: number; pdf_dl_count?: number };
+                counts = {
+                    cv_gen_count: data.cv_gen_count ?? 0,
+                    pdf_dl_count: data.pdf_dl_count ?? 0,
+                };
+            } catch { /* ignore parse errors — zero counts is a safe fallback */ }
+            throw new UsageLimitExceededError(counts);
+        }
         if (!res.ok) return null;
         const data = await res.json() as { ok: boolean; cv_gen_count: number; pdf_dl_count: number };
         if (!data.ok) return null;
         return { cv_gen_count: data.cv_gen_count, pdf_dl_count: data.pdf_dl_count };
-    } catch {
+    } catch (e) {
+        if (e instanceof UsageLimitExceededError) throw e; // re-throw; don't swallow
         return null;
     }
 }

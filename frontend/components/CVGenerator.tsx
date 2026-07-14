@@ -15,7 +15,7 @@ import { getCachedBannedPhrases } from '../services/cvEngineClient';
 import type { BannedEntry } from '../services/cvEngineClient';
 import { getLastAiEngine, PROVIDER_TRYING_EVENT, getSelectedProvider } from '../services/groqService';
 import type { ProviderTryingPayload } from '../services/groqService';
-import { getEffectiveTier, canUsePremiumModes, canGenerate, incrementGenerationCount } from '../services/accountTierService';
+import { getEffectiveTier, canUsePremiumModes, canGenerate, serverCheckAndIncrement } from '../services/accountTierService';
 import { conductMarketResearch, detectRoleAndIndustry, MarketResearchResult } from '../services/marketResearch';
 import { scoreCVCompleteness } from '../utils/cvCompleteness';
 import { ProfileIntelligenceScore } from './ProfileIntelligenceScore';
@@ -949,9 +949,17 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
     if (!authed) return;
 
     // ── Free tier limit gate ───────────────────────────────────────────────────
-    // Free users (no key, no subscription) get FREE_GENERATION_LIMIT lifetime
-    // generations. BYOK and Premium users are never blocked here.
+    // Fast local pre-check (synchronous, uses localStorage — good for instant UI).
     if (!canGenerate()) {
+      onUpgrade?.();
+      return;
+    }
+    // Server-authoritative check-and-increment: atomically verifies the limit
+    // hasn't been exceeded on another device and increments the D1 counter.
+    // This closes the "clear localStorage to reset your limit" exploit.
+    // Fails open on network errors so a flaky connection never blocks generation.
+    const genAllowed = await serverCheckAndIncrement('cv_gen');
+    if (!genAllowed) {
       onUpgrade?.();
       return;
     }
@@ -1229,8 +1237,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
         onAutoSaveCV(generatedData, snapName);
       }
 
-      // Increment free-tier counter — no-op for BYOK/Premium users.
-      incrementGenerationCount();
+      // Counter already incremented server-side by serverCheckAndIncrement() above.
       setJustGenerated(true);
       // Record field confidence history entry for the trace panel trend
       if (generatedData._trace?.fieldSource) {

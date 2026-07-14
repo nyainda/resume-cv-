@@ -9,6 +9,9 @@ export default defineConfig(() => {
     build: {
       outDir: path.resolve(__dirname, 'dist'),
       emptyOutDir: true,
+      target: 'esnext',           // modern syntax → smaller output, no polyfill bloat
+      reportCompressedSize: false, // skip brotli sizing pass → faster CI builds
+      cssCodeSplit: true,          // per-chunk CSS → each lazy route only loads its styles
       rollupOptions: {
         output: {
           manualChunks(id) {
@@ -18,15 +21,25 @@ export default defineConfig(() => {
                 id.includes('node_modules/react/jsx-runtime')) {
               return 'vendor-react';
             }
-            // Framer Motion (large animation lib used by several components)
+            // Framer Motion — large, animation-only
             if (id.includes('node_modules/framer-motion')) return 'vendor-framer';
+            // GSAP — large, only used in landing/animations
+            if (id.includes('node_modules/gsap')) return 'vendor-gsap';
             // Google GenAI SDK
             if (id.includes('node_modules/@google/genai')) return 'vendor-genai';
+            // OpenAI SDK
+            if (id.includes('node_modules/openai')) return 'vendor-openai';
+            // PDF.js — heavy, only used for import/parsing
+            if (id.includes('node_modules/pdfjs-dist')) return 'vendor-pdfjs';
+            // Mammoth — Word doc parser, only used on file import
+            if (id.includes('node_modules/mammoth')) return 'vendor-mammoth';
             // Admin panel — only loaded at /admin
             if (id.includes('/components/admin/')) return 'chunk-admin';
-            // PDF service (Playwright-backed — only used on download)
+            // PDF rendering — only needed on download
             if (id.includes('/services/pdfService') ||
                 id.includes('/services/cvDownloadService')) return 'chunk-pdf';
+            // Template gallery — large, deferred until user opens it
+            if (id.includes('/components/TemplateGallery')) return 'chunk-templates';
           },
         },
       },

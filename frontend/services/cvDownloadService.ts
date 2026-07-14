@@ -34,8 +34,7 @@ import { getCVHtml } from './getCVHtml';
 import {
   canDownloadPdf,
   needsWatermark,
-  isPureFreeTier,
-  incrementPdfDownloadCount,
+  serverCheckAndIncrement,
 } from './accountTierService';
 import CVPreview from '../components/CVPreview';
 import type { CVData, PersonalInfo, TemplateName } from '../types';
@@ -228,9 +227,21 @@ export async function downloadCV(opts: DownloadCVOptions): Promise<DownloadCVRes
   const { fileName, containerEl, onStatus } = opts;
 
   // ── Free-tier PDF gate ────────────────────────────────────────────────────
-  // Pure free users (no BYOK keys, no premium) are capped at FREE_PDF_LIMIT
-  // lifetime downloads. BYOK and premium users always proceed.
+  // Fast local pre-check (instant; uses cached localStorage value).
   if (!canDownloadPdf()) {
+    return {
+      ok: false,
+      blocked: true,
+      blockedReason: 'pdf_limit',
+      error: 'Free PDF download limit reached. Upgrade to download more.',
+      totalMs: 0,
+    };
+  }
+  // Server-authoritative check-and-increment: atomically verifies the limit on
+  // D1 and increments it. Closes the "clear localStorage to reset limit" exploit.
+  // Fails open on network errors so connectivity issues never block downloads.
+  const pdfAllowed = await serverCheckAndIncrement('pdf_dl');
+  if (!pdfAllowed) {
     return {
       ok: false,
       blocked: true,
@@ -303,7 +314,6 @@ export async function downloadCV(opts: DownloadCVOptions): Promise<DownloadCVRes
   if (cached) {
     onStatus?.('Preparing your PDF…');
     triggerPdfDownload(cached.bytes, fileName);
-    if (isPureFreeTier()) incrementPdfDownloadCount();
     return finish({ ok: true, via: cached.via, watermarked: watermark });
   }
 
@@ -321,7 +331,6 @@ export async function downloadCV(opts: DownloadCVOptions): Promise<DownloadCVRes
       if (r.ok && r.bytes) {
         triggerPdfDownload(r.bytes, fileName);
         setCachedPdf(cacheKey, r.bytes, 'playwright');
-        if (isPureFreeTier()) incrementPdfDownloadCount();
         return finish({ ok: true, via: 'playwright', watermarked: watermark });
       }
       console.warn('[cvDownloadService] Playwright failed:', r.error);
@@ -355,7 +364,6 @@ export async function downloadCV(opts: DownloadCVOptions): Promise<DownloadCVRes
       if (r.ok && r.bytes) {
         triggerPdfDownload(r.bytes, fileName);
         setCachedPdf(cacheKey, r.bytes, 'cloudflare');
-        if (isPureFreeTier()) incrementPdfDownloadCount();
         return finish({ ok: true, via: 'cloudflare', watermarked: watermark });
       }
       console.warn('[cvDownloadService] Cloudflare failed:', r.error);
