@@ -432,7 +432,10 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
             );
           })()}
 
-          {/* ── Session Token Usage & Key Security ── */}
+          {/* ── Session Token Usage & Key Security ── BYOK only: this is about the
+              security/cost of the user's OWN API key, so it's meaningless for
+              Free/Premium (they never hold a key or a token bill of their own). */}
+          {(isByok || forceByokView) && (
           <div className="rounded-2xl border border-zinc-200 dark:border-neutral-700 p-5 space-y-4 bg-white dark:bg-neutral-900 shadow-sm">
             <div className="flex items-center gap-2.5">
               <span className="w-9 h-9 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 flex items-center justify-center flex-shrink-0">
@@ -497,6 +500,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
               </p>
             </div>
           </div>
+          )}
 
           {/* ── PDF/image upload status — informational only, no duplicate key input ──
               BYOK/Premium only. Claude and Gemini can both read PDFs/images directly —
