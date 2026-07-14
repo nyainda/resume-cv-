@@ -227,6 +227,9 @@ const AppInner: React.FC = () => {
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isPricingOpen, setIsPricingOpen] = useState(false);
+  // When true, Settings opens straight into the BYOK key-entry UI (user just
+  // chose BYOK from the pricing modal, before saving any key).
+  const [settingsForceByok, setSettingsForceByok] = useState(false);
 
   // ── Boot effects ─────────────────────────────────────────────────────────
   useBootEffects({ darkMode, isAuthenticated, setIsPricingOpen, setIsSettingsOpen });
@@ -831,11 +834,12 @@ const AppInner: React.FC = () => {
       <Suspense fallback={null}>
         <SettingsModal
           isOpen={isSettingsOpen}
-          onClose={() => setIsSettingsOpen(false)}
+          onClose={() => { setIsSettingsOpen(false); setSettingsForceByok(false); }}
           onSave={handleApiSettingsSave}
           currentApiSettings={apiSettings}
           onOpenOnboarding={() => { setIsSettingsOpen(false); setShowOnboarding(true); }}
           onOpenPricing={() => { setIsSettingsOpen(false); setIsPricingOpen(true); }}
+          forceByokView={settingsForceByok}
         />
       </Suspense>
 
@@ -861,6 +865,7 @@ const AppInner: React.FC = () => {
           onClose={() => setIsPricingOpen(false)}
           currentPlan={user?.plan ?? "free"}
           userEmail={user?.email}
+          onChooseByok={() => { setIsPricingOpen(false); setSettingsForceByok(true); setIsSettingsOpen(true); }}
         />
       </Suspense>
 

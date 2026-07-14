@@ -21,9 +21,11 @@ interface SettingsModalProps {
   currentApiSettings: ApiSettings;
   onOpenOnboarding?: () => void;
   onOpenPricing?: () => void;
+  /** Open straight into the BYOK key-entry UI, even if the account is still on the free tier (e.g. user just chose BYOK from the pricing modal). */
+  forceByokView?: boolean;
 }
 
-const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, currentApiSettings, onOpenOnboarding, onOpenPricing }) => {
+const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, currentApiSettings, onOpenOnboarding, onOpenPricing, forceByokView }) => {
   const [geminiKey, setGeminiKey] = useState(currentApiSettings.apiKey || '');
   const [claudeKey, setClaudeKey] = useState(currentApiSettings.claudeApiKey || '');
   const [groqKey, setGroqKey] = useState(currentApiSettings.groqApiKey || getGroqApiKey() || '');
@@ -289,7 +291,9 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
             };
 
             // ── BYOK tier: own keys only, no Workers AI ──────────────────────
-            if (isByok) {
+            // Also shown when the user just chose BYOK from the pricing modal but
+            // hasn't saved a key yet — effectiveTier is still 'free' at that point.
+            if (isByok || forceByokView) {
               return (
                 <div className="rounded-2xl border border-zinc-200 dark:border-neutral-700 p-5 space-y-4 bg-white dark:bg-neutral-900 shadow-sm">
                   <div className="flex items-center justify-between gap-2">
@@ -494,8 +498,10 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
             </div>
           </div>
 
-          {/* ── Gemini key for PDF/image upload (when not using Gemini as AI provider) ── */}
-          {selectedAiProvider !== 'gemini' && (
+          {/* ── Gemini key for PDF/image upload (when not using Gemini as AI provider) ──
+              BYOK/Premium only — Free tier has nothing to configure (Workers AI vision
+              handles PDF/image import automatically for them). */}
+          {(isByok || isPremium || forceByokView) && selectedAiProvider !== 'gemini' && (
             <div className="rounded-2xl border border-blue-200 dark:border-blue-800/40 p-5 space-y-3 bg-blue-50/40 dark:bg-blue-900/10 shadow-sm">
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2.5">

@@ -15,6 +15,8 @@ interface PricingModalProps {
     userEmail?: string;
     /** If provided, the pricing modal opens directly to this tab */
     defaultView?: 'cards' | 'compare';
+    /** Called when the user picks BYOK — should close this modal and take the user straight to the key-entry UI in Settings. */
+    onChooseByok?: () => void;
 }
 
 // ─── SVG icons ────────────────────────────────────────────────────────────────
@@ -118,6 +120,7 @@ export default function PricingModal({
     currentPlan = 'free',
     userEmail: _userEmail,
     defaultView = 'cards',
+    onChooseByok,
 }: PricingModalProps) {
     const [billing, setBilling] = useState<'monthly' | 'annual'>('monthly');
     const [view, setView] = useState<'cards' | 'compare'>(defaultView);
@@ -267,9 +270,9 @@ export default function PricingModal({
                                             ✓ Current plan
                                         </button>
                                     ) : (
-                                        <button onClick={onClose}
+                                        <button onClick={() => (onChooseByok ? onChooseByok() : onClose())}
                                             className="w-full py-2.5 rounded-xl text-xs font-black text-center bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-800 hover:bg-blue-100 transition-colors mb-4">
-                                            Add key in Settings →
+                                            Add my key →
                                         </button>
                                     )}
                                     <ul className="space-y-2 text-xs text-zinc-600 dark:text-zinc-300 flex-1">
