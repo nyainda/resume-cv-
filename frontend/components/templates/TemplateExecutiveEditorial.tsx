@@ -2,6 +2,7 @@ import React, { useCallback } from 'react';
 import { CVData, PersonalInfo } from '../../types';
 import { cleanBulletHtml } from './templateUtils';
 import HiddenATSKeywords from '../HiddenATSKeywords';
+import { truncate } from '../../utils/textTruncate';
 
 interface TemplateProps {
   cvData: CVData;
@@ -31,10 +32,6 @@ function eduDateRange(startYear?: string, year?: string) {
   return year ?? '';
 }
 
-function truncate(text: string, max: number) {
-  if (!text || text.length <= max) return text;
-  return text.slice(0, max).replace(/\s+\S*$/, '') + '…';
-}
 
 // ─── inline contact icons (11px, for the header strip) ────────────────────────
 const CIcon: React.FC<{ type: 'email' | 'phone' | 'linkedin' | 'github' | 'web' | 'loc' }> = ({ type }) => {

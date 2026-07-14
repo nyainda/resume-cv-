@@ -34,8 +34,6 @@ import SettingsModal from "./components/SettingsModal";
 import InactivityWarningModal from "./components/InactivityWarningModal";
 import LandingPage from "./components/LandingPage";
 import VideoTemplate from "./components/video/VideoTemplate";
-import DriveBackupPrompt from "./components/DriveBackupPrompt";
-import DriveConflictModal from "./components/DriveConflictModal";
 import OfflineBanner from "./components/OfflineBanner";
 import { OnboardingWizard, type PendingImportType } from "./components/OnboardingWizard";
 import { generateProfileFromFileWithGemini, generateProfileFromFileClaude, generateProfile } from "./services/geminiService";
@@ -44,10 +42,8 @@ import { purifyProfile } from "./services/cvPurificationPipeline";
 import AdminApp from "./components/admin/AdminApp";
 import JsonImportDialog from "./components/JsonImportDialog";
 import ImportChoiceModal from "./components/ImportChoiceModal";
-import { migrateLocalToDrive } from "./services/storage/StorageRouter";
 import { isCVEngineConfigured, workerExtractDoc } from "./services/cvEngineClient";
 import { getSelectedProvider } from "./services/groqService";
-import { useAutoSync } from "./hooks/useAutoSync";
 import { useBootEffects } from "./hooks/useBootEffects";
 import { useAppNavigation } from "./hooks/useAppNavigation";
 import { useJsonImport } from "./hooks/useJsonImport";
@@ -70,16 +66,11 @@ const AppInner: React.FC = () => {
     isNewUser,
     clearNewUser,
     deleteAccount: _deleteAccount,
-    driveConnected,
-    requestDriveAccess,
-    driveToken,
   } = useAuth();
   const onAuthSuccess = useCallback(
     (_token: string, u: WorkerUser) => _rawOnAuthSuccess(u),
     [_rawOnAuthSuccess],
   );
-  useAutoSync(isAuthenticated);
-
   // ── Auth modal mode ─────────────────────────────────────────────────────
   const [authModalMode, setAuthModalMode] = useState<"signup" | "signin">("signup");
 
@@ -263,8 +254,6 @@ const AppInner: React.FC = () => {
 
   // ── Profile manager hook ─────────────────────────────────────────────────
   const {
-    driveRestoreSlots,
-    setDriveRestoreSlots,
     handleRestoreProfileBullets,
     handleProfileSave,
     handleCreateProfile,
@@ -290,7 +279,6 @@ const AppInner: React.FC = () => {
     setIsEditingProfile,
     isAuthenticated,
     isNewUser,
-    driveToken,
     deleteAccount: _deleteAccount,
     toast,
   });
@@ -394,74 +382,6 @@ const AppInner: React.FC = () => {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.email]);
-
-  // ── Drive backup prompt ───────────────────────────────────────────────────
-  const [showDrivePrompt, setShowDrivePrompt] = useState(false);
-  const [drivePromptDismissed, setDrivePromptDismissed] = useState(false);
-  const [driveConnecting, setDriveConnecting] = useState(false);
-  const [driveMigrating, setDriveMigrating] = useState(false);
-  const [driveMigrationProgress, setDriveMigrationProgress] = useState<{ uploaded: number; total: number } | null>(null);
-  const [driveMigrationDone, setDriveMigrationDone] = useState(false);
-
-  useEffect(() => {
-    if (driveConnected || drivePromptDismissed || !isAuthenticated) return;
-    const check = async () => {
-      try {
-        const est = await navigator.storage.estimate();
-        const used = est.usage ?? 0;
-        const quota = est.quota ?? 0;
-        if (quota > 0 && used / quota > 0.7) setShowDrivePrompt(true);
-      } catch { /* non-fatal */ }
-    };
-    const t = setTimeout(check, 10_000);
-    return () => clearTimeout(t);
-  }, [driveConnected, drivePromptDismissed, isAuthenticated]);
-
-  useEffect(() => {
-    if (!isAuthenticated || driveConnected || drivePromptDismissed) return;
-    const seenKey = `procv:drive_nudge_seen:${user?.email ?? "anon"}`;
-    if (sessionStorage.getItem(seenKey)) return;
-    const t = setTimeout(() => {
-      if (!driveConnected && !drivePromptDismissed) {
-        setShowDrivePrompt(true);
-        sessionStorage.setItem(seenKey, "1");
-      }
-    }, 8_000);
-    return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAuthenticated, driveConnected]);
-
-  useEffect(() => {
-    const handleQuotaFull = () => {
-      if (!driveConnected && !drivePromptDismissed && isAuthenticated) {
-        setShowDrivePrompt(true);
-      }
-    };
-    window.addEventListener("storage-quota-warning", handleQuotaFull);
-    return () => window.removeEventListener("storage-quota-warning", handleQuotaFull);
-  }, [driveConnected, drivePromptDismissed, isAuthenticated]);
-
-  const handleConnectDrive = async () => {
-    setDriveConnecting(true);
-    setDriveMigrationDone(false);
-    try {
-      await requestDriveAccess();
-      setDriveConnecting(false);
-      setDriveMigrating(true);
-      await migrateLocalToDrive(
-        (uploaded, total) => setDriveMigrationProgress({ uploaded, total }),
-        user?.email ?? undefined,
-      );
-      setDriveMigrationProgress(null);
-      setDriveMigrating(false);
-      setDriveMigrationDone(true);
-      setTimeout(() => setShowDrivePrompt(false), 1800);
-    } catch {
-      setDriveConnecting(false);
-      setDriveMigrating(false);
-      setDriveMigrationProgress(null);
-    }
-  };
 
   // ── Shared CV payload (hash links) ───────────────────────────────────────
   const [sharedCVPayload, setSharedCVPayload] = useState<SharedCVPayload | null>(null);
@@ -794,17 +714,6 @@ const AppInner: React.FC = () => {
         <OnboardingWizard onComplete={handleOnboardingComplete} />
       )}
 
-      <DriveBackupPrompt
-        show={showDrivePrompt}
-        driveConnected={driveConnected}
-        driveMigrationDone={driveMigrationDone}
-        driveConnecting={driveConnecting}
-        driveMigrating={driveMigrating}
-        driveMigrationProgress={driveMigrationProgress}
-        onConnect={handleConnectDrive}
-        onDismiss={() => { setShowDrivePrompt(false); setDrivePromptDismissed(true); }}
-      />
-
       <OfflineBanner />
 
       <AppNavbar
@@ -861,7 +770,6 @@ const AppInner: React.FC = () => {
         user={user}
         isAuthenticated={isAuthenticated}
         d1SyncPending={d1SyncPending}
-        driveConnected={driveConnected}
         jsonImportTimestamp={jsonImportTimestamp}
         emailJd={emailJd}
         interviewPrepJd={interviewPrepJd}
@@ -890,8 +798,6 @@ const AppInner: React.FC = () => {
         onSwitchProfile={handleSwitchProfile}
         onDeleteAccount={handleDeleteAccount}
         onClearAllData={handleClearAllData}
-        onConnectDrive={handleConnectDrive}
-        requestDriveAccess={requestDriveAccess}
         signOut={signOut}
         setShowLanding={setShowLanding}
         setIsSettingsOpen={setIsSettingsOpen}
@@ -994,47 +900,6 @@ const AppInner: React.FC = () => {
         </div>
       )}
 
-      {/* ── Drive restore-on-new-device prompt ── */}
-      {driveRestoreSlots && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 w-full max-w-sm mx-auto px-4">
-          <div className="bg-white dark:bg-neutral-800 rounded-2xl shadow-2xl border border-zinc-200 dark:border-neutral-700 p-4 flex flex-col gap-3">
-            <div className="flex items-start gap-3">
-              <div className="flex-shrink-0 mt-0.5 w-8 h-8 rounded-full bg-[#1B2B4B]/10 dark:bg-[#C9A84C]/10 flex items-center justify-center">
-                <svg className="w-4 h-4 text-[#1B2B4B] dark:text-[#C9A84C]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z" />
-                </svg>
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-bold text-zinc-900 dark:text-white leading-tight">Backed-up profiles found</p>
-                <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
-                  We found {driveRestoreSlots.length} profile{driveRestoreSlots.length !== 1 ? "s" : ""} saved in your Google Drive. Restore them to this device?
-                </p>
-              </div>
-            </div>
-            <div className="flex gap-2 justify-end">
-              <button
-                onClick={() => { sessionStorage.setItem("procv:restore-dismissed", "1"); setDriveRestoreSlots(null); }}
-                className="px-3 py-1.5 text-xs font-semibold text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 rounded-lg hover:bg-zinc-100 dark:hover:bg-neutral-700 transition-colors"
-              >
-                Skip
-              </button>
-              <button
-                onClick={() => {
-                  setProfiles(driveRestoreSlots);
-                  setActiveProfileId(driveRestoreSlots[0]?.id ?? null);
-                  setIsEditingProfile(false);
-                  setDriveRestoreSlots(null);
-                  toast.success("Profiles restored", `${driveRestoreSlots.length} profile${driveRestoreSlots.length !== 1 ? "s" : ""} restored from Google Drive.`);
-                }}
-                className="px-3 py-1.5 text-xs font-bold text-white bg-[#1B2B4B] hover:bg-[#1B2B4B]/90 dark:bg-[#C9A84C] dark:text-[#1B2B4B] dark:hover:bg-[#C9A84C]/90 rounded-lg transition-colors"
-              >
-                Restore
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       <AuthModal
         open={authModalOpen}
         onSuccess={onAuthSuccess}
@@ -1053,15 +918,6 @@ const AppInner: React.FC = () => {
         />
       )}
 
-      <DriveConflictModal
-        onResolved={(key, action) => {
-          if (action === "overwrite") {
-            toast.success("Conflict Resolved", `Your local version of "${key}" was pushed to Drive.`);
-          } else if (action === "pull") {
-            toast.success("Conflict Resolved", `Drive version of "${key}" loaded — refreshing data.`);
-          }
-        }}
-      />
     </div>
   );
 };

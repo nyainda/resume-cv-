@@ -1,275 +1,36 @@
 // services/storage/StorageRouter.ts
 //
-// Auth-aware storage router with write-through caching.
-//
-// When Google Drive is active:
-//   • save()  → writes to localStorage FIRST (fast, synchronous-ish) then to Drive.
-//               If Drive fails the local copy is still up-to-date.
-//               If Drive returns a CONFLICT, we dispatch drive-conflict and skip
-//               overwriting Drive — the user will decide what to do.
-//   • load()  → reads from Drive (authoritative), writes result to localStorage cache,
-//               falls back to localStorage if Drive is unreachable.
-//
-// When Drive is not active (not signed in / token expired):
-//   • Falls through to LocalStorageService (localStorage + IndexedDB).
+// Storage router — reads/writes through LocalStorageService (localStorage + IDB).
+// D1 cloud sync is handled separately by userDataCloudService.ts / syncQueue.ts.
+// Google Drive has been removed; D1 is the sole cloud authority.
 
 import { IStorageService } from './IStorageService';
 import { LocalStorageService } from './LocalStorageService';
-import { DriveStorageService } from './DriveStorageService';
-import { DriveConflictError, dispatchConflict } from './storageErrors';
-import { getStorageUserId, getUserPrefix } from './userStorageNamespace';
 
-// Namespaced per user (defense-in-depth on top of the Drive filename-level
-// isolation): even if an account-switch wipe were somehow skipped, one
-// account's Drive token can never be read back under another account's
-// namespace. Must stay in sync with AuthContext.tsx driveTokenKey()/driveExpiryKey().
-function TOKEN_KEY(): string  { return `${getUserPrefix()}cv_gdrive_token`; }
-function EXPIRY_KEY(): string { return `${getUserPrefix()}cv_gdrive_expiry`; }
-
-// Bug 3 fix: scope migration flag per user so account-switching doesn't
-// skip migration for a second user (or worse, overwrite Drive with empty data).
-function getMigrationFlagKey(email: string): string {
-    const safe = btoa(email).replace(/[^a-zA-Z0-9]/g, '').slice(0, 20);
-    return `cv_builder:gdrive_migrated:${safe}`;
-}
-
-// Legacy global flag — kept for backward compat check only
-const MIGRATION_FLAG_LEGACY = 'cv_builder:gdrive_migrated';
-
-// ── Singletons ────────────────────────────────────────────────────────────
 let _cache: LocalStorageService | null = null;
-let _drive: DriveStorageService | null = null;
 
 function getCacheService(): LocalStorageService {
     if (!_cache) _cache = new LocalStorageService();
     return _cache;
 }
 
-function getDriveService(token: string, userId?: string | null): DriveStorageService {
-    const uid = userId ?? getStorageUserId();
-    // Rebuild the singleton if token OR userId changes (account switch).
-    if (!_drive || _drive.currentToken !== token || _drive.userId !== uid) {
-        _drive = new DriveStorageService(token, uid);
-    }
-    return _drive;
-}
-
-// ── Write-through Drive wrapper ───────────────────────────────────────────
-
-class WriteThroughDriveService implements IStorageService {
-    readonly isPersistent = true;
-    readonly label = 'Google Drive (write-through)';
-
-    private drive: DriveStorageService;
-    private local: LocalStorageService;
-
-    constructor(drive: DriveStorageService, local: LocalStorageService) {
-        this.drive = drive;
-        this.local = local;
-    }
-
-    async save(key: string, data: unknown): Promise<void> {
-        // 1. Write to localStorage immediately so synchronous readers always
-        //    see the freshest value, regardless of Drive outcome.
-        await this.local.save(key, data);
-
-        // 2. Write to Drive with optimistic-locking conflict check.
-        try {
-            await this.drive.save(key, data);
-        } catch (err) {
-            if (err instanceof DriveConflictError) {
-                // Dispatch an event so the UI can show the conflict dialog.
-                // We do NOT overwrite Drive — local has the user's edits, which
-                // they can choose to push or discard via the conflict UI.
-                dispatchConflict({
-                    key: err.key,
-                    localData: err.localData,
-                    driveData: err.driveData,
-                    driveModifiedAt: err.driveModifiedAt,
-                    storedModifiedAt: err.storedModifiedAt,
-                });
-                return; // don't re-throw — local write already succeeded
-            }
-            // Non-conflict Drive error — surface it but local write is good.
-            throw err;
-        }
-    }
-
-    async load<T = unknown>(key: string): Promise<T | null> {
-        // 1. Try Drive first (authoritative source).
-        try {
-            const driveData = await this.drive.load<T>(key);
-            if (driveData !== null) {
-                // Populate the local cache so synchronous reads are up-to-date.
-                await this.local.save(key, driveData);
-                return driveData;
-            }
-        } catch {
-            // Drive unreachable — fall through to local cache.
-        }
-
-        // 2. Fall back to the local cache (IndexedDB → localStorage).
-        return this.local.load<T>(key);
-    }
-
-    async list(): Promise<string[]> {
-        try {
-            return await this.drive.list();
-        } catch {
-            return this.local.list();
-        }
-    }
-
-    async delete(key: string): Promise<void> {
-        await this.local.delete(key);
-        try { await this.drive.delete(key); } catch { /* best-effort */ }
-    }
-
-    async sync(): Promise<void> { }
-
-    // ── Conflict resolution helpers exposed to UI ─────────────────────────
-
-    /** Force-push local data to Drive, bypassing conflict check. */
-    async forceSaveToDrive(key: string, data: unknown): Promise<void> {
-        await this.drive.forceSave(key, data);
-    }
-
-    /** Pull Drive version of a key into localStorage (discards local). */
-    async pullFromDrive(key: string): Promise<unknown> {
-        const driveData = await this.drive.fetchDriveData(key);
-        if (driveData !== null) {
-            await this.local.save(key, driveData);
-        }
-        return driveData;
-    }
-}
-
-// Drive is only active when the user has explicitly granted drive.appdata scope
-const DRIVE_SCOPE_KEY = 'procv:drive_scope_granted';
-
-function hasDriveScope(): boolean {
-    return localStorage.getItem(DRIVE_SCOPE_KEY) === '1';
-}
-
-// ── Public API ────────────────────────────────────────────────────────────
-
+/** Returns the active storage service (localStorage + IDB). */
 export function getStorageService(): IStorageService {
-    const token = localStorage.getItem(TOKEN_KEY());
-    const expiry = Number(localStorage.getItem(EXPIRY_KEY()) ?? 0);
-    if (token && Date.now() < expiry && hasDriveScope()) {
-        // Pass current userId so DriveStorageService names files cvb__u{id}__key.json
-        const drive = getDriveService(token, getStorageUserId());
-        const local = getCacheService();
-        return new WriteThroughDriveService(drive, local);
-    }
     return getCacheService();
 }
 
-/** Returns the WriteThroughDriveService if Drive is active, null otherwise. */
-export function getDriveRouter(): WriteThroughDriveService | null {
-    const token = localStorage.getItem(TOKEN_KEY());
-    const expiry = Number(localStorage.getItem(EXPIRY_KEY()) ?? 0);
-    if (token && Date.now() < expiry && hasDriveScope()) {
-        const drive = getDriveService(token, getStorageUserId());
-        const local = getCacheService();
-        return new WriteThroughDriveService(drive, local);
-    }
-    return null;
-}
-
-export function isDriveActive(): boolean {
-    const token = localStorage.getItem(TOKEN_KEY());
-    const expiry = Number(localStorage.getItem(EXPIRY_KEY()) ?? 0);
-    return !!(token && Date.now() < (expiry + 300000) && hasDriveScope()); // +5 min buffer
-}
-
 /**
- * Migrates data from Browser to Google Drive.
- * SAFE: Only uploads if local data exists.
- *
- * Bug 3 fix: pass userEmail so the flag is scoped per account.
- * Falls back to the legacy global flag if email is not available,
- * then upgrades it on completion.
+ * Always returns false — Google Drive has been removed.
+ * Kept as a no-op stub so any call sites missed during cleanup compile safely.
  */
-export async function migrateLocalToDrive(
-    onProgress?: (uploaded: number, total: number) => void,
-    userEmail?: string,
-): Promise<void> {
-    const flagKey = userEmail ? getMigrationFlagKey(userEmail) : MIGRATION_FLAG_LEGACY;
-
-    // Also honour the legacy flag so existing users don't re-migrate
-    if (
-        localStorage.getItem(flagKey) === 'done' ||
-        (userEmail && localStorage.getItem(MIGRATION_FLAG_LEGACY) === 'done')
-    ) {
-        if (userEmail && localStorage.getItem(flagKey) !== 'done') {
-            // Upgrade legacy flag to scoped flag
-            localStorage.setItem(flagKey, 'done');
-        }
-        return;
-    }
-
-    const token = localStorage.getItem(TOKEN_KEY());
-    if (!token) throw new Error('Not signed in to Google');
-
-    const cache = getCacheService();
-    // Always use the numeric ProCV userId (not email) so Drive filenames match
-    // the cvb__u{userId}__key.json convention enforced throughout the service.
-    const drive = getDriveService(token, getStorageUserId());
-
-    const allData = await cache.dumpAll();
-    const entries = Object.entries(allData);
-
-    if (entries.length === 0) {
-        localStorage.setItem(flagKey, 'done');
-        return;
-    }
-
-    let uploaded = 0;
-    for (const [key, value] of entries) {
-        if (key === flagKey || key === MIGRATION_FLAG_LEGACY) continue;
-        // Skip conflict check during migration — we are the authoritative source
-        await drive.forceSave(key, value);
-        uploaded++;
-        onProgress?.(uploaded, entries.length);
-    }
-
-    localStorage.setItem(flagKey, 'done');
-}
-
-/** Forced restore from Drive back to Browser (Emergency fallback) */
-export async function restoreDriveToLocal(userEmail?: string): Promise<void> {
-    const token = localStorage.getItem(TOKEN_KEY());
-    if (!token) throw new Error('Not signed in to Google');
-
-    const cache = getCacheService();
-    const drive = getDriveService(token, getStorageUserId());
-
-    const keys = await drive.list();
-    for (const k of keys) {
-        const data = await drive.load(k);
-        if (data) await cache.save(k, data);
-    }
-}
-
-/** Returns true if this user has already migrated their local data to Drive. */
-export function hasMigratedToDrive(userEmail?: string): boolean {
-    if (userEmail && localStorage.getItem(getMigrationFlagKey(userEmail)) === 'done') return true;
-    return localStorage.getItem(MIGRATION_FLAG_LEGACY) === 'done';
-}
-
-export function resetMigrationFlag(userEmail?: string): void {
-    if (userEmail) localStorage.removeItem(getMigrationFlagKey(userEmail));
-    localStorage.removeItem(MIGRATION_FLAG_LEGACY);
+export function isDriveActive(): boolean {
+    return false;
 }
 
 /**
- * Reset the StorageRouter singletons.
- * Call as part of every account-switch wipe so the _drive singleton (which
- * caches the previous user's Google OAuth token) cannot be reused after the
- * token is removed from localStorage and before the page reloads.
+ * Reset the storage singleton. Call as part of every account-switch wipe so
+ * the cached LocalStorageService instance cannot bleed across accounts.
  */
 export function resetStorageRouter(): void {
     _cache = null;
-    _drive = null;
 }

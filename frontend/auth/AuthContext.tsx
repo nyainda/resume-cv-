@@ -60,19 +60,10 @@ import {
     stampDeletedAccount,
     rotateDeviceId,
 } from '../utils/clearUserStorage';
-import { migrateDriveFilesToUserScope } from '../services/storage/DriveStorageService';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 export const USER_CACHE_KEY  = 'procv:worker_user';
-// Drive token/expiry/scope keys are namespaced per user (defense-in-depth on
-// top of the filename-level isolation in DriveStorageService): even if a
-// wipe were somehow skipped on account switch, one account's Drive token can
-// never be read back under a different account's namespace.
-// Must stay in sync with StorageRouter.ts driveTokenKey()/driveExpiryKey().
-function driveScopeKey(): string  { return `${getUserPrefix()}procv:drive_scope_granted`; }
-function driveTokenKey(): string  { return `${getUserPrefix()}cv_gdrive_token`; }
-function driveExpiryKey(): string { return `${getUserPrefix()}cv_gdrive_expiry`; }
 const OAUTH_CALLBACK_KEY     = 'procv:oauth_callback';
 
 const IDENTITY_SCOPES = [
@@ -80,18 +71,7 @@ const IDENTITY_SCOPES = [
     'https://www.googleapis.com/auth/userinfo.profile',
 ].join(' ');
 
-const DRIVE_SCOPES = [
-    'https://www.googleapis.com/auth/userinfo.email',
-    'https://www.googleapis.com/auth/userinfo.profile',
-    'https://www.googleapis.com/auth/drive.appdata',
-].join(' ');
-
 // ─── Types ────────────────────────────────────────────────────────────────────
-
-export interface DriveToken {
-    accessToken: string;
-    expiresAt: number;
-}
 
 export interface AuthContextValue {
     /** Authenticated user — null if signed out. */
@@ -126,15 +106,8 @@ export interface AuthContextValue {
     clearGoogleRateLimit: () => void;
     rememberDevice: boolean;
     setRememberDevice: (v: boolean) => void;
-    // Drive (memory-only, independent of ProCV session)
-    driveToken: DriveToken | null;
-    driveConnected: boolean;
     /** Sign in with Google (identity only) — used by AuthModal. */
     googleSignIn: () => Promise<void>;
-    /** Request Drive scope via consent popup. */
-    requestDriveAccess: () => Promise<void>;
-    /** Revoke local Drive token (session stays alive). */
-    disconnectDrive: () => void;
 }
 
 // ─── Context ──────────────────────────────────────────────────────────────────
@@ -157,32 +130,6 @@ export function useAuth(): AuthContextValue {
  * Throws if the email cannot be determined so callers can fail-closed
  * rather than silently accepting a token whose owner is unknown.
  */
-async function fetchGoogleAccountEmail(accessToken: string): Promise<string> {
-    let res: Response;
-    try {
-        res = await fetch(
-            `https://www.googleapis.com/oauth2/v3/tokeninfo?access_token=${encodeURIComponent(accessToken)}`,
-            { signal: AbortSignal.timeout(8_000) },
-        );
-    } catch {
-        throw new Error(
-            'Unable to verify your Google account — please check your connection and try again.',
-        );
-    }
-    if (!res.ok) {
-        throw new Error(
-            'Unable to verify your Google account — the verification request failed. Please try again.',
-        );
-    }
-    const data = await res.json() as { email?: string };
-    if (!data.email) {
-        throw new Error(
-            'Unable to verify your Google account — no email was returned. Please try again.',
-        );
-    }
-    return data.email;
-}
-
 // ─── OAuth popup ──────────────────────────────────────────────────────────────
 
 function openOAuthPopup(
@@ -316,8 +263,7 @@ export async function wipeLocalAppData(): Promise<void> {
         // skips the restore if set, preventing old IDB data from coming back.
         // loadAuthState() checks 'procv:google_auth_cleared' and skips the
         // stale Google auth token, preventing silent re-auth as the old user.
-        try { localStorage.setItem('cv_appdata_cleared', '1'); }       catch { /* non-fatal */ }
-        try { localStorage.setItem('procv:google_auth_cleared', '1'); } catch { /* non-fatal */ }
+        try { localStorage.setItem('cv_appdata_cleared', '1'); } catch { /* non-fatal */ }
 
         // ── 2. Clear user-scoped localStorage keys ────────────────────────────────
         // Collect all keys first — mutating localStorage while iterating its numeric
@@ -330,7 +276,6 @@ export async function wipeLocalAppData(): Promise<void> {
         const LEGACY = [
             'profiles', 'currentCV', 'savedCVs', 'savedCoverLetters',
             'trackedApps', 'starStories', 'template',
-            'cv_gdrive_token', 'cv_gdrive_expiry', 'cv_gdrive_user', 'cv_drive_last_sync',
         ];
         allKeys.forEach(k => {
             if (
@@ -405,14 +350,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const [rememberDevice, setRememberDevice] = useState(true);
     const [googleRateLimited, setGoogleRateLimited] = useState<{ retryAfter?: number } | null>(null);
 
-    // Drive token — memory-only, never persisted
-    const [driveToken, setDriveToken]       = useState<DriveToken | null>(null);
-    const [driveConnected, setDriveConnected] = useState<boolean>(
-        () => localStorage.getItem(driveScopeKey()) === '1',
-    );
-
     const pendingResolvers  = useRef<Array<(ok: boolean) => void>>([]);
-    const driveRefreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     // Tracks the most recently authenticated email — even after sign-out.
     // Unlike userRef (which becomes null on sign-out), this ref retains the
@@ -635,10 +573,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 // everything from scratch (fresh session, fresh namespace).
                 clearQueueForAccount().catch(() => {});
                 setUser(null);
-                setDriveToken(null);
-                setDriveConnected(false);
-                localStorage.removeItem(driveScopeKey());
-                if (driveRefreshTimer.current) clearTimeout(driveRefreshTimer.current);
                 stampSignedOut(); // prevent auto-relog on next boot
                 try { sessionStorage.removeItem('procv:pending_new_user'); } catch { /* non-fatal */ }
                 window.location.reload();
@@ -700,12 +634,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             stampSignedOut();     // sentinel → boot won't auto-relog via stale cookie
             _saveUser(null);
 
-            // Drive state cleanup
-            setDriveToken(null);
-            setDriveConnected(false);
-            localStorage.removeItem(driveScopeKey());
-            if (driveRefreshTimer.current) clearTimeout(driveRefreshTimer.current);
-
             setIsNewUser(false);
             try { sessionStorage.removeItem('procv:pending_new_user'); } catch { /* non-fatal */ }
         }
@@ -757,150 +685,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         _applySession(linked.user, linked.is_new_user);
     }, [_applySession]);
 
-    // ── Drive ─────────────────────────────────────────────────────────────────
-
-    const _scheduleDriveRefresh = useCallback((expiresAt: number) => {
-        // Snapshot the expected email NOW (at schedule time) from localStorage.
-        // The callback closure captures this snapshot so it remains stable even
-        // if the user cache is cleared mid-refresh (sign-out race).
-        const expectedEmailSnapshot = (() => {
-            try {
-                const raw = localStorage.getItem(USER_CACHE_KEY);
-                return raw ? (JSON.parse(raw) as { email?: string }).email ?? null : null;
-            } catch { return null; }
-        })();
-
-        if (driveRefreshTimer.current) clearTimeout(driveRefreshTimer.current);
-        const ms = expiresAt - Date.now() - 5 * 60 * 1000;
-        if (ms <= 0) return;
-        driveRefreshTimer.current = setTimeout(async () => {
-            try {
-                // Guard 1 — abort if Drive was disconnected while waiting
-                // (sign-out, account delete, or manual disconnect happened during
-                // the timeout window).  Skipping here prevents token resurrection.
-                if (localStorage.getItem(driveScopeKey()) !== '1') return;
-
-                const { accessToken, expiresIn } = await openOAuthPopup(DRIVE_SCOPES, 'none');
-
-                // Guard 2 — re-check after the async popup (sign-out during OAuth).
-                if (localStorage.getItem(driveScopeKey()) !== '1') return;
-
-                // Re-verify the refreshed token's account identity.
-                // On verification failure (tokeninfo unavailable / network blip):
-                //   → skip this refresh, keep the existing token in place.
-                //   → do NOT write an unverified token to localStorage.
-                // On mismatch (different Google account):
-                //   → silently disconnect Drive.
-                const refreshedEmail = await fetchGoogleAccountEmail(accessToken).catch(() => null);
-                if (refreshedEmail === null) {
-                    // Tokeninfo unavailable — cannot verify.  Keep old token; do not
-                    // write the new unverified one.  The existing token stays valid
-                    // until the StorageRouter's expiry check forces a reconnect.
-                    return;
-                }
-                if (expectedEmailSnapshot && refreshedEmail.toLowerCase() !== expectedEmailSnapshot.toLowerCase()) {
-                    // Account mismatch — silently disconnect Drive.
-                    localStorage.removeItem(driveTokenKey());
-                    localStorage.removeItem(driveExpiryKey());
-                    localStorage.removeItem(driveScopeKey());
-                    setDriveToken(null);
-                    setDriveConnected(false);
-                    return;
-                }
-
-                const newExpiry = Date.now() + expiresIn * 1000 - 60_000;
-                setDriveToken({ accessToken, expiresAt: newExpiry });
-                // Keep localStorage in sync so StorageRouter sees the refreshed token.
-                try { localStorage.setItem(driveTokenKey(), accessToken); }   catch { /* quota */ }
-                try { localStorage.setItem(driveExpiryKey(), String(newExpiry)); } catch { /* quota */ }
-                _scheduleDriveRefresh(newExpiry);
-            } catch { /* silently expired — user will be prompted on next Drive action */ }
-        }, Math.max(ms, 0));
-    }, []);
-
-    useEffect(() => () => {
-        if (driveRefreshTimer.current) clearTimeout(driveRefreshTimer.current);
-    }, []);
-
-    const requestDriveAccess = useCallback(async () => {
-        // Pass login_hint so Google skips account selection and goes straight to
-        // the consent screen for the email the user already signed in with.
-        // login_hint is only a hint, though — if the browser has multiple Google
-        // sessions the user can still pick a different account in the popup.
-        const { accessToken, expiresIn } = await openOAuthPopup(DRIVE_SCOPES, 'consent', user?.email);
-
-        // Verify the granted token actually belongs to the signed-in ProCV
-        // account before trusting it. Without this check, granting Drive access
-        // with a *different* Google account silently pulls that other account's
-        // appDataFolder (CVs, profiles) into the current session — a cross-account
-        // data leak that looks like "my old data came back".
-        //
-        // fetchGoogleAccountEmail now throws (fail-closed) if the email cannot be
-        // confirmed, so we always block mismatches and verification failures —
-        // we never silently fall through to Drive activation.
-        if (user?.email) {
-            const grantedEmail = await fetchGoogleAccountEmail(accessToken);
-            if (grantedEmail.toLowerCase() !== user.email.toLowerCase()) {
-                // Revoke the wrong-account token immediately. Google's account
-                // chooser otherwise tends to keep offering the most recently
-                // granted account first on the next attempt, which is the exact
-                // opposite of what we want — the user should keep landing back
-                // on the account they signed up with.
-                fetch(`https://oauth2.googleapis.com/revoke?token=${encodeURIComponent(accessToken)}`, {
-                    method: 'POST',
-                }).catch(() => { /* best-effort */ });
-                throw new Error(
-                    `That Google account (${grantedEmail}) doesn't match your ProCV account (${user.email}). ` +
-                    `Google's account picker doesn't let us force this away when several Google accounts are ` +
-                    `logged into your browser — please choose "${user.email}" in the popup. If you don't see it ` +
-                    `listed, click "Use another account" and sign in with it there.`,
-                );
-            }
-        }
-
-        const expiresAt = Date.now() + expiresIn * 1000 - 60_000;
-        setDriveToken({ accessToken, expiresAt });
-        // Write to localStorage so StorageRouter can pick up the token immediately.
-        // StorageRouter reads cv_gdrive_token / cv_gdrive_expiry on every save/load
-        // call — without these writes Drive sync was silently broken.
-        try { localStorage.setItem(driveTokenKey(), accessToken); }        catch { /* quota */ }
-        try { localStorage.setItem(driveExpiryKey(), String(expiresAt)); } catch { /* quota */ }
-        localStorage.setItem(driveScopeKey(), '1');
-        setDriveConnected(true);
-        _scheduleDriveRefresh(expiresAt);
-
-        // One-time migration: rename any legacy Drive files (cvb__key.json) to
-        // the user-scoped format (cvb__u{id}__key.json) so existing backups are
-        // readable with the new structural filename convention.
-        //
-        // AWAITED — not fire-and-forget.  Callers (App.tsx, CloudBackupSettings.tsx)
-        // call migrateLocalToDrive() immediately after requestDriveAccess() resolves.
-        // If the rename runs concurrently with the upload, the upload creates NEW
-        // user-scoped files while old files are being renamed, leaving duplicates.
-        // Awaiting here ensures the Drive namespace is fully upgraded before any
-        // read or write uses the new filename convention.
-        //
-        // Failures are caught and swallowed; migrateDriveFilesToUserScope only
-        // clears its "done" flag when ALL renames succeed, so a partial failure
-        // is automatically retried on the next Drive connect.
-        if (user?.id) {
-            await migrateDriveFilesToUserScope(accessToken, String(user.id)).catch(() => {});
-        }
-    }, [_scheduleDriveRefresh, user?.email, user?.id]);
-
-    const disconnectDrive = useCallback(() => {
-        localStorage.removeItem(driveScopeKey());
-        localStorage.removeItem(driveTokenKey());
-        localStorage.removeItem(driveExpiryKey());
-        // Also clear the legacy unnamespaced keys in case they're still lingering
-        // from before the per-user namespacing fix.
-        localStorage.removeItem('cv_gdrive_token');
-        localStorage.removeItem('cv_gdrive_expiry');
-        setDriveToken(null);
-        setDriveConnected(false);
-        if (driveRefreshTimer.current) clearTimeout(driveRefreshTimer.current);
-    }, []);
-
     // ── Auth modal ────────────────────────────────────────────────────────────
 
     const onAuthSuccess = useCallback((incoming: WorkerUser, isNew = false) => {
@@ -934,10 +718,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         clearStorageUser();     // remove user namespace so next user starts clean
         stampSignedOut();       // write sentinel so boot does not auto-relog via stale cookie
         _saveUser(null);
-        setDriveToken(null);
-        setDriveConnected(false);
-        localStorage.removeItem(driveScopeKey());
-        if (driveRefreshTimer.current) clearTimeout(driveRefreshTimer.current);
         setIsNewUser(false);
         try { sessionStorage.removeItem('procv:pending_new_user'); } catch { /* non-fatal */ }
     }, [_saveUser]);
@@ -998,11 +778,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         clearGoogleRateLimit: () => setGoogleRateLimited(null),
         rememberDevice,
         setRememberDevice,
-        driveToken,
-        driveConnected,
         googleSignIn,
-        requestDriveAccess,
-        disconnectDrive,
     };
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

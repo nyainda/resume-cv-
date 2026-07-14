@@ -15,8 +15,6 @@ import {
 import { useSlotPoller } from './useSlotPoller';
 import { clearAllBrowserStorage, rotateDeviceId, stampDeletedAccount } from '../utils/clearUserStorage';
 import { getUserPrefix } from '../services/storage/userStorageNamespace';
-import { deleteAllDriveData } from '../services/storage/DriveStorageService';
-import { getDriveRouter } from '../services/storage/StorageRouter';
 import { drainPendingSlots } from '../services/authService';
 import { parseSlotData } from '../utils/profileUtils';
 import { useToast } from './useToast';
@@ -34,7 +32,6 @@ interface UseProfileManagerConfig {
   setIsEditingProfile: React.Dispatch<React.SetStateAction<boolean>>;
   isAuthenticated: boolean;
   isNewUser: boolean;
-  driveToken: { accessToken: string } | null | undefined;
   deleteAccount: (deviceId: string) => Promise<boolean>;
   toast: ReturnType<typeof useToast>;
 }
@@ -52,37 +49,11 @@ export function useProfileManager({
   setIsEditingProfile,
   isAuthenticated,
   isNewUser,
-  driveToken,
   deleteAccount: _deleteAccount,
   toast,
 }: UseProfileManagerConfig) {
-  // ── Drive restore-on-new-device flow ─────────────────────────────────────
-  const driveRestoreCheckedRef = useRef(false);
-  const [driveRestoreSlots, setDriveRestoreSlots] = useState<UserProfileSlot[] | null>(null);
-  const [d1SyncPending, setD1SyncPending] = useState(false);
-  const driveRestoreSlotsRef = useRef<UserProfileSlot[] | null>(null);
-  useEffect(() => { driveRestoreSlotsRef.current = driveRestoreSlots; }, [driveRestoreSlots]);
-
-  useEffect(() => {
-    if (!isAuthenticated || driveRestoreCheckedRef.current) return;
-    if (profiles.length > 0) { driveRestoreCheckedRef.current = true; return; }
-    if (sessionStorage.getItem('procv:restore-dismissed')) { driveRestoreCheckedRef.current = true; return; }
-    driveRestoreCheckedRef.current = true;
-
-    const router = getDriveRouter();
-    if (!router) return;
-
-    router.load<UserProfileSlot[]>('profiles')
-      .then(slots => {
-        if (Array.isArray(slots) && slots.length > 0) {
-          setDriveRestoreSlots(slots);
-        }
-      })
-      .catch(() => {});
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAuthenticated]);
-
   // ── D1 merge-sync ─────────────────────────────────────────────────────────
+  const [d1SyncPending, setD1SyncPending] = useState(false);
   const d1RestoreCheckedRef = useRef(false);
   // Stable ref mirror of isNewUser so closures created inside effects that
   // don't re-run on every isNewUser change (visibility listener, poller
@@ -112,7 +83,6 @@ export function useProfileManager({
   useEffect(() => {
     if (!isAuthenticated) {
       d1RestoreCheckedRef.current = false;
-      driveRestoreCheckedRef.current = false;
     }
   }, [isAuthenticated]);
   // Once a slot with the pending id actually lands in `profiles` (confirmed
@@ -550,31 +520,6 @@ export function useProfileManager({
 
   const handleDeleteAccount = useCallback(async () => {
     const currentDeviceId = getDeviceId();
-
-    // Capture the Drive token NOW — before anything is wiped.
-    // driveToken React-state is memory-only and starts null on a fresh page load,
-    // so if the user had Drive connected in a previous session we fall back to the
-    // localStorage copy. This must happen here, before _deleteAccount() triggers
-    // clearAllIdbAsync() + clearUserScopedStorage() which wipe that localStorage key.
-    const tokenForDriveDeletion: string | null =
-        driveToken?.accessToken ??
-        (() => {
-            try {
-                const prefix = getUserPrefix();
-                const t = localStorage.getItem(`${prefix}cv_gdrive_token`);
-                const e = localStorage.getItem(`${prefix}cv_gdrive_expiry`);
-                return (t && e && Date.now() < Number(e)) ? t : null;
-            } catch { return null; }
-        })();
-
-    // Fire Drive deletion BEFORE calling _deleteAccount. _deleteAccount calls
-    // window.location.reload() on success, which means any code after it never
-    // runs. By firing Drive deletion first with keepalive:true fetch requests,
-    // the browser completes those requests even after the page navigates away.
-    if (tokenForDriveDeletion) {
-      deleteAllDriveData(tokenForDriveDeletion).catch(() => {});
-    }
-
     let serverDeleteOk = false;
     try {
       // _deleteAccount handles: server-side deletion, local storage/IDB wipe,
@@ -591,7 +536,7 @@ export function useProfileManager({
     }
     // _deleteAccount already called window.location.reload() on success —
     // execution does not reach here on the happy path.
-  }, [_deleteAccount, driveToken?.accessToken, toast]);
+  }, [_deleteAccount, toast]);
 
   const handleClearAllData = useCallback(async () => {
     await clearAllBrowserStorage().catch(() => {});
@@ -599,8 +544,6 @@ export function useProfileManager({
   }, []);
 
   return {
-    driveRestoreSlots,
-    setDriveRestoreSlots,
     handleRestoreProfileBullets,
     handleProfileSave,
     handleCreateProfile,

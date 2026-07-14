@@ -30,9 +30,7 @@ interface Props {
   activeSlot: UserProfileSlot | null;
   currentCV: CVData | null;
   isAuthenticated: boolean;
-  driveConnected: boolean;
   onNavigate: (view: string) => void;
-  onConnectDrive: () => void;
   onEditProfile: () => void;
   onOpenSettings: () => void;
 }
@@ -119,25 +117,12 @@ const IconChevron = () => (
     <polyline points="9 18 15 12 9 6"/>
   </svg>
 );
-const DriveIcon = () => (
-  <svg width="13" height="12" viewBox="0 0 87.3 78" xmlns="http://www.w3.org/2000/svg">
-    <path d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8h-27.5c0 1.55.4 3.1 1.2 4.5z" fill="#0066da"/>
-    <path d="m43.65 25-13.75-23.8c-1.35.8-2.5 1.9-3.3 3.3l-25.4 44a9.06 9.06 0 0 0-1.2 4.5h27.5z" fill="#00ac47"/>
-    <path d="m73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5h-27.502l5.852 11.5z" fill="#ea4335"/>
-    <path d="m43.65 25 13.75-23.8c-1.35-.8-2.9-1.2-4.5-1.2h-18.5c-1.6 0-3.15.45-4.5 1.2z" fill="#00832d"/>
-    <path d="m59.8 53h-32.3l-13.75 23.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2z" fill="#2684fc"/>
-    <path d="m73.4 26.5-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3l-13.75 23.8 16.15 28h27.45c0-1.55-.4-3.1-1.2-4.5z" fill="#ffba00"/>
-  </svg>
-);
-
 const DashboardHome: React.FC<Props> = ({
   profiles,
   activeSlot,
   currentCV,
   isAuthenticated,
-  driveConnected,
   onNavigate,
-  onConnectDrive,
   onEditProfile,
   onOpenSettings,
 }) => {
@@ -231,14 +216,12 @@ const DashboardHome: React.FC<Props> = ({
       steps.push({ label: 'Generate your first CV', action: 'Pick a template and build a polished CV in minutes', view: 'generator' });
     if (!isAuthenticated)
       steps.push({ label: 'Sign in to sync across devices', action: 'Your data stays safe in the cloud' });
-    if (isAuthenticated && !driveConnected)
-      steps.push({ label: 'Back up to Google Drive', action: 'One tap — your CVs are safe forever', isDrive: true });
     if (savedCVs.length > 0 && trackedApps.length === 0)
       steps.push({ label: 'Track your job applications', action: 'Log applications and monitor your pipeline', view: 'tracker' });
     if (savedCVs.length > 0 && savedCLs.length === 0)
       steps.push({ label: 'Write a cover letter', action: 'Tailored to your CV and target role', view: 'generator' });
     return steps.slice(0, 3);
-  }, [activeSlot, savedCVs, savedCLs, trackedApps, isAuthenticated, driveConnected]);
+  }, [activeSlot, savedCVs, savedCLs, trackedApps, isAuthenticated]);
 
   const statCards = [
     { label: 'CVs Saved',     value: savedCVs.length,     icon: '📄', view: 'history',   accent: 'from-[#1B2B4B] to-[#2d4272]',   accentText: 'text-blue-700 dark:text-blue-300',   accentBg: 'bg-blue-50 dark:bg-blue-900/20' },
@@ -283,23 +266,6 @@ const DashboardHome: React.FC<Props> = ({
 
           {/* Top-right controls */}
           <div className="flex items-center gap-1.5 flex-shrink-0 pt-0.5">
-            {isAuthenticated && !driveConnected && (
-              <button
-                onClick={onConnectDrive}
-                className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-[11px] font-bold bg-white/10 hover:bg-white/20 text-white border border-white/20 transition-colors whitespace-nowrap"
-              >
-                <DriveIcon />
-                <span className="hidden sm:inline">Connect Drive</span>
-                <span className="sm:hidden">Drive</span>
-              </button>
-            )}
-            {driveConnected && (
-              <span className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold text-emerald-300 bg-emerald-500/15 border border-emerald-500/25">
-                <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                <span className="hidden sm:inline">Drive synced</span>
-                <span className="sm:hidden">Synced</span>
-              </span>
-            )}
             <button
               onClick={onOpenSettings}
               className="p-2 rounded-xl text-white/50 hover:text-white hover:bg-white/10 transition-colors"
@@ -700,8 +666,7 @@ const DashboardHome: React.FC<Props> = ({
                   <button
                     key={i}
                     onClick={() => {
-                      if (step.isDrive) onConnectDrive();
-                      else if (step.isProfile) onEditProfile();
+                      if (step.isProfile) onEditProfile();
                       else if (step.view) onNavigate(step.view);
                     }}
                     className="w-full flex items-start gap-3 p-3 rounded-xl border border-zinc-100 dark:border-zinc-800 hover:border-[#C9A84C]/50 hover:bg-amber-50/30 dark:hover:bg-amber-900/10 transition-all text-left group"

@@ -46,7 +46,6 @@ interface AppViewRouterProps {
   user: WorkerUser | null | undefined;
   isAuthenticated: boolean;
   d1SyncPending?: boolean;
-  driveConnected: boolean;
   jsonImportTimestamp: number | undefined;
   emailJd: string;
   interviewPrepJd: string;
@@ -74,8 +73,6 @@ interface AppViewRouterProps {
   onSwitchProfile: (slot: UserProfileSlot) => void;
   onDeleteAccount: () => Promise<void>;
   onClearAllData: () => Promise<void>;
-  onConnectDrive: () => Promise<void>;
-  requestDriveAccess: () => Promise<void>;
   signOut: () => Promise<void>;
   setShowLanding: (v: boolean) => void;
   setIsSettingsOpen: (v: boolean) => void;
@@ -104,7 +101,6 @@ const AppViewRouter: React.FC<AppViewRouterProps> = ({
   user,
   isAuthenticated,
   d1SyncPending = false,
-  driveConnected,
   jsonImportTimestamp,
   emailJd,
   interviewPrepJd,
@@ -131,8 +127,6 @@ const AppViewRouter: React.FC<AppViewRouterProps> = ({
   onSwitchProfile,
   onDeleteAccount,
   onClearAllData,
-  onConnectDrive,
-  requestDriveAccess,
   signOut,
   setShowLanding,
   setIsSettingsOpen,
@@ -257,9 +251,7 @@ const AppViewRouter: React.FC<AppViewRouterProps> = ({
                   activeSlot={activeSlot}
                   currentCV={currentCV}
                   isAuthenticated={isAuthenticated}
-                  driveConnected={driveConnected}
                   onNavigate={(view) => setCurrentView(view as any)}
-                  onConnectDrive={onConnectDrive}
                   onEditProfile={() => setIsEditingProfile(true)}
                   onOpenSettings={() => setIsSettingsOpen(true)}
                 />
@@ -398,8 +390,6 @@ const AppViewRouter: React.FC<AppViewRouterProps> = ({
                   onBack={() => setCurrentView('generator')}
                   onUpgrade={() => setIsPricingOpen(true)}
                   onEditProfile={() => setIsEditingProfile(true)}
-                  driveConnected={driveConnected}
-                  onConnectDrive={requestDriveAccess}
                 />
               )}
             </div>

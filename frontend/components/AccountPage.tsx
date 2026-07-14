@@ -16,8 +16,6 @@ interface AccountPageProps {
     onBack: () => void;
     onUpgrade?: () => void;
     onEditProfile?: () => void;
-    driveConnected?: boolean;
-    onConnectDrive?: () => Promise<void>;
 }
 
 const PLAN_CONFIG: Record<string, { label: string; color: string; bg: string; darkBg: string; ring: string; darkRing: string; desc: string; icon: string }> = {
@@ -52,13 +50,12 @@ function Avatar({ name, picture, size = 'lg' }: { name: string; picture?: string
     );
 }
 
-export default function AccountPage({ workerUser, profiles, onSignOut, onDeleteAccount, onClearAllData, onBack, onUpgrade, onEditProfile, driveConnected, onConnectDrive }: AccountPageProps) {
+export default function AccountPage({ workerUser, profiles, onSignOut, onDeleteAccount, onClearAllData, onBack, onUpgrade, onEditProfile }: AccountPageProps) {
     const [deletingStep, setDeletingStep] = useState<'idle' | 'confirm' | 'typing' | 'deleting'>('idle');
     const [confirmText, setConfirmText] = useState('');
     const [signingOut, setSigningOut] = useState(false);
     const [provider, setProvider] = useState<string>('workers-ai');
     const [clearDataStep, setClearDataStep] = useState<'idle' | 'confirm' | 'clearing'>('idle');
-    const [driveConnecting, setDriveConnecting] = useState(false);
 
     useEffect(() => { setProvider(getSelectedProvider()); }, []);
 
@@ -270,63 +267,6 @@ export default function AccountPage({ workerUser, profiles, onSignOut, onDeleteA
                                     </div>
                                 );
                             })}
-                        </div>
-                    </div>
-                )}
-
-                {/* Google Drive */}
-                {onConnectDrive !== undefined && (
-                    <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-zinc-200 dark:border-neutral-800 shadow-sm overflow-hidden">
-                        <div className="px-5 py-4 border-b border-zinc-100 dark:border-neutral-800 flex items-center justify-between">
-                            <h2 className="text-sm font-black text-zinc-700 dark:text-zinc-200 uppercase tracking-wide">Google Drive Backup</h2>
-                            {driveConnected && (
-                                <span className="flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400 font-semibold">
-                                    <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                                    Connected
-                                </span>
-                            )}
-                        </div>
-                        <div className="p-5">
-                            {driveConnected ? (
-                                <>
-                                    <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-3 leading-relaxed">
-                                        Your CVs and profiles are backed up to Google Drive. They're safe even if you clear your browser data.
-                                    </p>
-                                    <div className="flex items-center gap-2 p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-100 dark:border-emerald-900/40">
-                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0">
-                                            <polyline points="20 6 9 17 4 12"/>
-                                        </svg>
-                                        <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">Drive backup is active</span>
-                                    </div>
-                                </>
-                            ) : (
-                                <>
-                                    <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-4 leading-relaxed">
-                                        Connect Google Drive to automatically back up your CVs and profiles. Your data stays private — we only access a ProCV folder.
-                                    </p>
-                                    <button
-                                        onClick={async () => {
-                                            setDriveConnecting(true);
-                                            try { await onConnectDrive?.(); } finally { setDriveConnecting(false); }
-                                        }}
-                                        disabled={driveConnecting}
-                                        className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all disabled:opacity-60"
-                                        style={{ background: '#1B2B4B', color: '#C9A84C' }}
-                                    >
-                                        {driveConnecting ? (
-                                            <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
-                                                <circle cx="12" cy="12" r="10" stroke="currentColor" strokeOpacity=".25" strokeWidth="3"/>
-                                                <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="3" strokeLinecap="round"/>
-                                            </svg>
-                                        ) : (
-                                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                                <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
-                                            </svg>
-                                        )}
-                                        {driveConnecting ? 'Connecting…' : 'Connect Google Drive'}
-                                    </button>
-                                </>
-                            )}
                         </div>
                     </div>
                 )}

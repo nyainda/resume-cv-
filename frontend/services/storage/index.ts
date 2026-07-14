@@ -7,10 +7,8 @@
 
 export type { IStorageService } from './IStorageService';
 export { LocalStorageService } from './LocalStorageService';
-export { DriveStorageService } from './DriveStorageService';
 export {
   getStorageService,
   isDriveActive,
-  migrateLocalToDrive,
-  resetMigrationFlag,
+  resetStorageRouter,
 } from './StorageRouter';

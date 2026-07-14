@@ -1,4 +1,5 @@
 import { GoogleGenAI, GenerateContentResponse } from '@google/genai';
+import { truncate } from '../utils/textTruncate';
 import { UserProfile, CVData, PersonalInfo, JobAnalysisResult, CVGenerationMode, ScholarshipFormat, EnhancedJobAnalysis } from '../types';
 import { groqChat, groqChatStream, GROQ_LARGE, GROQ_FAST, getLastAiEngine, getSelectedProvider, getClaudeModel } from './groqService';
 import { purifyCV, purifyText, cleanImportedText, purifyProfile, purifyInboundCV, revertCorruptedMetrics, enforceOpenerDiversity, type PurifyReport } from './cvPurificationPipeline';
@@ -1646,7 +1647,7 @@ function compactProfile(profile: UserProfile, maxResponsibilityChars = 350): str
         projects: (profile.projects || []).slice(0, 6).map(pr => ({
             name: pr.name,
             description: typeof pr.description === 'string'
-                ? pr.description.substring(0, 200)
+                ? truncate(pr.description, 200) // LLM context budget; see textTruncate.ts for why display cap differs
                 : pr.description,
             link: pr.link,
         })),

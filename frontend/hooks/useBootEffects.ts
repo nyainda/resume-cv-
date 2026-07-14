@@ -8,7 +8,6 @@ import { prewarmFontEmbedCache } from '../services/getCVHtml';
 import { prefetchVersions as prefetchPromptVersions } from '../services/promptRegistryClient';
 import { prefetchRuleConfigs } from '../services/ruleRegistryClient';
 import { sanitiseStaleQueue, enqueuePrefsSync, flushSyncQueue } from '../services/storage/syncQueue';
-import { isDriveActive } from '../services/storage/StorageRouter';
 import { useToast } from './useToast';
 
 interface UseBootEffectsConfig {
@@ -79,27 +78,6 @@ export function useBootEffects({
       document.removeEventListener('visibilitychange', onVisible);
     };
   }, []);
-
-  // Show Drive save error toast when a queued write fails.
-  // Throttled to once per 5 min; suppressed when Drive is not active.
-  useEffect(() => {
-    let lastErrorTime = 0;
-    const handleDriveError = (e: Event) => {
-      if (!isDriveActive()) return;
-      const now = Date.now();
-      if (now - lastErrorTime < 5 * 60 * 1000) return;
-      lastErrorTime = now;
-      const detail = (e as CustomEvent).detail;
-      const msg = detail?.error?.message || 'Unknown error';
-      if (msg.includes('expired') || msg.includes('401')) {
-        toast.error('Cloud Sync Failed', 'Your Google session expired. Please sign in again via Cloud Sync settings.');
-      } else {
-        toast.error('Cloud Sync Failed', 'Could not save to Google Drive. Check your connection and sign-in status.');
-      }
-    };
-    window.addEventListener('drive-save-error', handleDriveError);
-    return () => window.removeEventListener('drive-save-error', handleDriveError);
-  }, [toast]);
 
   // Allow any component to open the pricing modal via a custom event
   useEffect(() => {

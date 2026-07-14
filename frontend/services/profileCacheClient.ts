@@ -18,6 +18,7 @@
  */
 
 import type { UserProfileSlot } from '../types';
+import { truncate } from '../utils/textTruncate';
 import { notifySessionExpired } from './sessionEvents';
 
 const ENGINE_URL: string = import.meta.env.VITE_CV_ENGINE_URL ?? '';
@@ -63,7 +64,7 @@ export function buildCompactProfileJson(slot: UserProfileSlot): string {
         skills: (profile.skills || []).slice(0, 20),
         projects: (profile.projects || []).slice(0, 6).map(p => ({
             name: p.name,
-            description: typeof p.description === 'string' ? p.description.substring(0, MAX_PROJ_DESC) : '',
+            description: typeof p.description === 'string' ? truncate(p.description, MAX_PROJ_DESC) : '', // LLM context budget; see textTruncate.ts for why display cap differs
             link: p.link,
         })),
         workExperience: (profile.workExperience || []).map(e => ({
