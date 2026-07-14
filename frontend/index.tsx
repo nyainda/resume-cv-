@@ -9,15 +9,33 @@ import { warmCVEngine, prewarmCVEngineModels } from './services/cvEngineClient';
 import { runWorkerStatusDiagnostic } from './services/workerStatusDiagnostic';
 import { startAutoProbe } from './services/providerHealth';
 
-warmCVEngine();
-// Wake the actual generation models (Mistral Small 3.1, Hermes-2 Pro) so the
-// first real CV request doesn't hit a cold model and return empty text.
-// Fire-and-forget — silent on failure. See cvEngineClient.ts for full notes.
-void prewarmCVEngineModels();
-runWorkerStatusDiagnostic();
-// Re-probe any open AI-provider circuits every 3 min so transient outages
-// auto-recover without a page reload.
-startAutoProbe();
+// These are all fire-and-forget network calls that warm backend workers /
+// models the user isn't waiting on yet. Running them at module-eval time (i.e.
+// before React even mounts) makes them compete with the app's own JS/CSS for
+// bandwidth and the main thread during the most latency-sensitive window —
+// first paint. `whenIdle` pushes them just past the initial render commit
+// (via requestIdleCallback, with a setTimeout fallback for browsers/tabs
+// where idle callbacks don't fire promptly) so they still kick off within a
+// tick or two of load, well before a user could act on their result.
+function whenIdle(fn: () => void) {
+  if ('requestIdleCallback' in window) {
+    (window as any).requestIdleCallback(fn, { timeout: 2000 });
+  } else {
+    setTimeout(fn, 0);
+  }
+}
+
+whenIdle(() => {
+  warmCVEngine();
+  // Wake the actual generation models (Mistral Small 3.1, Hermes-2 Pro) so the
+  // first real CV request doesn't hit a cold model and return empty text.
+  // Fire-and-forget — silent on failure. See cvEngineClient.ts for full notes.
+  void prewarmCVEngineModels();
+  runWorkerStatusDiagnostic();
+  // Re-probe any open AI-provider circuits every 3 min so transient outages
+  // auto-recover without a page reload.
+  startAutoProbe();
+});
 
 // ── Stale-chunk recovery ─────────────────────────────────────────────────────
 // Vite code-splits lazy-loaded routes (e.g. AppViewRouter) into hashed chunk

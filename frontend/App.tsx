@@ -4,6 +4,8 @@ import React, {
   useMemo,
   useEffect,
   useRef,
+  lazy,
+  Suspense,
 } from "react";
 import {
   UserProfile,
@@ -16,35 +18,35 @@ import * as KeyVault from "./services/security/KeyVault";
 import { setRuntimeKeys } from "./services/security/RuntimeKeys";
 import { useProfileSlots } from "./hooks/useProfileSlots";
 import { getUserPrefix } from "./services/storage/userStorageNamespace";
-import { enqueuePrefsSync, clearQueueForAccount } from "./services/storage/syncQueue";
+import { enqueuePrefsSync, clearQueueForAccount, enqueueSlotSync } from "./services/storage/syncQueue";
 import { AuthProvider, useAuth } from "./auth/AuthContext";
 import type { WorkerUser } from "./services/authService";
-import AuthModal from "./components/AuthModal";
-import WelcomeModal from "./components/WelcomeModal";
+const AuthModal        = lazy(() => import("./components/AuthModal"));
+const WelcomeModal     = lazy(() => import("./components/WelcomeModal"));
 import { useToast } from "./hooks/useToast";
 import { ToastContainer } from "./components/ui/Toast";
-import PricingModal from "./components/PricingModal";
-import FreePlanNudge from "./components/FreePlanNudge";
-import { lazy, Suspense } from "react";
+const PricingModal     = lazy(() => import("./components/PricingModal"));
+const FreePlanNudge    = lazy(() => import("./components/FreePlanNudge"));
 const SharedCVView     = lazy(() => import("./components/SharedCVView"));
 const PublicProfilePage = lazy(() => import("./components/PublicProfilePage"));
 import { decodeSharePayload, SharedCVPayload } from "./components/ShareCVModal";
 import { fetchSharePayload } from "./services/shareService";
 import { fetchPublicProfile } from "./services/publicProfileService";
-import SettingsModal from "./components/SettingsModal";
-import InactivityWarningModal from "./components/InactivityWarningModal";
+const SettingsModal         = lazy(() => import("./components/SettingsModal"));
+const InactivityWarningModal = lazy(() => import("./components/InactivityWarningModal"));
 const LandingPage    = lazy(() => import("./components/LandingPage"));
 const VideoTemplate  = lazy(() => import("./components/video/VideoTemplate"));
 import OfflineBanner from "./components/OfflineBanner";
-import { OnboardingWizard, type PendingImportType } from "./components/OnboardingWizard";
-import { generateProfileFromFileWithGemini, generateProfileFromFileClaude, generateProfile } from "./services/geminiService";
-import { runImportPipeline } from "./services/importPipeline";
-import { purifyProfile } from "./services/cvPurificationPipeline";
+import type { PendingImportType } from "./components/OnboardingWizard";
+const OnboardingWizard = lazy(() => import("./components/OnboardingWizard").then(m => ({ default: m.OnboardingWizard })));
+// Heavy AI/import services — loaded on-demand the first time a user imports
+// a file; never pulled into the main bundle.
+// (dynamic import() is used at the call site in handleOnboardingComplete)
 const AdminApp = lazy(() => import("./components/admin/AdminApp"));
-import JsonImportDialog from "./components/JsonImportDialog";
-import ImportChoiceModal from "./components/ImportChoiceModal";
+const JsonImportDialog  = lazy(() => import("./components/JsonImportDialog"));
+const ImportChoiceModal = lazy(() => import("./components/ImportChoiceModal"));
 import { isCVEngineConfigured, workerExtractDoc } from "./services/cvEngineClient";
-import { getSelectedProvider } from "./services/groqService";
+// groqService loaded on-demand (see handleOnboardingComplete)
 import { useBootEffects } from "./hooks/useBootEffects";
 import { useAppNavigation } from "./hooks/useAppNavigation";
 import { useJsonImport } from "./hooks/useJsonImport";
@@ -492,9 +494,9 @@ const AppInner: React.FC = () => {
       }
       if (opts.pendingDocxFile) {
         try {
-          // Workers AI toMarkdown extracts DOCX text; the user's chosen provider structures it.
           const text = await workerExtractDoc(opts.pendingDocxFile);
           if (!text || text.trim().length < 50) throw new Error('Could not extract text from this Word document.');
+          const { runImportPipeline } = await import('./services/importPipeline');
           const result = await runImportPipeline(text, 'docx');
           handleWordProfileImported(result.profile);
         } catch (e: any) {
@@ -504,15 +506,29 @@ const AppInner: React.FC = () => {
       if (opts.pendingImportFile && opts.pendingImportType) {
         try {
           const file = opts.pendingImportFile;
+          const { getSelectedProvider } = await import('./services/groqService');
           const activeProvider = getSelectedProvider();
+
+          // Shared helpers — loaded once per invocation alongside the services
+          const [{ purifyProfile }, importMod] = await Promise.all([
+            import('./services/cvPurificationPipeline'),
+            import('./services/importPipeline'),
+          ]);
+          const { runImportPipeline } = importMod;
+          const toBase64 = (f: File) => new Promise<string>((res, rej) => {
+            const r = new FileReader();
+            r.onload = () => res((r.result as string).split(",")[1]);
+            r.onerror = rej;
+            r.readAsDataURL(f);
+          });
 
           if (opts.pendingImportType === "pdf") {
             const mimeType = file.type || "application/pdf";
             if (activeProvider === 'claude') {
-              const toBase64 = (f: File) => new Promise<string>((res, rej) => { const r = new FileReader(); r.onload = () => res((r.result as string).split(",")[1]); r.onerror = rej; r.readAsDataURL(f); });
+              const { generateProfileFromFileClaude } = await import('./services/geminiService');
               handleWordProfileImported(purifyProfile(await generateProfileFromFileClaude(await toBase64(file), mimeType, undefined)));
             } else if (activeProvider === 'gemini') {
-              const toBase64 = (f: File) => new Promise<string>((res, rej) => { const r = new FileReader(); r.onload = () => res((r.result as string).split(",")[1]); r.onerror = rej; r.readAsDataURL(f); });
+              const { generateProfileFromFileWithGemini } = await import('./services/geminiService');
               handleWordProfileImported(purifyProfile(await generateProfileFromFileWithGemini(await toBase64(file), mimeType, undefined)));
             } else {
               // Workers AI — toMarkdown handles PDF server-side (zero tokens for text PDFs)
@@ -521,15 +537,14 @@ const AppInner: React.FC = () => {
               const result = await runImportPipeline(text, 'pdf');
               handleWordProfileImported(purifyProfile(result.profile));
             }
-
           } else {
             // Image
             const mimeType = file.type || "image/jpeg";
             if (activeProvider === 'claude') {
-              const toBase64 = (f: File) => new Promise<string>((res, rej) => { const r = new FileReader(); r.onload = () => res((r.result as string).split(",")[1]); r.onerror = rej; r.readAsDataURL(f); });
+              const { generateProfileFromFileClaude } = await import('./services/geminiService');
               handleWordProfileImported(purifyProfile(await generateProfileFromFileClaude(await toBase64(file), mimeType, undefined)));
             } else if (activeProvider === 'gemini') {
-              const toBase64 = (f: File) => new Promise<string>((res, rej) => { const r = new FileReader(); r.onload = () => res((r.result as string).split(",")[1]); r.onerror = rej; r.readAsDataURL(f); });
+              const { generateProfileFromFileWithGemini } = await import('./services/geminiService');
               handleWordProfileImported(purifyProfile(await generateProfileFromFileWithGemini(await toBase64(file), mimeType, undefined)));
             } else {
               // Workers AI — toMarkdown handles images via vision server-side
@@ -718,7 +733,9 @@ const AppInner: React.FC = () => {
   return (
     <div className="min-h-screen bg-[#F8F7F4] dark:bg-neutral-900 text-zinc-900 dark:text-zinc-50 transition-colors duration-300">
       {showOnboarding && (
-        <OnboardingWizard onComplete={handleOnboardingComplete} />
+        <Suspense fallback={null}>
+          <OnboardingWizard onComplete={handleOnboardingComplete} />
+        </Suspense>
       )}
 
       <OfflineBanner />
@@ -752,7 +769,7 @@ const AppInner: React.FC = () => {
         onRenameProfile={handleRenameProfile}
       />
 
-      <FreePlanNudge />
+      <Suspense fallback={null}><FreePlanNudge /></Suspense>
 
       <AppViewRouter
         currentView={currentView}
@@ -811,47 +828,55 @@ const AppInner: React.FC = () => {
         setIsPricingOpen={setIsPricingOpen}
       />
 
-      <SettingsModal
-        isOpen={isSettingsOpen}
-        onClose={() => setIsSettingsOpen(false)}
-        onSave={handleApiSettingsSave}
-        currentApiSettings={apiSettings}
-        onOpenOnboarding={() => { setIsSettingsOpen(false); setShowOnboarding(true); }}
-        onOpenPricing={() => { setIsSettingsOpen(false); setIsPricingOpen(true); }}
-      />
+      <Suspense fallback={null}>
+        <SettingsModal
+          isOpen={isSettingsOpen}
+          onClose={() => setIsSettingsOpen(false)}
+          onSave={handleApiSettingsSave}
+          currentApiSettings={apiSettings}
+          onOpenOnboarding={() => { setIsSettingsOpen(false); setShowOnboarding(true); }}
+          onOpenPricing={() => { setIsSettingsOpen(false); setIsPricingOpen(true); }}
+        />
+      </Suspense>
 
-      <InactivityWarningModal
-        isOpen={showInactivityWarning}
-        onStay={() => {
-          lastActivityRef.current = Date.now();
-          setShowInactivityWarning(false);
-        }}
-        onSignOut={async () => {
-          setShowInactivityWarning(false);
-          await clearQueueForAccount().catch(() => {});
-          await signOut().catch(() => {});
-          setShowLanding(true);
-        }}
-      />
+      <Suspense fallback={null}>
+        <InactivityWarningModal
+          isOpen={showInactivityWarning}
+          onStay={() => {
+            lastActivityRef.current = Date.now();
+            setShowInactivityWarning(false);
+          }}
+          onSignOut={async () => {
+            setShowInactivityWarning(false);
+            await clearQueueForAccount().catch(() => {});
+            await signOut().catch(() => {});
+            setShowLanding(true);
+          }}
+        />
+      </Suspense>
 
-      <PricingModal
-        isOpen={isPricingOpen}
-        onClose={() => setIsPricingOpen(false)}
-        currentPlan={user?.plan ?? "free"}
-        userEmail={user?.email}
-      />
+      <Suspense fallback={null}>
+        <PricingModal
+          isOpen={isPricingOpen}
+          onClose={() => setIsPricingOpen(false)}
+          currentPlan={user?.plan ?? "free"}
+          userEmail={user?.email}
+        />
+      </Suspense>
 
       <ToastContainer toasts={toast.toasts} onRemove={toast.removeToast} />
 
       {/* ── JSON import dialog ── */}
       {pendingJsonImport && (
-        <JsonImportDialog
-          pendingImport={pendingJsonImport}
-          activeSlotName={activeSlot?.name}
-          onConfirmUpdate={handleConfirmUpdateCurrentProfile}
-          onConfirmCreate={handleConfirmCreateNewProfile}
-          onCancel={handleCancelJsonImport}
-        />
+        <Suspense fallback={null}>
+          <JsonImportDialog
+            pendingImport={pendingJsonImport}
+            activeSlotName={activeSlot?.name}
+            onConfirmUpdate={handleConfirmUpdateCurrentProfile}
+            onConfirmCreate={handleConfirmCreateNewProfile}
+            onCancel={handleCancelJsonImport}
+          />
+        </Suspense>
       )}
 
       {/* ── Word import conflict dialog ── */}
@@ -908,22 +933,26 @@ const AppInner: React.FC = () => {
         </div>
       )}
 
-      <AuthModal
-        open={authModalOpen}
-        onSuccess={onAuthSuccess}
-        onDismiss={onAuthDismiss}
-        mode={authModalMode}
-      />
+      <Suspense fallback={null}>
+        <AuthModal
+          open={authModalOpen}
+          onSuccess={onAuthSuccess}
+          onDismiss={onAuthDismiss}
+          mode={authModalMode}
+        />
+      </Suspense>
 
       {isNewUser && user && (
-        <WelcomeModal
-          name={user.name}
-          email={user.email}
-          onClose={() => {
-            clearNewUser();
-            if (!profileExists) setIsEditingProfile(true);
-          }}
-        />
+        <Suspense fallback={null}>
+          <WelcomeModal
+            name={user.name}
+            email={user.email}
+            onClose={() => {
+              clearNewUser();
+              if (!profileExists) setIsEditingProfile(true);
+            }}
+          />
+        </Suspense>
       )}
 
     </div>
