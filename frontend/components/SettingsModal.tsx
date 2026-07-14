@@ -138,7 +138,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
       role="dialog"
     >
       <div
-        className="bg-white dark:bg-neutral-800 rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-lg flex flex-col"
+        className="bg-[#FAFAF8] dark:bg-neutral-900 rounded-t-3xl sm:rounded-3xl shadow-2xl w-full sm:max-w-lg flex flex-col"
         style={{ maxHeight: 'calc(100dvh - 0rem)', height: 'auto' }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -148,11 +148,14 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
         </div>
 
         {/* ── Sticky header ── */}
-        <div className="flex justify-between items-center px-4 sm:px-6 pt-3 sm:pt-6 pb-4 border-b border-zinc-200 dark:border-neutral-700 flex-shrink-0">
-          <h2 className="text-xl sm:text-2xl font-bold">Settings</h2>
+        <div className="flex justify-between items-center px-5 sm:px-7 pt-3 sm:pt-6 pb-4 border-b border-zinc-200 dark:border-neutral-800 flex-shrink-0 bg-white dark:bg-neutral-900 rounded-t-3xl sm:rounded-t-3xl">
+          <div>
+            <h2 className="text-xl sm:text-2xl font-black text-zinc-900 dark:text-zinc-50" style={{ fontFamily: "'Playfair Display', serif" }}>Settings</h2>
+            <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-0.5">Your account, AI engine & security</p>
+          </div>
           <button
             onClick={onClose}
-            className="p-1 rounded-full hover:bg-zinc-200 dark:hover:bg-neutral-700 text-2xl leading-none"
+            className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-zinc-100 dark:hover:bg-neutral-800 text-2xl leading-none text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 transition-colors"
           >
             &times;
           </button>
@@ -160,7 +163,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
 
         {/* ── Scrollable body ── */}
         <div
-          className="overflow-y-auto flex-1 px-4 sm:px-6 py-5 space-y-5 min-h-0"
+          className="overflow-y-auto flex-1 px-4 sm:px-6 py-5 space-y-4 min-h-0"
           style={{ WebkitOverflowScrolling: 'touch' } as React.CSSProperties}
         >
 
@@ -225,26 +228,26 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
               return (
                 <div
                   onClick={() => handleProviderSelect(id)}
-                  className={`rounded-lg border-2 p-3 cursor-pointer transition-all space-y-2 ${
-                    active ? `${borderColor} ${activeBg}` : 'border-zinc-200 dark:border-zinc-700 bg-white dark:bg-neutral-800/40 hover:border-zinc-300 dark:hover:border-zinc-600'
+                  className={`rounded-xl border-2 p-4 cursor-pointer transition-all duration-200 space-y-2.5 ${
+                    active ? `${borderColor} ${activeBg} shadow-sm` : 'border-zinc-200 dark:border-zinc-700 bg-white dark:bg-neutral-800/40 hover:border-zinc-300 dark:hover:border-zinc-600 hover:shadow-sm'
                   }`}
                 >
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
-                      <span className="text-base">{icon}</span>
+                      <span className="text-lg">{icon}</span>
                       <span className={`text-sm font-bold ${active ? 'text-zinc-900 dark:text-zinc-50' : 'text-zinc-600 dark:text-zinc-300'}`}>{label}</span>
                       <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${badgeColor}`}>{badge}</span>
                     </div>
-                    <div className={`w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center ${active ? `${borderColor} bg-white dark:bg-neutral-700` : 'border-zinc-300 dark:border-zinc-600'}`}>
+                    <div className={`w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center transition-colors ${active ? `${borderColor} bg-white dark:bg-neutral-700` : 'border-zinc-300 dark:border-zinc-600'}`}>
                       {active && <div className="w-2 h-2 rounded-full bg-zinc-800 dark:bg-zinc-200" />}
                     </div>
                   </div>
-                  <p className="text-[11px] text-zinc-500 dark:text-zinc-400 leading-relaxed">{desc}</p>
+                  <p className="text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed">{desc}</p>
                   {/* Key input + model picker — only when active */}
                   {active && (
-                    <div className="space-y-2 pt-1" onClick={(e) => e.stopPropagation()}>
+                    <div className="space-y-2.5 pt-1.5 border-t border-black/5 dark:border-white/5" onClick={(e) => e.stopPropagation()}>
                       <a href={keyLink} target="_blank" rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-xs font-semibold underline text-zinc-600 dark:text-zinc-300">
+                        className="inline-flex items-center gap-1 text-xs font-semibold underline underline-offset-2 text-zinc-600 dark:text-zinc-300 mt-2">
                         {keyLinkLabel}
                       </a>
                       <Input type="password" value={keyValue} onChange={(e) => onKeyChange(e.target.value)}
@@ -252,7 +255,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
                       <div className="space-y-1">
                         <label className="text-[10px] font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide">Model</label>
                         <select value={modelValue} onChange={(e) => onModelChange(e.target.value)}
-                          className="w-full text-sm rounded-lg border border-zinc-200 dark:border-neutral-600 bg-white dark:bg-neutral-800 px-2 py-1.5 text-zinc-700 dark:text-zinc-200">
+                          className="w-full text-sm rounded-lg border border-zinc-200 dark:border-neutral-600 bg-white dark:bg-neutral-800 px-2.5 py-1.5 text-zinc-700 dark:text-zinc-200">
                           {modelOptions.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
                         </select>
                       </div>
@@ -288,15 +291,18 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
             // ── BYOK tier: own keys only, no Workers AI ──────────────────────
             if (isByok) {
               return (
-                <div className="rounded-xl border-2 border-[#1B2B4B]/20 dark:border-zinc-700 p-4 space-y-4 bg-zinc-50/50 dark:bg-neutral-800/30">
-                  <div className="flex items-center gap-2">
-                    <span className="text-lg">🔑</span>
-                    <div>
-                      <h3 className="text-xs font-bold uppercase tracking-widest text-zinc-700 dark:text-zinc-300">Your API Keys</h3>
-                      <p className="text-[10px] text-zinc-500 dark:text-zinc-400">Pick which key powers generation — unlimited CVs &amp; PDFs on your quota</p>
+                <div className="rounded-2xl border border-zinc-200 dark:border-neutral-700 p-5 space-y-4 bg-white dark:bg-neutral-900 shadow-sm">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2.5">
+                      <span className="w-9 h-9 rounded-xl bg-[#1B2B4B]/10 dark:bg-[#C9A84C]/10 flex items-center justify-center text-lg flex-shrink-0">🔑</span>
+                      <div>
+                        <h3 className="text-sm font-bold text-zinc-800 dark:text-zinc-100">Your API Keys</h3>
+                        <p className="text-xs text-zinc-500 dark:text-zinc-400">Pick which key powers generation — unlimited CVs &amp; PDFs on your quota</p>
+                      </div>
                     </div>
+                    <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-[#1B2B4B]/10 text-[#1B2B4B] dark:bg-[#C9A84C]/15 dark:text-[#C9A84C] flex-shrink-0">BYOK</span>
                   </div>
-                  <div className="grid grid-cols-1 gap-2">
+                  <div className="grid grid-cols-1 gap-2.5">
                     <ByokProviderCard id="claude" icon="🧠" label="Claude (Anthropic)"
                       badge="Your key" badgeColor="bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300"
                       desc="Claude Haiku/Sonnet via secure server proxy. Fast, 200K context. Prompt caching cuts repeat costs 90%."
@@ -323,12 +329,26 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
                       onModelChange={setGroqModelState} />
                   </div>
                   {/* Hard rule: no Workers AI fallback on BYOK */}
-                  <div className="flex items-start gap-2 rounded-lg bg-zinc-100 dark:bg-neutral-700/50 border border-zinc-200 dark:border-neutral-600 p-3">
+                  <div className="flex items-start gap-2 rounded-xl bg-zinc-50 dark:bg-neutral-800/60 border border-zinc-200 dark:border-neutral-700 p-3">
                     <span className="text-zinc-400 flex-shrink-0 mt-0.5 text-sm">ℹ</span>
-                    <p className="text-[11px] text-zinc-500 dark:text-zinc-400 leading-relaxed">
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed">
                       Workers AI is not available on BYOK. Your key is the sole AI source — if your quota runs out, generation stops rather than silently switching engines. This keeps your billing predictable.
                     </p>
                   </div>
+
+                  {/* Easy upgrade path — swap BYOK hassle for Premium's managed engine */}
+                  {onOpenPricing && (
+                    <div className="rounded-xl bg-gradient-to-br from-[#1B2B4B] to-[#101a30] p-4 flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-sm font-bold text-white">Done managing your own keys?</p>
+                        <p className="text-xs text-white/70 mt-0.5">Go Premium for our best models on us — no keys, no quotas to watch.</p>
+                      </div>
+                      <Button type="button" onClick={onOpenPricing}
+                        className="flex-shrink-0 text-xs px-3.5 py-2 bg-[#C9A84C] hover:bg-[#C9A84C]/90 text-[#1B2B4B] font-bold">
+                        Upgrade to Premium
+                      </Button>
+                    </div>
+                  )}
                 </div>
               );
             }
@@ -336,20 +356,24 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
             // ── Free tier: Workers AI runs silently in the background — nothing to show or configure ──
             if (isFree) {
               return (
-                <div className="rounded-xl border-2 border-[#1B2B4B]/20 dark:border-zinc-700 p-4 space-y-3 bg-zinc-50/50 dark:bg-neutral-800/30">
-                  <div className="flex items-center gap-2">
-                    <span className="text-lg">✨</span>
-                    <div>
-                      <h3 className="text-xs font-bold uppercase tracking-widest text-zinc-700 dark:text-zinc-300">AI Engine</h3>
-                      <p className="text-[10px] text-zinc-500 dark:text-zinc-400">Runs automatically — nothing to set up. Unlimited CV generation, 2 free PDF downloads.</p>
+                <div className="rounded-2xl border border-zinc-200 dark:border-neutral-700 p-5 space-y-4 bg-white dark:bg-neutral-900 shadow-sm">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2.5">
+                      <span className="w-9 h-9 rounded-xl bg-[#1B2B4B]/10 dark:bg-[#C9A84C]/10 flex items-center justify-center text-lg flex-shrink-0">✨</span>
+                      <div>
+                        <h3 className="text-sm font-bold text-zinc-800 dark:text-zinc-100">AI Engine</h3>
+                        <p className="text-xs text-zinc-500 dark:text-zinc-400">Runs automatically — nothing to set up</p>
+                      </div>
                     </div>
+                    <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-zinc-100 text-zinc-500 dark:bg-neutral-800 dark:text-zinc-400 flex-shrink-0">Free</span>
                   </div>
-                  <div className="rounded-lg bg-white dark:bg-neutral-800/60 border border-zinc-200 dark:border-neutral-700 p-3">
-                    <p className="text-[11px] text-zinc-500 dark:text-zinc-400 leading-relaxed mb-2">
+                  <div className="rounded-xl bg-gradient-to-br from-[#1B2B4B] to-[#101a30] p-4 space-y-3">
+                    <p className="text-xs text-white/80 leading-relaxed">
+                      Unlimited CV generation and 2 free PDF downloads — powered automatically, no setup needed.
                       Want unlimited PDFs and more tools? Bring your own API key (BYOK) or go Premium.
                     </p>
                     <Button type="button" onClick={onOpenPricing}
-                      className="text-xs px-3 py-1.5 bg-[#1B2B4B] hover:bg-[#1B2B4B]/90 text-white">
+                      className="text-xs px-3.5 py-2 bg-[#C9A84C] hover:bg-[#C9A84C]/90 text-[#1B2B4B] font-bold">
                       See upgrade options
                     </Button>
                   </div>
@@ -359,11 +383,21 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
 
             // ── Premium tier: Workers AI best models run automatically ───────
             return (
-              <div className="rounded-xl border-2 border-[#1B2B4B]/20 dark:border-zinc-700 p-4 space-y-4 bg-zinc-50/50 dark:bg-neutral-800/30">
+              <div className="rounded-2xl border border-zinc-200 dark:border-neutral-700 p-5 space-y-4 bg-white dark:bg-neutral-900 shadow-sm">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2.5">
+                    <span className="w-9 h-9 rounded-xl bg-[#C9A84C]/15 flex items-center justify-center text-lg flex-shrink-0">⭐</span>
+                    <div>
+                      <h3 className="text-sm font-bold text-zinc-800 dark:text-zinc-100">AI Engine</h3>
+                      <p className="text-xs text-zinc-500 dark:text-zinc-400">Best models run automatically — nothing to set up</p>
+                    </div>
+                  </div>
+                  <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-[#C9A84C]/15 text-[#8B6B2E] dark:text-[#C9A84C] flex-shrink-0">Premium</span>
+                </div>
                 {/* Optional own keys */}
                 <div>
-                  <p className="text-[11px] font-semibold text-zinc-600 dark:text-zinc-300 mb-2">Optional: use your own key instead of Workers AI</p>
-                  <div className="grid grid-cols-1 gap-2">
+                  <p className="text-xs font-semibold text-zinc-600 dark:text-zinc-300 mb-2">Optional: use your own key instead of Workers AI</p>
+                  <div className="grid grid-cols-1 gap-2.5">
                     <ByokProviderCard id="claude" icon="🧠" label="Claude (Anthropic)"
                       badge="Optional" badgeColor="bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300"
                       desc="Claude Haiku/Sonnet — use your own key if you prefer Anthropic's models."
@@ -395,12 +429,12 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
           })()}
 
           {/* ── Session Token Usage & Key Security ── */}
-          <div className="rounded-xl border border-zinc-200 dark:border-neutral-700 p-4 space-y-4 bg-white dark:bg-neutral-800/40">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Shield className="h-4 w-4 text-[#1B2B4B] dark:text-zinc-300 flex-shrink-0" />
-                <h3 className="text-xs font-bold uppercase tracking-widest text-zinc-600 dark:text-zinc-300">Security &amp; Usage</h3>
-              </div>
+          <div className="rounded-2xl border border-zinc-200 dark:border-neutral-700 p-5 space-y-4 bg-white dark:bg-neutral-900 shadow-sm">
+            <div className="flex items-center gap-2.5">
+              <span className="w-9 h-9 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 flex items-center justify-center flex-shrink-0">
+                <Shield className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+              </span>
+              <h3 className="text-sm font-bold text-zinc-800 dark:text-zinc-100">Security &amp; Usage</h3>
             </div>
 
             {/* Key security row */}
@@ -414,32 +448,32 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
                 <span
                   key={label}
                   title={tip}
-                  className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-semibold bg-emerald-50 border border-emerald-200 text-emerald-700 dark:bg-emerald-900/20 dark:border-emerald-800/40 dark:text-emerald-300 cursor-default"
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-50 border border-emerald-200 text-emerald-700 dark:bg-emerald-900/20 dark:border-emerald-800/40 dark:text-emerald-300 cursor-default"
                 >
                   <span aria-hidden>{icon}</span> {label}
                 </span>
               ))}
             </div>
-            <p className="text-[10px] text-zinc-500 dark:text-zinc-400 leading-snug">
+            <p className="text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed">
               Your API keys are encrypted using your browser's built-in cryptography before any storage.
               The plaintext key exists only in memory during your session and is sent exclusively to our
               Cloudflare Worker proxy over HTTPS — never directly to third-party APIs from the browser.
             </p>
 
             {/* Token usage row */}
-            <div className="border-t border-zinc-100 dark:border-neutral-700 pt-3 space-y-2">
+            <div className="border-t border-zinc-100 dark:border-neutral-700 pt-4 space-y-2">
               <div className="flex items-center justify-between">
                 <p className="text-xs font-semibold text-zinc-700 dark:text-zinc-200">Session token usage <span className="font-normal text-zinc-400">(estimated)</span></p>
                 <button
                   type="button"
                   onClick={() => { resetSessionTokenUsage(); setTokenUsage(getSessionTokenUsage()); }}
-                  className="text-[10px] text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 underline underline-offset-2"
+                  className="text-[11px] text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 underline underline-offset-2"
                 >
                   Reset
                 </button>
               </div>
               {tokenUsage.callCount === 0 ? (
-                <p className="text-[11px] text-zinc-400 dark:text-zinc-500 italic">No AI calls made yet this session.</p>
+                <p className="text-xs text-zinc-400 dark:text-zinc-500 italic">No AI calls made yet this session.</p>
               ) : (
                 <div className="grid grid-cols-3 gap-2">
                   {[
@@ -447,14 +481,14 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
                     { label: '~Input tokens', value: tokenUsage.inputTokensEst.toLocaleString() },
                     { label: '~Output tokens', value: tokenUsage.outputTokensEst.toLocaleString() },
                   ].map(({ label, value }) => (
-                    <div key={label} className="rounded-lg bg-zinc-50 dark:bg-neutral-800/60 border border-zinc-100 dark:border-neutral-700 p-2 text-center">
+                    <div key={label} className="rounded-xl bg-zinc-50 dark:bg-neutral-800/60 border border-zinc-100 dark:border-neutral-700 p-2.5 text-center">
                       <p className="text-sm font-bold text-zinc-800 dark:text-zinc-100">{value}</p>
                       <p className="text-[10px] text-zinc-500 dark:text-zinc-400 mt-0.5">{label}</p>
                     </div>
                   ))}
                 </div>
               )}
-              <p className="text-[10px] text-zinc-400 dark:text-zinc-500">
+              <p className="text-[11px] text-zinc-400 dark:text-zinc-500">
                 ~1 token ≈ 4 characters. Resets on page reload. Includes all CV generation, analysis, and toolkit calls.
               </p>
             </div>
@@ -462,26 +496,26 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
 
           {/* ── Gemini key for PDF/image upload (when not using Gemini as AI provider) ── */}
           {selectedAiProvider !== 'gemini' && (
-            <div className="rounded-xl border border-blue-200 dark:border-blue-800/40 p-4 space-y-3 bg-blue-50/30 dark:bg-blue-900/5">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="text-lg">🔍</span>
+            <div className="rounded-2xl border border-blue-200 dark:border-blue-800/40 p-5 space-y-3 bg-blue-50/40 dark:bg-blue-900/10 shadow-sm">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2.5">
+                  <span className="w-9 h-9 rounded-xl bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-lg flex-shrink-0">🔍</span>
                   <div>
-                    <h3 className="text-xs font-bold uppercase tracking-widest text-blue-600 dark:text-blue-400">Gemini — PDF & Image Upload</h3>
-                    <p className="text-[10px] text-zinc-500 dark:text-zinc-400">Optional — only needed to upload PDF/image CVs</p>
+                    <h3 className="text-sm font-bold text-blue-700 dark:text-blue-400">Gemini — PDF &amp; Image Upload</h3>
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400">Optional — only needed to upload PDF/image CVs</p>
                   </div>
                 </div>
                 {geminiKey ? (
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 shrink-0">● Key set</span>
+                  <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 shrink-0">● Key set</span>
                 ) : (
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-zinc-100 text-zinc-500 dark:bg-neutral-700 dark:text-zinc-400 shrink-0">○ Not set</span>
+                  <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-zinc-100 text-zinc-500 dark:bg-neutral-700 dark:text-zinc-400 shrink-0">○ Not set</span>
                 )}
               </div>
-              <p className="text-xs text-zinc-600 dark:text-zinc-400">
+              <p className="text-xs text-zinc-600 dark:text-zinc-400 leading-relaxed">
                 Your AI provider is <strong>{selectedAiProvider === 'workers-ai' ? 'Workers AI' : 'Claude'}</strong>. A Gemini key is still needed if you want to <strong>upload a PDF or image CV</strong> for parsing.
               </p>
               <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 underline font-semibold">
+                className="inline-flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 underline underline-offset-2 font-semibold">
                 Get your free Gemini API key →
               </a>
               <Input
