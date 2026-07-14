@@ -19,6 +19,41 @@ runWorkerStatusDiagnostic();
 // auto-recover without a page reload.
 startAutoProbe();
 
+// ── Stale-chunk recovery ─────────────────────────────────────────────────────
+// Vite code-splits lazy-loaded routes (e.g. AppViewRouter) into hashed chunk
+// files. When we ship a new deploy, the old hashed filenames are deleted from
+// the server. A browser tab that's been open since before the deploy (or one
+// that loaded a cached index.html) still tries to fetch the *old* hash and
+// gets a 404 — surfacing as "Failed to fetch dynamically imported module" or
+// "error loading dynamically imported module". That's not a real app bug, it's
+// just a stale client — the fix is a single hard reload to pick up the new
+// index.html + current chunk hashes. We do this ONE time per tab (guarded by
+// sessionStorage) to avoid a reload loop if the fetch keeps failing for some
+// other reason (e.g. offline).
+const CHUNK_ERROR_PATTERN = /failed to fetch dynamically imported module|error loading dynamically imported module|importing a module script failed/i;
+const CHUNK_RELOAD_FLAG = 'procv:chunkReloadAttempted';
+
+function isStaleChunkError(err: unknown): boolean {
+  const message = err instanceof Error ? err.message : String(err);
+  return CHUNK_ERROR_PATTERN.test(message);
+}
+
+function recoverFromStaleChunk(): boolean {
+  try {
+    if (sessionStorage.getItem(CHUNK_RELOAD_FLAG)) return false; // already tried once this tab
+    sessionStorage.setItem(CHUNK_RELOAD_FLAG, '1');
+  } catch { /* sessionStorage blocked — still attempt one reload */ }
+  window.location.reload();
+  return true;
+}
+
+// Vite fires this event on the window whenever a lazy `import()` fails to
+// load — catching it here means most users never even see the error screen.
+window.addEventListener('vite:preloadError', (event) => {
+  console.warn('[vite:preloadError] stale chunk detected, recovering:', event);
+  recoverFromStaleChunk();
+});
+
 // ── Top-level Error Boundary ────────────────────────────────────────────────
 // Catches any runtime crash in the React tree and shows a friendly recovery
 // screen instead of a blank white page. Class component required by React API.
@@ -34,9 +69,44 @@ class AppErrorBoundary extends React.Component<{ children: React.ReactNode }, EB
   }
   componentDidCatch(err: unknown, info: React.ErrorInfo) {
     console.error('[AppErrorBoundary] Uncaught error in React tree:', err, info.componentStack);
+    // A dynamic-import 404 from a stale deploy isn't a real crash to report —
+    // auto-recover with a single hard reload instead of dead-ending the user.
+    if (isStaleChunkError(err) && recoverFromStaleChunk()) return;
   }
   render() {
     if (!this.state.hasError) return this.props.children;
+    if (isStaleChunkError(this.state.message)) {
+      // Mid-recovery: reload is already in flight (or was just attempted and
+      // failed again, e.g. offline). Show a lighter "updating" screen instead
+      // of the generic crash message so it doesn't look broken.
+      return (
+        <div style={{
+          minHeight: '100vh', display: 'flex', flexDirection: 'column',
+          alignItems: 'center', justifyContent: 'center',
+          background: '#F8F7F4', fontFamily: 'DM Sans, sans-serif', padding: '2rem',
+        }}>
+          <div style={{ maxWidth: 420, textAlign: 'center' }}>
+            <div style={{ fontSize: 40, marginBottom: 16 }}>🔄</div>
+            <h1 style={{ fontSize: 20, fontWeight: 700, color: '#1B2B4B', marginBottom: 8 }}>
+              Updating ProCV…
+            </h1>
+            <p style={{ color: '#555', marginBottom: 24, lineHeight: 1.6 }}>
+              A newer version is available. Your saved CVs are safe — they're stored in your browser.
+            </p>
+            <button
+              onClick={() => window.location.reload()}
+              style={{
+                background: '#1B2B4B', color: '#fff', border: 'none',
+                borderRadius: 8, padding: '10px 24px', fontSize: 15,
+                fontWeight: 600, cursor: 'pointer',
+              }}
+            >
+              Reload now
+            </button>
+          </div>
+        </div>
+      );
+    }
     return (
       <div style={{
         minHeight: '100vh', display: 'flex', flexDirection: 'column',
