@@ -125,6 +125,7 @@ const CVPreview: React.FC<CVPreviewProps> = (props) => {
         data-cv-preview="true"
         data-cv-spacing={spacingLevel !== 0 ? spacingLevel : undefined}
         className="min-w-[210mm] bg-white shadow-sm mx-auto relative"
+        style={density !== 1 ? { zoom: density } : undefined}
       >
         {/* Inject spacing-override CSS for the current layout mode.
             Positive spacingLevel = compression (fit-to-1-page).

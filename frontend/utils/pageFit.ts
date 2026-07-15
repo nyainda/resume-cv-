@@ -8,8 +8,15 @@
  * (backend/resume-pdf-worker/src/index.ts → page.setViewport { height: 1123 }).
  */
 
-/** A4 page height at 794 px wide / 96 dpi — matches the Chromium PDF worker viewport. */
-export const A4_PAGE_HEIGHT_PX = 1123;
+/**
+ * A4 page height at 794 px wide / 96 dpi, with a small safety buffer.
+ *
+ * Exact A4 at 96 dpi: 297 mm × (96 / 25.4) = 1122.52 px.
+ * We use 1120 (≈2.5 px below the exact value) so the convergence loop
+ * compresses until content is clearly within the page — avoiding the
+ * sub-pixel overflow that caused a nearly-blank page 2 in Playwright.
+ */
+export const A4_PAGE_HEIGHT_PX = 1120;
 
 /**
  * How many A4 pages will content of `contentHeightPx` pixels require?

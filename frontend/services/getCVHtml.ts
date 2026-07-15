@@ -186,6 +186,16 @@ export async function getCVHtml(opts: GetCVHtmlOptions = {}): Promise<string | n
 
   const clone = container.cloneNode(true) as HTMLElement;
 
+  // Strip UI-only padding from the outermost wrapper element. CVPreview renders
+  // a `pb-4` (16 px) gap below the CV page — useful for editor spacing but it
+  // inflates the captured HTML height and can push a tightly-fitted single-page
+  // CV just past the A4 boundary in Playwright, producing a nearly-blank page 2.
+  const outerWrapper = clone.firstElementChild as HTMLElement | null;
+  if (outerWrapper) {
+    outerWrapper.style.paddingBottom = '0';
+    outerWrapper.style.paddingTop = '0';
+  }
+
   // Remove UI chrome — buttons and elements explicitly marked for PDF exclusion.
   ["button", "[data-pdf-hide]", ".no-print"].forEach((sel) =>
     clone.querySelectorAll(sel).forEach((el) => el.remove())
