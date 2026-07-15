@@ -87,6 +87,28 @@ function computeSmartSplit(cvData: CVData): SmartSplit {
   };
 }
 
+// ─── Smart trim ───────────────────────────────────────────────────────────────
+// Trims display text to maxChars without cutting mid-sentence.
+// Prefers breaking at a sentence-ending punctuation (. ! ?) so the visible
+// text always reads as a complete thought. Falls back to a word boundary and
+// appends … only when text was actually shortened. Never modifies stored data.
+function smartTrim(text: string, maxChars: number): string {
+  if (!text || text.length <= maxChars) return text;
+  const chunk = text.slice(0, maxChars);
+  // Try sentence boundary first (needs a following space or be at end)
+  const sentenceEnd = Math.max(
+    chunk.lastIndexOf('. '),
+    chunk.lastIndexOf('! '),
+    chunk.lastIndexOf('? '),
+  );
+  if (sentenceEnd > maxChars * 0.45) {
+    return chunk.slice(0, sentenceEnd + 1).trim();
+  }
+  // Fall back to word boundary
+  const wordEnd = chunk.lastIndexOf(' ');
+  return (wordEnd > 0 ? chunk.slice(0, wordEnd) : chunk).trimEnd() + '…';
+}
+
 // ─── Inline-edit helper ───────────────────────────────────────────────────────
 function editable(isEditing: boolean, onBlur: (v: string) => void): React.HTMLAttributes<HTMLElement> {
   if (!isEditing) return {};
@@ -287,14 +309,19 @@ const Section: React.FC<{ children: React.ReactNode; sc: DensityScale }> = ({ ch
 
 // ─── Content section components ───────────────────────────────────────────────
 
-const SummarySection: React.FC<{ cvData: CVData; theme: TemplateTheme; sc: DensityScale; isEditing: boolean; onChange: (d: CVData) => void }> = ({ cvData, theme, sc, isEditing, onChange }) => {
+const SummarySection: React.FC<{ cvData: CVData; theme: TemplateTheme; sc: DensityScale; isEditing: boolean; onChange: (d: CVData) => void; compact?: boolean }> = ({ cvData, theme, sc, isEditing, onChange, compact }) => {
   if (!cvData.summary) return null;
+  // In compact (sidebar onePage) mode show the strongest opening sentences only.
+  // Full text is always preserved in storage and restored in edit mode.
+  const displaySummary = (compact && !isEditing)
+    ? smartTrim(cvData.summary, 280)
+    : cvData.summary;
   return (
     <Section sc={sc}>
       <SectionHeading title="Professional Summary" theme={theme} sc={sc} />
       <p style={{ fontSize: sc.bodySize, color: theme.bodyText, lineHeight: sc.lineH, margin: 0, fontFamily: theme.fontBody }}
         {...editable(isEditing, v => { const d = JSON.parse(JSON.stringify(cvData)); d.summary = v; onChange(d); })}>
-        {cvData.summary}
+        {displaySummary}
       </p>
     </Section>
   );
@@ -306,9 +333,12 @@ function isCurrentRole(dates?: string): boolean {
   return /present|current|now|ongoing/i.test(dates);
 }
 
-const ExperienceSection: React.FC<{ cvData: CVData; theme: TemplateTheme; sc: DensityScale; isEditing: boolean; onChange: (d: CVData) => void }> = ({ cvData, theme, sc, isEditing, onChange }) => {
+const ExperienceSection: React.FC<{ cvData: CVData; theme: TemplateTheme; sc: DensityScale; isEditing: boolean; onChange: (d: CVData) => void; compact?: boolean }> = ({ cvData, theme, sc, isEditing, onChange, compact }) => {
   if (!cvData.experience?.length) return null;
   const multi = cvData.experience.length > 1;
+  // In compact (sidebar onePage) mode: cap bullets to 3 per role so many roles
+  // still fit. Edit mode always shows all bullets so nothing is hidden from the user.
+  const MAX_BULLETS = (compact && !isEditing) ? 3 : Infinity;
   return (
     <Section sc={sc}>
       <SectionHeading title="Experience" theme={theme} sc={sc} />
@@ -334,10 +364,15 @@ const ExperienceSection: React.FC<{ cvData: CVData; theme: TemplateTheme; sc: De
           {exp.location && <div style={{ fontSize: sc.metaSize, color: theme.bodyMuted, fontFamily: theme.fontBody, marginBottom: 2 }}
             {...editable(isEditing, v => { const d = JSON.parse(JSON.stringify(cvData)); d.experience[ei].location = v; onChange(d); })}>{exp.location}</div>}
           <div style={{ marginTop: 3 }}>
-            {exp.responsibilities.map((r, ri) => (
+            {exp.responsibilities.slice(0, MAX_BULLETS).map((r, ri) => (
               <Bullet key={ri} text={r} theme={theme} sc={sc} isEditing={isEditing}
                 onBlur={v => { const d = JSON.parse(JSON.stringify(cvData)); d.experience[ei].responsibilities[ri] = v; onChange(d); }} />
             ))}
+            {compact && !isEditing && exp.responsibilities.length > MAX_BULLETS && (
+              <div style={{ fontSize: sc.metaSize, color: theme.bodyMuted, fontFamily: theme.fontBody, marginTop: 2, opacity: 0.7 }}>
+                +{exp.responsibilities.length - MAX_BULLETS} more
+              </div>
+            )}
           </div>
         </div>
       ))}
@@ -809,12 +844,13 @@ const SidebarContent: React.FC<SidebarContentProps> = ({ cvData, pi, theme, sc, 
                     )}
                   </div>
 
-                  {/* Description — full text */}
+                  {/* Description — smart-trimmed to 1–2 sentences so long project
+                      descriptions never blow out the sidebar column */}
                   {blurb && (
                     <div style={{
                       fontSize: sc.metaSize, color: mutedColor,
                       fontFamily: theme.fontBody, lineHeight: 1.45, marginTop: 2,
-                    }}>{blurb}</div>
+                    }}>{smartTrim(blurb, 140)}</div>
                   )}
 
                   {/* Tech chips — up to 4, overflow shown as "+N" */}
@@ -930,12 +966,13 @@ interface LayoutProps {
   isEditing: boolean; onChange: (d: CVData) => void;
   split?: SmartSplit; // sidebar layouts pass this to skip routed sections
   padOverride?: string;
+  compact?: boolean;  // true in sidebar onePage mode — enables smart trimming
 }
 
-const MainContent: React.FC<LayoutProps> = ({ cvData, theme, sc, isEditing, onChange, split, padOverride }) => (
+const MainContent: React.FC<LayoutProps> = ({ cvData, theme, sc, isEditing, onChange, split, padOverride, compact }) => (
   <div style={{ padding: padOverride ?? sc.bodyPad }}>
-    <SummarySection    cvData={cvData} theme={theme} sc={sc} isEditing={isEditing} onChange={onChange} />
-    <ExperienceSection cvData={cvData} theme={theme} sc={sc} isEditing={isEditing} onChange={onChange} />
+    <SummarySection    cvData={cvData} theme={theme} sc={sc} isEditing={isEditing} onChange={onChange} compact={compact} />
+    <ExperienceSection cvData={cvData} theme={theme} sc={sc} isEditing={isEditing} onChange={onChange} compact={compact} />
     {/* Education goes to main only when NOT in sidebar */}
     {!split?.eduInSidebar && <EducationSection cvData={cvData} theme={theme} sc={sc} isEditing={isEditing} onChange={onChange} />}
     {/* Projects go to main only when NOT in sidebar */}
@@ -1027,6 +1064,7 @@ const LayoutSingleColumn: React.FC<LayoutProps> = (props) => {
 
 const LayoutSidebarLeft: React.FC<LayoutProps> = (props) => {
   const split = computeSmartSplit(props.cvData);
+  const compact = !!props.cvData.onePage;
   return (
     <div style={{ background: props.theme.bodyBg, minHeight: '280mm', position: 'relative' }}>
       {props.cvData.onePage && <OnePageBoundary />}
@@ -1037,7 +1075,7 @@ const LayoutSidebarLeft: React.FC<LayoutProps> = (props) => {
           <SidebarContent cvData={props.cvData} pi={props.pi} theme={props.theme} sc={props.sc} split={split} />
         </div>
         <div style={{ flex: 1, borderLeft: `1px solid ${props.theme.borderColor}` }}>
-          <MainContent {...props} split={split} padOverride={props.sc.sidebarPad} />
+          <MainContent {...props} split={split} padOverride={props.sc.sidebarPad} compact={compact} />
         </div>
       </div>
     </div>
@@ -1046,6 +1084,7 @@ const LayoutSidebarLeft: React.FC<LayoutProps> = (props) => {
 
 const LayoutSidebarRight: React.FC<LayoutProps> = (props) => {
   const split = computeSmartSplit(props.cvData);
+  const compact = !!props.cvData.onePage;
   return (
     <div style={{ background: props.theme.bodyBg, minHeight: '280mm', position: 'relative' }}>
       {props.cvData.onePage && <OnePageBoundary />}
@@ -1053,7 +1092,7 @@ const LayoutSidebarRight: React.FC<LayoutProps> = (props) => {
         onUpdate={(f, v) => { const d = JSON.parse(JSON.stringify(props.cvData)); if (!d.personalInfo) d.personalInfo = {} as any; (d.personalInfo as any)[f] = v; props.onChange(d); }} />
       <div style={{ display: 'flex', minHeight: '230mm' }}>
         <div style={{ flex: 1, borderRight: `1px solid ${props.theme.borderColor}` }}>
-          <MainContent {...props} split={split} padOverride={props.sc.sidebarPad} />
+          <MainContent {...props} split={split} padOverride={props.sc.sidebarPad} compact={compact} />
         </div>
         <div style={{ width: props.theme.sidebarWidth, background: props.theme.sidebarBg, flexShrink: 0 }}>
           <SidebarContent cvData={props.cvData} pi={props.pi} theme={props.theme} sc={props.sc} split={split} />
