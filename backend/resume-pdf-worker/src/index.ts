@@ -71,8 +71,14 @@ export default {
         });
       }
 
-      if (body.html.length > 2_000_000) {
-        return new Response(JSON.stringify({ error: "HTML too large (max 2MB)" }), {
+      // Google Fonts are embedded as base64 data-URIs (see getCVHtml.ts) so the
+      // headless browser needs zero outbound font requests. A couple of font
+      // families at several weights each can legitimately push this past a
+      // tight cap, so the ceiling here is generous — the real backstop against
+      // runaway payloads is the client-side @import fallback in getCVHtml.ts,
+      // which kicks in before hitting this endpoint if fonts alone are huge.
+      if (body.html.length > 8_000_000) {
+        return new Response(JSON.stringify({ error: "HTML too large (max 8MB)" }), {
           status: 413,
           headers: { "Content-Type": "application/json", ...corsHeaders },
         });

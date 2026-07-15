@@ -226,9 +226,25 @@ export async function getCVHtml(opts: GetCVHtmlOptions = {}): Promise<string | n
     (h) => !h.includes('fonts.googleapis.com')
   );
 
-  const embeddedFontCss = (
+  let embeddedFontCss = (
     await Promise.all(googleFontHrefs.map(embedFontCSS))
   ).join('\n');
+
+  // Base64-embedding every font weight for a template with 2+ font families
+  // can add several MB to the payload. If it's gotten out of hand, fall back
+  // to plain @import statements instead — the PDF renderer (Playwright /
+  // Cloudflare's headless browser) has outbound network access and can fetch
+  // Google Fonts directly, so this only costs a little render latency, not
+  // a failed download. This also protects the Cloudflare worker's request
+  // size ceiling from being blown out by pathological font combinations.
+  const FONT_EMBED_BUDGET = 3_000_000; // ~3MB of base64 font data
+  if (embeddedFontCss.length > FONT_EMBED_BUDGET && googleFontHrefs.length > 0) {
+    console.warn(
+      `[getCVHtml] Embedded font CSS is ${(embeddedFontCss.length / 1_000_000).toFixed(1)}MB — ` +
+      `falling back to @import for Google Fonts to keep the PDF payload small.`
+    );
+    embeddedFontCss = googleFontHrefs.map((href) => `@import url('${href}');`).join('\n');
+  }
 
   // Non-Google-Fonts external sheets get regular <link> tags
   const linkTags = otherExternalHrefs
