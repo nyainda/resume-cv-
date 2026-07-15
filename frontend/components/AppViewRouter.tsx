@@ -2,6 +2,7 @@
 import React, { lazy, Suspense } from 'react';
 import { CVData, UserProfile, UserProfileSlot, SavedCV, SavedCoverLetter, TrackedApplication, STARStory } from '../types';
 import type { WorkerUser } from '../services/authService';
+import { PremiumGateWrapper } from './premium/PremiumGateWrapper';
 
 // ── Lazy views — each gets its own JS chunk, loaded on first navigation ────────
 const ProfileForm          = lazy(() => import('./ProfileForm'));
@@ -230,13 +231,15 @@ const AppViewRouter: React.FC<AppViewRouterProps> = ({
               )}
 
               {currentView === 'linkedin' && (
-                <div className="bg-white dark:bg-neutral-800 rounded-2xl border border-zinc-200 dark:border-neutral-800 p-6 sm:p-8">
-                  <LinkedInGenerator
-                    userProfile={userProfile!}
-                    apiKeySet={apiKeySet}
-                    openSettings={() => setIsSettingsOpen(true)}
-                  />
-                </div>
+                <PremiumGateWrapper feature="linkedin-optimizer" blockContent>
+                  <div className="bg-white dark:bg-neutral-800 rounded-2xl border border-zinc-200 dark:border-neutral-800 p-6 sm:p-8">
+                    <LinkedInGenerator
+                      userProfile={userProfile!}
+                      apiKeySet={apiKeySet}
+                      openSettings={() => setIsSettingsOpen(true)}
+                    />
+                  </div>
+                </PremiumGateWrapper>
               )}
 
               {currentView === 'interview' && (
@@ -332,13 +335,15 @@ const AppViewRouter: React.FC<AppViewRouterProps> = ({
               )}
 
               {currentView === 'negotiation' && (
-                <div className="bg-white dark:bg-neutral-800 rounded-2xl border border-zinc-200 dark:border-neutral-800 p-6 sm:p-8">
-                  <NegotiationCoach
-                    apiKeySet={apiKeySet}
-                    openSettings={() => setIsSettingsOpen(true)}
-                    userProfile={userProfile}
-                  />
-                </div>
+                <PremiumGateWrapper feature="salary-negotiation" blockContent>
+                  <div className="bg-white dark:bg-neutral-800 rounded-2xl border border-zinc-200 dark:border-neutral-800 p-6 sm:p-8">
+                    <NegotiationCoach
+                      apiKeySet={apiKeySet}
+                      openSettings={() => setIsSettingsOpen(true)}
+                      userProfile={userProfile}
+                    />
+                  </div>
+                </PremiumGateWrapper>
               )}
 
               {currentView === 'analytics' && (
@@ -362,13 +367,15 @@ const AppViewRouter: React.FC<AppViewRouterProps> = ({
               )}
 
               {currentView === 'pivot' && (
-                <CareerPivotPage
-                  currentCV={currentCV}
-                  onGoToGenerator={() => setCurrentView('generator')}
-                  onGoToScore={() => setCurrentView('score')}
-                  apiKeySet={apiKeySet}
-                  openSettings={() => setIsSettingsOpen(true)}
-                />
+                <PremiumGateWrapper feature="career-pivot" blockContent>
+                  <CareerPivotPage
+                    currentCV={currentCV}
+                    onGoToGenerator={() => setCurrentView('generator')}
+                    onGoToScore={() => setCurrentView('score')}
+                    apiKeySet={apiKeySet}
+                    openSettings={() => setIsSettingsOpen(true)}
+                  />
+                </PremiumGateWrapper>
               )}
 
               {currentView === 'admin-leaks' && (

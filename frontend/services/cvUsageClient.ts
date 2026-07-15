@@ -19,19 +19,27 @@ function engineURL(path: string): string {
     try { return new URL(path, ENGINE_URL).toString(); } catch { return path; }
 }
 
-/** Shape returned by GET /api/cv/usage */
+/** Shape returned by GET /api/cv/usage and POST /api/cv/usage/increment */
 export interface UsageCounts {
     cv_gen_count: number;
     pdf_dl_count: number;
+    /** Remaining CV generations today. null = unlimited (BYOK/Premium). */
+    cv_gen_daily_remaining: number | null;
+    /** Daily cap value (15 for free). null when unlimited. */
+    cv_gen_daily_limit: number | null;
 }
 
 /**
- * Thrown by incrementUsageCount when the server returns 429 (free-tier cap hit).
- * Carries the server's authoritative current counts so callers can sync localStorage.
+ * Thrown by incrementUsageCount when the server returns 429 (cap hit).
+ * Carries the server's authoritative counts so callers can sync localStorage.
  */
 export class UsageLimitExceededError extends Error {
-    constructor(public readonly counts: UsageCounts) {
-        super('limit_exceeded');
+    constructor(
+        public readonly counts: Pick<UsageCounts, 'cv_gen_count' | 'pdf_dl_count'>,
+        public readonly errorCode: 'limit_exceeded' | 'daily_limit_exceeded' = 'limit_exceeded',
+        public readonly dailyRemaining: number = 0,
+    ) {
+        super(errorCode);
         this.name = 'UsageLimitExceededError';
     }
 }
@@ -52,9 +60,20 @@ export async function fetchUsageCounts(): Promise<UsageCounts | null> {
     try {
         const res = await fetch(engineURL('/api/cv/usage'), { credentials: 'include' });
         if (!res.ok) return null;
-        const data = await res.json() as { ok: boolean; cv_gen_count: number; pdf_dl_count: number };
+        const data = await res.json() as {
+            ok: boolean;
+            cv_gen_count: number;
+            pdf_dl_count: number;
+            cv_gen_daily_remaining?: number;
+            cv_gen_daily_limit?: number;
+        };
         if (!data.ok) return null;
-        return { cv_gen_count: data.cv_gen_count, pdf_dl_count: data.pdf_dl_count };
+        return {
+            cv_gen_count:           data.cv_gen_count,
+            pdf_dl_count:           data.pdf_dl_count,
+            cv_gen_daily_remaining: data.cv_gen_daily_remaining ?? null,
+            cv_gen_daily_limit:     data.cv_gen_daily_limit ?? null,
+        };
     } catch {
         return null;
     }
@@ -63,7 +82,7 @@ export async function fetchUsageCounts(): Promise<UsageCounts | null> {
 /**
  * Atomically check-and-increment a usage counter on the server.
  * Returns the updated counts on success.
- * Throws UsageLimitExceededError (with current counts) if the free-tier cap is hit (HTTP 429).
+ * Throws UsageLimitExceededError if the cap is hit (HTTP 429).
  * Returns null on any other network/server error (caller should fail-open).
  */
 export async function incrementUsageCount(
@@ -77,24 +96,33 @@ export async function incrementUsageCount(
             body: JSON.stringify({ type }),
         });
         if (res.status === 429) {
-            // Server says free-tier limit exceeded. Parse the counts it echoes back
-            // so we can sync localStorage to the authoritative value.
-            let counts: UsageCounts = { cv_gen_count: 0, pdf_dl_count: 0 };
-            try {
-                const data = await res.json() as { cv_gen_count?: number; pdf_dl_count?: number };
-                counts = {
-                    cv_gen_count: data.cv_gen_count ?? 0,
-                    pdf_dl_count: data.pdf_dl_count ?? 0,
-                };
-            } catch { /* ignore parse errors — zero counts is a safe fallback */ }
-            throw new UsageLimitExceededError(counts);
+            let body: any = {};
+            try { body = await res.json(); } catch { /* ignore */ }
+            const errorCode: 'limit_exceeded' | 'daily_limit_exceeded' =
+                body?.error === 'daily_limit_exceeded' ? 'daily_limit_exceeded' : 'limit_exceeded';
+            throw new UsageLimitExceededError(
+                { cv_gen_count: body?.cv_gen_count ?? 0, pdf_dl_count: body?.pdf_dl_count ?? 0 },
+                errorCode,
+                body?.cv_gen_daily_remaining ?? 0,
+            );
         }
         if (!res.ok) return null;
-        const data = await res.json() as { ok: boolean; cv_gen_count: number; pdf_dl_count: number };
+        const data = await res.json() as {
+            ok: boolean;
+            cv_gen_count: number;
+            pdf_dl_count: number;
+            cv_gen_daily_remaining?: number | null;
+            cv_gen_daily_limit?: number | null;
+        };
         if (!data.ok) return null;
-        return { cv_gen_count: data.cv_gen_count, pdf_dl_count: data.pdf_dl_count };
+        return {
+            cv_gen_count:           data.cv_gen_count,
+            pdf_dl_count:           data.pdf_dl_count,
+            cv_gen_daily_remaining: data.cv_gen_daily_remaining ?? null,
+            cv_gen_daily_limit:     data.cv_gen_daily_limit ?? null,
+        };
     } catch (e) {
-        if (e instanceof UsageLimitExceededError) throw e; // re-throw; don't swallow
+        if (e instanceof UsageLimitExceededError) throw e;
         return null;
     }
 }
@@ -110,10 +138,10 @@ export async function fetchTierInfo(): Promise<TierInfo | null> {
         const data = await res.json() as TierInfo & { ok: boolean };
         if (!data.ok) return null;
         return {
-            plan: data.plan === 'premium' ? 'premium' : 'free',
-            byok_enabled: !!data.byok_enabled,
-            cv_gen_count: data.cv_gen_count ?? 0,
-            pdf_dl_count: data.pdf_dl_count ?? 0,
+            plan:         data.plan,
+            byok_enabled: data.byok_enabled,
+            cv_gen_count: data.cv_gen_count,
+            pdf_dl_count: data.pdf_dl_count,
         };
     } catch {
         return null;
@@ -121,18 +149,19 @@ export async function fetchTierInfo(): Promise<TierInfo | null> {
 }
 
 /**
- * Notify the server that the user has (or no longer has) a BYOK key.
- * Fire-and-forget: returns void; failure is silently ignored.
+ * Mark (or unmark) the caller's account as BYOK.
+ * Returns true on success, false on any error.
  */
-export async function markByok(enabled: boolean): Promise<void> {
+export async function markByok(enabled = true): Promise<boolean> {
     try {
-        await fetch(engineURL('/api/cv/mark-byok'), {
+        const res = await fetch(engineURL('/api/cv/mark-byok'), {
             method: 'POST',
             credentials: 'include',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ enabled }),
         });
+        return res.ok;
     } catch {
-        // non-fatal
+        return false;
     }
 }

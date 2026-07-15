@@ -12,6 +12,7 @@
 import { Env } from '../types';
 import { json } from '../utils';
 import { verifySession, sessionCookieFromRequest } from './auth';
+import { isSuperAdmin } from '../middleware/requirePremium';
 
 // ─── Auth helper ──────────────────────────────────────────────────────────────
 
@@ -116,10 +117,14 @@ export async function handleTierGet(request: Request, env: Env): Promise<Respons
     const { session, err } = await requireSession(request, env);
     if (!session) return err!;
 
-    // plan comes from user_identities (already in session); byok_enabled is also there.
+    // plan comes from user_identities; super-admin emails are always elevated.
     const row = await env.CV_DB.prepare(
         `SELECT plan, byok_enabled FROM user_identities WHERE id = ?`
     ).bind(session.userId).first<{ plan: string; byok_enabled: number }>();
+
+    const effectivePlan = isSuperAdmin(session.email, env)
+        ? 'premium'
+        : (row?.plan ?? 'free');
 
     const usage = await env.CV_DB.prepare(
         `SELECT cv_gen_count, pdf_dl_count FROM user_usage WHERE user_id = ?`
@@ -127,7 +132,7 @@ export async function handleTierGet(request: Request, env: Env): Promise<Respons
 
     return json({
         ok: true,
-        plan: row?.plan ?? 'free',
+        plan: effectivePlan,
         byok_enabled: (row?.byok_enabled ?? 0) === 1,
         cv_gen_count: usage?.cv_gen_count ?? 0,
         pdf_dl_count: usage?.pdf_dl_count ?? 0,

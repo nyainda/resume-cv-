@@ -310,11 +310,16 @@ export function canUsePremiumModes(): boolean {
   return getEffectiveTier() !== 'free';
 }
 
-// ─── CV generation counter (pure free tier only) ──────────────────────────────
+// ─── CV generation counter + daily limit ─────────────────────────────────────
 
-const GENERATION_COUNT_KEY = 'procv:freeGenCount';
+const GENERATION_COUNT_KEY    = 'procv:freeGenCount';
+const DAILY_GEN_REMAINING_KEY = 'procv:dailyGenRemaining';
+const DAILY_GEN_DATE_KEY      = 'procv:dailyGenDate';
 
-/** Returns how many CVs the user has generated on the free tier. */
+/** Free-tier daily generation cap (mirrors FREE_DAILY_GEN_LIMIT in usage.ts). */
+export const FREE_DAILY_GEN_LIMIT = 15;
+
+/** Returns how many CVs the user has generated on the free tier (lifetime). */
 export function getGenerationCount(): number {
   try {
     return parseInt(localStorage.getItem(GENERATION_COUNT_KEY) || '0', 10);
@@ -324,54 +329,101 @@ export function getGenerationCount(): number {
 }
 
 /**
- * Server-authoritative check-and-increment for PDF downloads.
+ * Returns remaining CV generations for today (free tier only).
+ * Returns null for BYOK/Premium (unlimited).
+ * Resets to FREE_DAILY_GEN_LIMIT when the stored date is not today.
+ */
+export function getDailyGenRemaining(): number | null {
+  if (getEffectiveTier() !== 'free') return null;
+  try {
+    const today = new Date().toISOString().slice(0, 10);
+    const stored = localStorage.getItem(DAILY_GEN_DATE_KEY);
+    if (stored !== today) return FREE_DAILY_GEN_LIMIT; // new day — full allowance
+    const v = localStorage.getItem(DAILY_GEN_REMAINING_KEY);
+    if (v === null) return FREE_DAILY_GEN_LIMIT;
+    return Math.max(0, parseInt(v, 10));
+  } catch {
+    return FREE_DAILY_GEN_LIMIT;
+  }
+}
+
+function _saveDailyRemaining(remaining: number): void {
+  try {
+    const today = new Date().toISOString().slice(0, 10);
+    localStorage.setItem(DAILY_GEN_REMAINING_KEY, String(remaining));
+    localStorage.setItem(DAILY_GEN_DATE_KEY, today);
+  } catch { /* ignore */ }
+}
+
+/**
+ * Server-authoritative check-and-increment.
  *
- * - cv_gen  → always allowed (generation is unlimited for all tiers).
- * - pdf_dl  → BYOK / Premium: always allowed; Free: server checks D1 limit.
- *             Returns false (limit exceeded) if the server replies 429.
- *             Returns true on any network failure (fail-open so a flaky
- *             connection never permanently blocks the user).
+ * - cv_gen (free)    → checks daily 15/day limit via D1; syncs remaining to localStorage.
+ * - cv_gen (BYOK/PM) → returns true immediately — no server call.
+ * - pdf_dl (free)    → checks lifetime 2-download limit via D1.
+ * - pdf_dl (BYOK/PM) → returns true immediately.
  *
- * On every outcome the server's authoritative PDF count is synced back to
- * localStorage so subsequent synchronous canDownloadPdf() calls reflect reality.
+ * Returns false when the server hard-blocks. Fails open on network errors.
  */
 export async function serverCheckAndIncrement(type: 'cv_gen' | 'pdf_dl'): Promise<boolean> {
-  // CV generation is unlimited for all tiers — no server call needed.
-  if (type === 'cv_gen') return true;
+  const tier = getEffectiveTier();
 
-  // PDF downloads: unlimited for BYOK and Premium.
-  if (getEffectiveTier() !== 'free') return true;
+  if (type === 'cv_gen') {
+    // BYOK and Premium are unlimited — no server call.
+    if (tier !== 'free') return true;
+
+    try {
+      const result = await incrementUsageCount('cv_gen');
+      if (result) {
+        try {
+          localStorage.setItem(GENERATION_COUNT_KEY, String(result.cv_gen_count));
+          if (result.cv_gen_daily_remaining !== null && result.cv_gen_daily_remaining !== undefined) {
+            _saveDailyRemaining(result.cv_gen_daily_remaining);
+          }
+        } catch { /* ignore */ }
+      }
+      return true;
+    } catch (err) {
+      if (err instanceof UsageLimitExceededError) {
+        // Sync remaining (0) so local UI reflects the block immediately.
+        _saveDailyRemaining(0);
+        return false;
+      }
+      // Network error → fail open (never block on a connectivity blip).
+      return true;
+    }
+  }
+
+  // pdf_dl path
+  if (tier !== 'free') return true;
 
   try {
     const result = await incrementUsageCount('pdf_dl');
     if (result) {
-      try {
-        localStorage.setItem(PDF_DOWNLOAD_KEY, String(result.pdf_dl_count));
-      } catch { /* ignore storage errors */ }
+      try { localStorage.setItem(PDF_DOWNLOAD_KEY, String(result.pdf_dl_count)); } catch { /* ignore */ }
     }
     return true;
   } catch (err) {
     if (err instanceof UsageLimitExceededError) {
-      // Sync the authoritative count so the local gate reflects reality.
-      try {
-        localStorage.setItem(PDF_DOWNLOAD_KEY, String(err.counts.pdf_dl_count));
-      } catch { /* ignore */ }
-      return false; // blocked
+      try { localStorage.setItem(PDF_DOWNLOAD_KEY, String(err.counts.pdf_dl_count)); } catch { /* ignore */ }
+      return false;
     }
-    // Unknown error (network down, worker cold-start, etc.) — fail open.
     return true;
   }
 }
 
-/** @deprecated Generation is now unlimited. No-op kept for safety. */
+/** @deprecated No-op kept for call-site safety. */
 export function incrementGenerationCount(): void { /* intentional no-op */ }
 
 /**
- * Returns true if the user is allowed to start a CV generation.
- * CV generation is unlimited for all tiers — the PDF download is the gate.
+ * Returns true if the user may start a CV generation right now.
+ * BYOK/Premium: always. Free: true unless the local daily counter shows 0.
+ * (The server enforces the real limit — this is a fast local pre-check.)
  */
 export function canGenerate(): boolean {
-  return true;
+  if (getEffectiveTier() !== 'free') return true;
+  const remaining = getDailyGenRemaining();
+  return remaining === null || remaining > 0;
 }
 
 // ─── PDF download counter (pure free tier only) ───────────────────────────────

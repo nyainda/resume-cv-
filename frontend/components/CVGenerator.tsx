@@ -18,7 +18,7 @@ import { getCachedBannedPhrases } from '../services/cvEngineClient';
 import type { BannedEntry } from '../services/cvEngineClient';
 import { getLastAiEngine, PROVIDER_TRYING_EVENT, getSelectedProvider } from '../services/groqService';
 import type { ProviderTryingPayload } from '../services/groqService';
-import { getEffectiveTier, canUsePremiumModes, canGenerate, serverCheckAndIncrement } from '../services/accountTierService';
+import { getEffectiveTier, canUsePremiumModes, canGenerate, serverCheckAndIncrement, getDailyGenRemaining, FREE_DAILY_GEN_LIMIT } from '../services/accountTierService';
 import { conductMarketResearch, detectRoleAndIndustry, MarketResearchResult } from '../services/marketResearch';
 import { scoreCVCompleteness } from '../utils/cvCompleteness';
 import { ProfileIntelligenceScore } from './ProfileIntelligenceScore';
@@ -299,6 +299,8 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
   const lastGeneratedJDRef = useRef<string>('');
   const [isLoading, setIsLoading] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState('Generating...');
+  // Daily generation counter — only meaningful for free-tier users (null = unlimited).
+  const [dailyRemaining, setDailyRemaining] = useState<number | null>(getDailyGenRemaining);
   // Stage-based progress tracking — used by the CVGenerationProgress modal
   // alongside the legacy loadingMessage string (kept so other call sites still
   // work). `activeStageIds` is the subset of stages that will actually run for
@@ -1004,15 +1006,22 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
     const authed = await requireAuth();
     if (!authed) return;
 
-    // ── Free tier limit gate ───────────────────────────────────────────────────
-    // Fast local pre-check (synchronous, uses localStorage — good for instant UI).
+    // ── Daily limit gate (free tier) ──────────────────────────────────────────
+    // Fast local pre-check first (synchronous, localStorage-backed).
     if (!canGenerate()) {
       onUpgrade?.();
       return;
     }
-    // CV generation is unlimited for all tiers — only PDF downloads are gated.
-    // serverCheckAndIncrement('pdf_dl') enforces the free-tier PDF cap when the
-    // user clicks Download. There is no server-side block here.
+    // Server-authoritative check for free users: increments the D1 daily counter
+    // and returns false when the 15/day cap is hit. BYOK/Premium return true
+    // immediately without a network round-trip.
+    const allowed = await serverCheckAndIncrement('cv_gen');
+    // Refresh the displayed counter from localStorage (updated by the call above).
+    setDailyRemaining(getDailyGenRemaining());
+    if (!allowed) {
+      setError('You\'ve used all 15 free CV generations for today. Your allowance resets at midnight UTC. Add your own AI key in Settings to generate without limits.');
+      return;
+    }
     setIsLoading(true);
     setDraftCV(null);
     setError(null);
@@ -2245,11 +2254,30 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
               </p>
             )}
 
-            {/* Hint text */}
+            {/* Hint text / daily counter */}
             {!isLoading && apiKeySet && (
-              <p className="text-center text-xs text-zinc-400 dark:text-zinc-500">
-                Tailored to your job description · 7-pass quality engine · ~30 seconds
-              </p>
+              dailyRemaining !== null && getEffectiveTier() === 'free' ? (
+                <p className="text-center text-xs font-medium">
+                  <span className={dailyRemaining <= 3
+                    ? 'text-amber-600 dark:text-amber-400'
+                    : 'text-zinc-400 dark:text-zinc-500'}>
+                    {dailyRemaining} of {FREE_DAILY_GEN_LIMIT} free generations remaining today
+                    {dailyRemaining <= 3 && ' · '}
+                  </span>
+                  {dailyRemaining <= 3 && (
+                    <button
+                      onClick={() => onUpgrade?.()}
+                      className="underline text-[#1B2B4B] dark:text-[#C9A84C] hover:opacity-80"
+                    >
+                      Add a key for unlimited
+                    </button>
+                  )}
+                </p>
+              ) : (
+                <p className="text-center text-xs text-zinc-400 dark:text-zinc-500">
+                  Tailored to your job description · 7-pass quality engine · ~30 seconds
+                </p>
+              )
             )}
 
             {/* Divider */}

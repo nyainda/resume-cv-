@@ -160,13 +160,14 @@ async function _dispatch(request: Request, env: Env, ctx: ExecutionContext, url:
     }
 
     if (m === 'POST' && (
-        p === '/api/cv/purify-cv'      ||
-        p === '/api/cv/validate'       ||
-        p === '/api/cv/validate-voice' ||
-        p === '/api/cv/semantic-match' ||
-        p === '/api/cv/brief'          ||
-        p === '/api/cv/clean'          ||
-        p === '/api/cv/extract-doc'
+        p === '/api/cv/purify-cv'         ||
+        p === '/api/cv/validate'           ||
+        p === '/api/cv/validate-voice'     ||
+        p === '/api/cv/semantic-match'     ||
+        p === '/api/cv/brief'              ||
+        p === '/api/cv/clean'              ||
+        p === '/api/cv/extract-doc'        ||
+        p === '/api/cv/usage/increment'   // burst protection — real daily cap is D1-enforced
     )) {
         const rl = await rateLimitRequest(env, request, 'medium', 40, 60);
         if (!rl.allowed) return rateLimitResponse(request, env, rl.retryAfter);

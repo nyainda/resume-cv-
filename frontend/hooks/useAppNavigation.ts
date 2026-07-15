@@ -13,7 +13,7 @@ import {
   LinkedInNavIcon,
 } from '../components/nav/NavIcons';
 import { FileText, Target, List, BookOpen } from '../components/icons';
-import { isPureFreeTier } from '../services/accountTierService';
+import { isPureFreeTier, getEffectiveTier } from '../services/accountTierService';
 import { hasCompletedOnboarding } from '../components/OnboardingWizard';
 
 // ── View type ────────────────────────────────────────────────────────────────
@@ -44,9 +44,24 @@ const RESTORABLE_VIEWS = [
 ] as const;
 type RestorableView = typeof RESTORABLE_VIEWS[number];
 
-const GATED_VIEWS = new Set([
-  'interview', 'email', 'negotiation', 'pivot', 'essays', 'analytics',
+/**
+ * Views that require BYOK or Premium (blocked for pure-free users).
+ * Free users clicking these see the pricing modal.
+ */
+const FREE_GATED_VIEWS = new Set([
+  'interview', 'email', 'essays', 'analytics',
 ]);
+
+/**
+ * Views that require Premium only (blocked for both free AND byok users).
+ * BYOK users clicking these also see the pricing/upgrade modal.
+ */
+const PREMIUM_ONLY_VIEWS = new Set([
+  'negotiation', 'pivot', 'linkedin',
+]);
+
+/** Union used by AppNavbar to mark nav items as gated (for UI badge rendering). */
+const GATED_VIEWS = new Set([...FREE_GATED_VIEWS, ...PREMIUM_ONLY_VIEWS]);
 
 interface UseAppNavigationConfig {
   isAuthenticated: boolean;
@@ -141,7 +156,14 @@ export function useAppNavigation({
   }, [isAuthLoading, isAuthenticated, setShowLanding]);
 
   const handleNavClick = useCallback((id: string) => {
-    if (isPureFreeTier() && GATED_VIEWS.has(id)) {
+    const tier = getEffectiveTier();
+    // Premium-only views: blocked for both free and BYOK.
+    if (PREMIUM_ONLY_VIEWS.has(id) && tier !== 'premium') {
+      setIsPricingOpen(true);
+      return;
+    }
+    // BYOK+Premium views: blocked for pure-free only.
+    if (FREE_GATED_VIEWS.has(id) && isPureFreeTier()) {
       setIsPricingOpen(true);
       return;
     }

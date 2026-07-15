@@ -22,6 +22,13 @@ export interface Env {
     BREVO_API_KEY?: string;
     /** The app's public URL — used to construct magic-link redirect URLs. Defaults to procv.app if not set. */
     APP_URL?: string;
+    /**
+     * Comma-separated list of email addresses that always receive plan='premium'
+     * regardless of their D1 row — used for testing and internal accounts.
+     * Set via: wrangler secret put SUPER_ADMIN_EMAILS
+     * Example value: "founder@example.com,tester@example.com"
+     */
+    SUPER_ADMIN_EMAILS?: string;
     // ── Native rate-limiting bindings (wrangler.toml [[unsafe.bindings]]) ────
     // These are optional so the fallback KV path still works in local dev
     // (wrangler dev does not inject unsafe bindings).
