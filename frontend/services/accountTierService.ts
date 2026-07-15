@@ -319,6 +319,43 @@ const DAILY_GEN_DATE_KEY      = 'procv:dailyGenDate';
 /** Free-tier daily generation cap (mirrors FREE_DAILY_GEN_LIMIT in usage.ts). */
 export const FREE_DAILY_GEN_LIMIT = 15;
 
+/** BYOK rolling-month PDF download cap (mirrors BYOK_PDF_MONTHLY_LIMIT in usage.ts). */
+export const BYOK_PDF_MONTHLY_LIMIT = 10;
+
+const BYOK_PDF_MONTH_COUNT_KEY = 'procv:byokPdfMonthCount';
+const BYOK_PDF_MONTH_KEY       = 'procv:byokPdfMonth';
+
+function currentMonthKey(): string {
+  return new Date().toISOString().slice(0, 7); // "2026-07"
+}
+
+/**
+ * Returns remaining BYOK PDF downloads for this rolling calendar month.
+ * Returns null for free/premium (not applicable — free uses the lifetime
+ * cap, premium is unlimited). Resets to BYOK_PDF_MONTHLY_LIMIT on a new month.
+ * This is a fast local cache seeded from the server's authoritative count;
+ * the server always re-checks and is the real source of truth.
+ */
+export function getByokPdfMonthRemaining(): number | null {
+  if (getEffectiveTier() !== 'byok') return null;
+  try {
+    const month = currentMonthKey();
+    if (localStorage.getItem(BYOK_PDF_MONTH_KEY) !== month) return BYOK_PDF_MONTHLY_LIMIT;
+    const v = localStorage.getItem(BYOK_PDF_MONTH_COUNT_KEY);
+    if (v === null) return BYOK_PDF_MONTHLY_LIMIT;
+    return Math.max(0, BYOK_PDF_MONTHLY_LIMIT - parseInt(v, 10));
+  } catch {
+    return BYOK_PDF_MONTHLY_LIMIT;
+  }
+}
+
+function _saveByokMonthCount(count: number): void {
+  try {
+    localStorage.setItem(BYOK_PDF_MONTH_COUNT_KEY, String(count));
+    localStorage.setItem(BYOK_PDF_MONTH_KEY, currentMonthKey());
+  } catch { /* ignore */ }
+}
+
 /** Returns how many CVs the user has generated on the free tier (lifetime). */
 export function getGenerationCount(): number {
   try {
@@ -394,18 +431,26 @@ export async function serverCheckAndIncrement(type: 'cv_gen' | 'pdf_dl'): Promis
     }
   }
 
-  // pdf_dl path
-  if (tier !== 'free') return true;
+  // pdf_dl path — premium is fully unlimited, no server call needed.
+  if (tier === 'premium') return true;
 
   try {
     const result = await incrementUsageCount('pdf_dl');
     if (result) {
-      try { localStorage.setItem(PDF_DOWNLOAD_KEY, String(result.pdf_dl_count)); } catch { /* ignore */ }
+      try {
+        localStorage.setItem(PDF_DOWNLOAD_KEY, String(result.pdf_dl_count));
+        if (tier === 'byok' && result.pdf_dl_month_count !== null && result.pdf_dl_month_count !== undefined) {
+          _saveByokMonthCount(result.pdf_dl_month_count);
+        }
+      } catch { /* ignore */ }
     }
     return true;
   } catch (err) {
     if (err instanceof UsageLimitExceededError) {
-      try { localStorage.setItem(PDF_DOWNLOAD_KEY, String(err.counts.pdf_dl_count)); } catch { /* ignore */ }
+      try {
+        localStorage.setItem(PDF_DOWNLOAD_KEY, String(err.counts.pdf_dl_count));
+        if (err.errorCode === 'byok_monthly_limit_exceeded') _saveByokMonthCount(err.monthCount);
+      } catch { /* ignore */ }
       return false;
     }
     return true;
@@ -449,12 +494,17 @@ export function incrementPdfDownloadCount(): void {
 /**
  * Returns true if the user is allowed to start a PDF download.
  * - Premium → always true (clean PDF, unlimited).
- * - BYOK    → always true (watermarked, unlimited).
+ * - BYOK    → true until BYOK_PDF_MONTHLY_LIMIT downloads this calendar month
+ *             (watermarked; abuse/cost safety net, not a revenue lever).
  * - Free    → true until FREE_PDF_LIMIT lifetime downloads.
  */
 export function canDownloadPdf(): boolean {
   const t = getEffectiveTier();
-  if (t === 'premium' || t === 'byok') return true;
+  if (t === 'premium') return true;
+  if (t === 'byok') {
+    const remaining = getByokPdfMonthRemaining();
+    return remaining === null || remaining > 0;
+  }
   return getPdfDownloadCount() < FREE_PDF_LIMIT;
 }
 

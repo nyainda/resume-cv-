@@ -27,6 +27,10 @@ export interface UsageCounts {
     cv_gen_daily_remaining: number | null;
     /** Daily cap value (15 for free). null when unlimited. */
     cv_gen_daily_limit: number | null;
+    /** BYOK rolling-month PDF download count. null = not a BYOK account / not applicable. */
+    pdf_dl_month_count: number | null;
+    /** BYOK monthly PDF cap (10). null when not applicable. */
+    pdf_dl_month_limit: number | null;
 }
 
 /**
@@ -36,8 +40,10 @@ export interface UsageCounts {
 export class UsageLimitExceededError extends Error {
     constructor(
         public readonly counts: Pick<UsageCounts, 'cv_gen_count' | 'pdf_dl_count'>,
-        public readonly errorCode: 'limit_exceeded' | 'daily_limit_exceeded' = 'limit_exceeded',
+        public readonly errorCode: 'limit_exceeded' | 'daily_limit_exceeded' | 'byok_monthly_limit_exceeded' = 'limit_exceeded',
         public readonly dailyRemaining: number = 0,
+        public readonly monthCount: number = 0,
+        public readonly monthLimit: number = 0,
     ) {
         super(errorCode);
         this.name = 'UsageLimitExceededError';
@@ -50,6 +56,8 @@ export interface TierInfo {
     byok_enabled: boolean;
     cv_gen_count: number;
     pdf_dl_count: number;
+    pdf_dl_month_count: number | null;
+    pdf_dl_month_limit: number | null;
 }
 
 /**
@@ -66,6 +74,8 @@ export async function fetchUsageCounts(): Promise<UsageCounts | null> {
             pdf_dl_count: number;
             cv_gen_daily_remaining?: number;
             cv_gen_daily_limit?: number;
+            pdf_dl_month_count?: number;
+            pdf_dl_month_limit?: number;
         };
         if (!data.ok) return null;
         return {
@@ -73,6 +83,8 @@ export async function fetchUsageCounts(): Promise<UsageCounts | null> {
             pdf_dl_count:           data.pdf_dl_count,
             cv_gen_daily_remaining: data.cv_gen_daily_remaining ?? null,
             cv_gen_daily_limit:     data.cv_gen_daily_limit ?? null,
+            pdf_dl_month_count:     data.pdf_dl_month_count ?? null,
+            pdf_dl_month_limit:     data.pdf_dl_month_limit ?? null,
         };
     } catch {
         return null;
@@ -98,12 +110,16 @@ export async function incrementUsageCount(
         if (res.status === 429) {
             let body: any = {};
             try { body = await res.json(); } catch { /* ignore */ }
-            const errorCode: 'limit_exceeded' | 'daily_limit_exceeded' =
-                body?.error === 'daily_limit_exceeded' ? 'daily_limit_exceeded' : 'limit_exceeded';
+            const errorCode: 'limit_exceeded' | 'daily_limit_exceeded' | 'byok_monthly_limit_exceeded' =
+                body?.error === 'daily_limit_exceeded' ? 'daily_limit_exceeded'
+                    : body?.error === 'byok_monthly_limit_exceeded' ? 'byok_monthly_limit_exceeded'
+                    : 'limit_exceeded';
             throw new UsageLimitExceededError(
                 { cv_gen_count: body?.cv_gen_count ?? 0, pdf_dl_count: body?.pdf_dl_count ?? 0 },
                 errorCode,
                 body?.cv_gen_daily_remaining ?? 0,
+                body?.pdf_dl_month_count ?? 0,
+                body?.pdf_dl_month_limit ?? 0,
             );
         }
         if (!res.ok) return null;
@@ -113,6 +129,8 @@ export async function incrementUsageCount(
             pdf_dl_count: number;
             cv_gen_daily_remaining?: number | null;
             cv_gen_daily_limit?: number | null;
+            pdf_dl_month_count?: number | null;
+            pdf_dl_month_limit?: number | null;
         };
         if (!data.ok) return null;
         return {
@@ -120,6 +138,8 @@ export async function incrementUsageCount(
             pdf_dl_count:           data.pdf_dl_count,
             cv_gen_daily_remaining: data.cv_gen_daily_remaining ?? null,
             cv_gen_daily_limit:     data.cv_gen_daily_limit ?? null,
+            pdf_dl_month_count:     data.pdf_dl_month_count ?? null,
+            pdf_dl_month_limit:     data.pdf_dl_month_limit ?? null,
         };
     } catch (e) {
         if (e instanceof UsageLimitExceededError) throw e;
@@ -138,10 +158,12 @@ export async function fetchTierInfo(): Promise<TierInfo | null> {
         const data = await res.json() as TierInfo & { ok: boolean };
         if (!data.ok) return null;
         return {
-            plan:         data.plan,
-            byok_enabled: data.byok_enabled,
-            cv_gen_count: data.cv_gen_count,
-            pdf_dl_count: data.pdf_dl_count,
+            plan:               data.plan,
+            byok_enabled:       data.byok_enabled,
+            cv_gen_count:       data.cv_gen_count,
+            pdf_dl_count:       data.pdf_dl_count,
+            pdf_dl_month_count: data.pdf_dl_month_count ?? null,
+            pdf_dl_month_limit: data.pdf_dl_month_limit ?? null,
         };
     } catch {
         return null;

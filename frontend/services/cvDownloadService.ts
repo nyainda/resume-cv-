@@ -35,6 +35,7 @@ import {
   canDownloadPdf,
   needsWatermark,
   serverCheckAndIncrement,
+  getEffectiveTier,
 } from './accountTierService';
 import CVPreview from '../components/CVPreview';
 import type { CVData, PersonalInfo, TemplateName } from '../types';
@@ -134,7 +135,7 @@ export interface DownloadCVResult {
    */
   blocked?: boolean;
   /** Why the download was blocked — used to show the right upgrade message. */
-  blockedReason?: 'pdf_limit';
+  blockedReason?: 'pdf_limit' | 'byok_monthly_limit';
   /** True when the PDF includes a ProCV watermark (free / BYOK users). */
   watermarked?: boolean;
 }
@@ -226,14 +227,17 @@ async function probeCloudflare(): Promise<boolean> {
 export async function downloadCV(opts: DownloadCVOptions): Promise<DownloadCVResult> {
   const { fileName, containerEl, onStatus } = opts;
 
-  // ── Free-tier PDF gate ────────────────────────────────────────────────────
+  // ── PDF download gate (free lifetime cap / BYOK monthly cap) ────────────────
   // Fast local pre-check (instant; uses cached localStorage value).
+  const isByok = getEffectiveTier() === 'byok';
   if (!canDownloadPdf()) {
     return {
       ok: false,
       blocked: true,
-      blockedReason: 'pdf_limit',
-      error: 'Free PDF download limit reached. Upgrade to download more.',
+      blockedReason: isByok ? 'byok_monthly_limit' : 'pdf_limit',
+      error: isByok
+        ? "You've hit this month's download limit. It resets on the 1st — or upgrade to Premium for unlimited, watermark-free PDFs."
+        : 'Free PDF download limit reached. Upgrade to download more.',
       totalMs: 0,
     };
   }
@@ -245,8 +249,10 @@ export async function downloadCV(opts: DownloadCVOptions): Promise<DownloadCVRes
     return {
       ok: false,
       blocked: true,
-      blockedReason: 'pdf_limit',
-      error: 'Free PDF download limit reached. Upgrade to download more.',
+      blockedReason: isByok ? 'byok_monthly_limit' : 'pdf_limit',
+      error: isByok
+        ? "You've hit this month's download limit. It resets on the 1st — or upgrade to Premium for unlimited, watermark-free PDFs."
+        : 'Free PDF download limit reached. Upgrade to download more.',
       totalMs: 0,
     };
   }
