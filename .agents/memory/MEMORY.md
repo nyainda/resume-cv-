@@ -51,3 +51,4 @@
 - [Sync-queue throttle edit revert](sync-queue-throttle-edit-revert.md) — freshness merge must use max(last-push-ts, last-local-edit-ts), not push-ts alone, or throttled saves get overwritten by stale server data.
 - [CV import schema gaps cause section drop + invention](cv-import-schema-truncation.md) — missing customSections field + 8k-char truncation in the real import path silently dropped cert/membership/language sections, causing downstream fabrication.
 - [Tier sync dual-source bug](tier-sync-dual-source-bug.md) — real feature-gating tier never synced from server plan (dead/one-way fn); now two-way via AuthContext; 'pro' plan string retired to 'premium'.
+- [Onboarding premium self-grant bug](onboarding-premium-self-grant.md) — picking "Premium" in onboarding must never call setTier('premium') without real payment; route to waitlist/notify-me instead until checkout exists.

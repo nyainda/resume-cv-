@@ -249,8 +249,18 @@ export const OnboardingWizard: React.FC<Props> = ({ onComplete }) => {
         setFinishing(true);
 
         if (plan === 'premium') {
-            setTier('premium');
+            // Premium is a paid subscription — there is no checkout flow wired up
+            // yet (see PricingModal's handleUpgradePremium TODO), so selecting this
+            // card must NOT grant the 'premium' tier locally. Doing so previously
+            // let anyone unlock LinkedIn/Salary/Career Pivot + clean PDFs for free
+            // just by picking this card during onboarding, with no payment at all.
+            // Treat it the same as 'free' until real billing exists, and let them
+            // request early access instead.
+            setTier('free');
             setSelectedProvider('workers-ai');
+            try {
+                window.open('mailto:hello@procv.app?subject=ProCV Premium — notify me&body=Please notify me when Premium launches!', '_blank');
+            } catch { /* non-fatal */ }
         } else if (plan === 'byok') {
             // Stored plan stays 'free'; BYOK is detected at runtime via hasByokKeys().
             setTier('free');
