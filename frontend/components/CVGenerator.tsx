@@ -588,18 +588,25 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
     [previewContentHeight],
   );
 
-  // Reset to step 0 when switching to a non-strict (non-sidebar) template.
+  // Reset to step 0 when switching to a non-strict template OR when the
+  // one-page toggle is turned off (so spacing snaps back to normal).
   useEffect(() => {
-    if (!STRICT_ONE_PAGE_TEMPLATES.includes(template)) {
+    const isStrict = STRICT_ONE_PAGE_TEMPLATES.includes(template);
+    const onePageOn = !!currentCV?.onePage;
+    if (!isStrict && !onePageOn) {
       setCompressionStep(0);
       setShowTwoPageBanner(false);
     }
-  }, [template]);
+  }, [template, currentCV?.onePage]);
 
   // Convergence loop: advance one step at a time until content fits one page.
   // Phase 1 adjusts spacing only (no font change); Phase 2 reduces zoom.
+  // Runs for STRICT_ONE_PAGE_TEMPLATES (sidebar layouts) AND whenever the
+  // user has toggled on the 1-Page Mode switch (cvData.onePage).
   useEffect(() => {
-    if (!STRICT_ONE_PAGE_TEMPLATES.includes(template)) return;
+    const isStrict = STRICT_ONE_PAGE_TEMPLATES.includes(template);
+    const onePageOn = !!currentCV?.onePage;
+    if (!isStrict && !onePageOn) return;
     if (pageCount <= 1) {
       setShowTwoPageBanner(false);
       return;
@@ -612,7 +619,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
       }
       return next;
     });
-  }, [pageCount, template]);
+  }, [pageCount, template, currentCV?.onePage]);
 
   // Persist settled density + spacingLevel back to CVData so the PDF download
   // and next editor session use the exact same compression without recomputing.

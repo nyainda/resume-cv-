@@ -119,8 +119,30 @@ const CVPreview: React.FC<CVPreviewProps> = (props) => {
 
   return (
     <div className="font-['Inter'] w-full overflow-x-auto pb-4">
-      <div id="cv-preview-area" data-cv-preview="true" className="min-w-[210mm] bg-white shadow-sm mx-auto">
+      <div id="cv-preview-area" data-cv-preview="true" className="min-w-[210mm] bg-white shadow-sm mx-auto relative">
         {renderTemplate()}
+        {/* One-page boundary line for non-V2 templates — V2 renders its own
+            internally. data-pdf-hide keeps it out of downloaded PDFs. */}
+        {cvData.onePage && !V2_TEMPLATE_IDS.includes(
+          LEGACY_TEMPLATE_REDIRECTS[template as string] ?? (template as string)
+        ) && template !== 'v2-executive-editorial' && (
+          <div
+            data-pdf-hide="true"
+            style={{ position: 'absolute', top: '297mm', left: 0, right: 0, zIndex: 20, pointerEvents: 'none' }}
+          >
+            <div style={{ borderTop: '1.5px dashed #ef4444', position: 'relative' }}>
+              <span style={{
+                position: 'absolute', top: -9, right: 0,
+                background: '#ef4444', color: '#fff',
+                fontSize: 8, fontWeight: 700, padding: '1px 5px',
+                borderRadius: '3px 0 0 3px', letterSpacing: '0.06em',
+                fontFamily: 'system-ui, sans-serif', lineHeight: 1.5,
+              }}>
+                PAGE 1 END
+              </span>
+            </div>
+          </div>
+        )}
       </div>
       {/* Swipe hint — only visible on screens narrower than A4 (210 mm ≈ 794 px).
           Hidden on wider viewports where the full page is visible at once.
