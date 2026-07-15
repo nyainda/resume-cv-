@@ -427,8 +427,12 @@ const EducationSection: React.FC<{ cvData: CVData; theme: TemplateTheme; sc: Den
   );
 };
 
-const ProjectsSection: React.FC<{ cvData: CVData; theme: TemplateTheme; sc: DensityScale; isEditing?: boolean; onChange?: (d: CVData) => void }> = ({ cvData, theme, sc, isEditing = false, onChange = () => {} }) => {
+const ProjectsSection: React.FC<{ cvData: CVData; theme: TemplateTheme; sc: DensityScale; isEditing?: boolean; onChange?: (d: CVData) => void; compact?: boolean }> = ({ cvData, theme, sc, isEditing = false, onChange = () => {}, compact }) => {
   if (!cvData.projects?.length) return null;
+  // compact mode: cap bullets to 2 per project and trim prose descriptions to
+  // ~160 chars so projects in a narrow sidebar/two-col column never overflow.
+  const MAX_PROJ_BULLETS = (compact && !isEditing) ? 2 : Infinity;
+  const DESC_MAX         = (compact && !isEditing) ? 160 : Infinity;
   return (
     <Section sc={sc}>
       <SectionHeading title="Projects" theme={theme} sc={sc} />
@@ -442,14 +446,21 @@ const ProjectsSection: React.FC<{ cvData: CVData; theme: TemplateTheme; sc: Dens
           </div>
           {p.bullets?.length ? (
             <div style={{ marginTop: 3 }}>
-              {p.bullets.map((b, bi) => (
+              {p.bullets.slice(0, MAX_PROJ_BULLETS).map((b, bi) => (
                 <Bullet key={bi} text={b} theme={theme} sc={sc} isEditing={isEditing}
                   onBlur={v => { const d = JSON.parse(JSON.stringify(cvData)); d.projects![i].bullets![bi] = v; onChange(d); }} />
               ))}
+              {compact && !isEditing && p.bullets.length > MAX_PROJ_BULLETS && (
+                <div style={{ fontSize: sc.metaSize, color: theme.bodyMuted, fontFamily: theme.fontBody, marginTop: 1, opacity: 0.7 }}>
+                  +{p.bullets.length - MAX_PROJ_BULLETS} more
+                </div>
+              )}
             </div>
           ) : p.description ? (
             <div style={{ fontSize: sc.bodySize, color: theme.bodyText, lineHeight: sc.lineH, marginTop: 2, fontFamily: theme.fontBody }}
-              {...editable(isEditing, v => { const d = JSON.parse(JSON.stringify(cvData)); d.projects![i].description = v; onChange(d); })}>{p.description}</div>
+              {...editable(isEditing, v => { const d = JSON.parse(JSON.stringify(cvData)); d.projects![i].description = v; onChange(d); })}>
+              {DESC_MAX === Infinity ? p.description : smartTrim(p.description, DESC_MAX)}
+            </div>
           ) : null}
           {p.technologies?.length ? (
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, marginTop: 4 }}>
@@ -1105,6 +1116,7 @@ const LayoutSidebarRight: React.FC<LayoutProps> = (props) => {
 const LayoutTwoColumn: React.FC<LayoutProps> = (props) => {
   const { theme, sc, cvData } = props;
   const split = computeSmartSplit(cvData);
+  const compact = !!cvData.onePage;
   // Right-column theme: use sidebar text colours + sidebar-appropriate heading style
   const rightColTheme: TemplateTheme = {
     ...theme,
@@ -1122,9 +1134,9 @@ const LayoutTwoColumn: React.FC<LayoutProps> = (props) => {
       <div style={{ display: 'flex', minHeight: '230mm' }}>
         {/* Main column: summary, experience, (projects if long), publications, custom */}
         <div style={{ flex: 1, padding: sc.sidebarPad, borderRight: `1px solid ${theme.borderColor}` }}>
-          <SummarySection    cvData={cvData} theme={theme} sc={sc} isEditing={props.isEditing} onChange={props.onChange} />
-          <ExperienceSection cvData={cvData} theme={theme} sc={sc} isEditing={props.isEditing} onChange={props.onChange} />
-          {!split.projectsInSidebar && <ProjectsSection cvData={cvData} theme={theme} sc={sc} isEditing={props.isEditing} onChange={props.onChange} />}
+          <SummarySection    cvData={cvData} theme={theme} sc={sc} isEditing={props.isEditing} onChange={props.onChange} compact={compact} />
+          <ExperienceSection cvData={cvData} theme={theme} sc={sc} isEditing={props.isEditing} onChange={props.onChange} compact={compact} />
+          {!split.projectsInSidebar && <ProjectsSection cvData={cvData} theme={theme} sc={sc} isEditing={props.isEditing} onChange={props.onChange} compact={compact} />}
           <PublicationsSection cvData={cvData} theme={theme} sc={sc} />
           <CustomSectionsBlock sections={cvData.customSections ?? []} theme={theme} sc={sc} />
           {!split.achievementsInSidebar && <AchievementsSection cvData={cvData} theme={theme} sc={sc} isEditing={props.isEditing} onChange={props.onChange} />}
@@ -1148,7 +1160,7 @@ const LayoutTwoColumn: React.FC<LayoutProps> = (props) => {
           <EducationSection      cvData={cvData} theme={rightColTheme} sc={sc} isEditing={props.isEditing} onChange={props.onChange} />
           <LanguagesSection      cvData={cvData} theme={rightColTheme} sc={sc} />
           <CertificationsSection cvData={cvData} theme={rightColTheme} sc={sc} isEditing={props.isEditing} onChange={props.onChange} />
-          {split.projectsInSidebar    && <ProjectsSection    cvData={cvData} theme={rightColTheme} sc={sc} isEditing={props.isEditing} onChange={props.onChange} />}
+          {split.projectsInSidebar    && <ProjectsSection    cvData={cvData} theme={rightColTheme} sc={sc} isEditing={props.isEditing} onChange={props.onChange} compact={compact} />}
           {split.achievementsInSidebar && <AchievementsSection cvData={cvData} theme={rightColTheme} sc={sc} isEditing={props.isEditing} onChange={props.onChange} />}
           {split.refsInSidebar        && <ReferencesSection   cvData={cvData} theme={rightColTheme} sc={sc} />}
         </div>
