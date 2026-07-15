@@ -1,6 +1,7 @@
 import React, { useCallback } from 'react';
 import { cleanBulletHtml } from './templateUtils';
 import HiddenATSKeywords from '../HiddenATSKeywords';
+import { formatEduDate } from '../../utils/cvDataUtils';
 import { CVData, PersonalInfo, ProfileSectionKey, DEFAULT_SECTION_ORDER } from '../../types';
 import { Trash } from '../icons';
 import { TemplateCustomSections } from './sharedSections';
@@ -149,7 +150,7 @@ const TemplateProfessional: React.FC<TemplateProps> = ({ cvData, personalInfo, i
                       </p>
                     </div>
                     <p className="text-[11px] font-mono tracking-tight text-zinc-500 whitespace-nowrap" {...editableProps(['education', index, 'year'])}>
-                      {edu.year}
+                      {formatEduDate(edu.year)}
                     </p>
                   </div>
                   {edu.description && (

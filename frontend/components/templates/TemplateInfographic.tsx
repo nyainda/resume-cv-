@@ -1,3 +1,4 @@
+import { formatEduDate } from '../../utils/cvDataUtils';
 import React, { useCallback } from 'react';
 import { cleanBulletHtml } from './templateUtils';
 import HiddenATSKeywords from '../HiddenATSKeywords';
@@ -105,7 +106,7 @@ const TemplateInfographic: React.FC<TemplateProps> = ({ cvData, personalInfo, is
                   <div key={i} className="text-xs">
                     <p className="font-bold text-slate-800 leading-tight">{edu.degree}</p>
                     <p className="font-medium" style={{ color: INK_SUBLINE }}>{edu.school}</p>
-                    <p className="text-slate-500 text-[10px]">{edu.year}</p>
+                    <p className="text-slate-500 text-[10px]">{formatEduDate(edu.year)}</p>
                   </div>
                 ))}
               </div>

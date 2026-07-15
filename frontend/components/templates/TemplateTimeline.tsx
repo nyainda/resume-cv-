@@ -1,3 +1,4 @@
+import { formatEduDate } from '../../utils/cvDataUtils';
 import React, { useCallback } from 'react';
 import HiddenATSKeywords from '../HiddenATSKeywords';
 import { CVData, PersonalInfo, ProfileSectionKey, DEFAULT_SECTION_ORDER } from '../../types';
@@ -82,7 +83,7 @@ const TemplateTimeline: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdi
                 <div key={index} className="mb-4">
                   <h3 className="text-lg font-bold" {...editableProps(['education', index, 'degree'])}>{edu.degree}</h3>
                   <p className="text-md text-slate-600" {...editableProps(['education', index, 'school'])}>{edu.school}</p>
-                  <p className="text-sm text-slate-500" {...editableProps(['education', index, 'year'])}>{edu.year}</p>
+                  <p className="text-sm text-slate-500" {...editableProps(['education', index, 'year'])}>{formatEduDate(edu.year)}</p>
                 </div>
               ))}
             </div>

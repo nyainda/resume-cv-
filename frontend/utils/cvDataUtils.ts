@@ -138,3 +138,36 @@ export function normalizeUserProfile(raw: unknown): UserProfile | null {
     ...(typeof p.preferredField === 'string' && { preferredField: p.preferredField }),
   };
 }
+
+/**
+ * Format an education year/date field for display.
+ * Handles ISO strings ("2022-09-01" → "Sep 2022"), plain years ("2022" → "2022"),
+ * and already-formatted strings ("Sep 2022" → "Sep 2022").
+ * Safe to call on any edu.year / edu.startYear value regardless of source.
+ */
+export function formatEduDate(d?: string): string {
+  if (!d) return '';
+  if (d.toLowerCase() === 'present') return 'Present';
+  // ISO date: YYYY-MM-DD or YYYY-MM
+  const iso = d.match(/^(\d{4})-(\d{2})(?:-\d{2})?$/);
+  if (iso) {
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const month = months[parseInt(iso[2], 10) - 1];
+    return month ? `${month} ${iso[1]}` : iso[1];
+  }
+  // Plain 4-digit year or already formatted — return as-is
+  return d;
+}
+
+/**
+ * Build a formatted date range string from two edu date fields.
+ * e.g. ("2020-09-01", "2022-06-01") → "Sep 2020 – Jun 2022"
+ */
+export function formatEduDateRange(startYear?: string, year?: string): string {
+  const start = formatEduDate(startYear);
+  const end   = formatEduDate(year);
+  if (start && end && start !== end) return `${start} – ${end}`;
+  if (end)   return end;
+  if (start) return start;
+  return '';
+}

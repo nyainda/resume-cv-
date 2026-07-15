@@ -3,6 +3,7 @@ import { CVData, PersonalInfo, CustomSection, CustomSectionItem } from '../../..
 import HiddenATSKeywords from '../../HiddenATSKeywords';
 import { getTheme, TemplateTheme, ContentDensity, DensityScale, DENSITY_SCALES, applyFontScale } from './templateThemes';
 import { FONT_PAIRING_MAP } from './fontPairings';
+import { formatEduDateRange } from '../../../utils/cvDataUtils';
 import { cleanBulletHtml } from '../templateUtils';
 
 interface TemplateV2Props {
@@ -344,11 +345,10 @@ const ExperienceSection: React.FC<{ cvData: CVData; theme: TemplateTheme; sc: De
   );
 };
 
-// Format education date range from startYear + year fields
+// Format education date range from startYear + year fields — delegates to
+// the shared util so ISO strings ("2022-09-01") become "Sep 2022".
 function eduDateRange(startYear?: string, year?: string): string {
-  if (startYear && year && startYear !== year) return `${startYear} – ${year}`;
-  if (year) return year;
-  return '';
+  return formatEduDateRange(startYear, year);
 }
 
 const EducationSection: React.FC<{ cvData: CVData; theme: TemplateTheme; sc: DensityScale; isEditing: boolean; onChange: (d: CVData) => void }> = ({ cvData, theme, sc, isEditing, onChange }) => {
@@ -533,7 +533,7 @@ const SkillsSection: React.FC<{ skills: string[]; theme: TemplateTheme; sc: Dens
           {skills.map((s, i) => (
             <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 5, minWidth: 0 }}>
               <span style={{ color: theme.bodyMuted, fontSize: '5px', flexShrink: 0, lineHeight: 1 }}>◆</span>
-              <span style={{ fontSize: sc.bodySize, color: theme.bodyText, fontFamily: theme.fontBody, lineHeight: 1.4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              <span style={{ fontSize: sc.bodySize, color: theme.bodyText, fontFamily: theme.fontBody, lineHeight: 1.4 }}>
                 {s}
               </span>
             </div>

@@ -1,3 +1,4 @@
+import { formatEduDate } from '../../utils/cvDataUtils';
 import React, { useCallback } from 'react';
 import HiddenATSKeywords from '../HiddenATSKeywords';
 import { CVData, PersonalInfo } from '../../types';
@@ -154,7 +155,7 @@ const TemplateTokyoNight: React.FC<TemplateProps> = ({ cvData, personalInfo, isE
                 <div key={index} className="border-l border-slate-800 pl-3 py-0.5">
                   <h3 className="text-[10px] font-black text-white uppercase leading-snug" {...editableProps(['education', index, 'degree'])}>{edu.degree}</h3>
                   <p className="text-[10px] text-slate-400 font-bold" {...editableProps(['education', index, 'school'])}>{edu.school}</p>
-                  <p className="text-[10px] text-slate-500" {...editableProps(['education', index, 'year'])}>{edu.year}</p>
+                  <p className="text-[10px] text-slate-500" {...editableProps(['education', index, 'year'])}>{formatEduDate(edu.year)}</p>
                 </div>
               ))}
             </div>

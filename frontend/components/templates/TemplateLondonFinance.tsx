@@ -1,3 +1,4 @@
+import { formatEduDate } from '../../utils/cvDataUtils';
 import React, { useCallback } from 'react';
 import { cleanBulletHtml } from './templateUtils';
 import HiddenATSKeywords from '../HiddenATSKeywords';
@@ -100,7 +101,7 @@ const TemplateLondonFinance: React.FC<TemplateProps> = ({ cvData, personalInfo, 
                                 <div key={index} className="relative">
                                     <div className="flex justify-between items-baseline font-bold uppercase text-[13px]">
                                         <h3 {...editableProps(['education', index, 'school'])}>{edu.school}</h3>
-                                        <span {...editableProps(['education', index, 'year'])}>{edu.year}</span>
+                                        <span {...editableProps(['education', index, 'year'])}>{formatEduDate(edu.year)}</span>
                                     </div>
                                     <p className="text-[12px] italic" {...editableProps(['education', index, 'degree'])}>{edu.degree}</p>
                                     {edu.description && <p className="text-[11px] mt-1 text-slate-600" dangerouslySetInnerHTML={{ __html: edu.description }} {...editableProps(['education', index, 'description'])} />}

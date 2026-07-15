@@ -1,3 +1,4 @@
+import { formatEduDate } from '../../utils/cvDataUtils';
 import React, { useCallback } from 'react';
 import { cleanBulletHtml } from './templateUtils';
 import { CVData, PersonalInfo } from '../../types';
@@ -145,7 +146,7 @@ const TemplateSWEElite: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdi
                             <div key={i}>
                                 <p className="text-[10px] font-bold text-white leading-tight" {...editable(['education', i, 'degree'])} dangerouslySetInnerHTML={{ __html: edu.degree }} />
                                 <p className="text-[10.5px] text-slate-400 mt-0.5" {...editable(['education', i, 'school'])} dangerouslySetInnerHTML={{ __html: edu.school }} />
-                                <p className="text-[10.5px] text-slate-500">{edu.year}</p>
+                                <p className="text-[10.5px] text-slate-500">{formatEduDate(edu.year)}</p>
                             </div>
                         ))}
                         {cvData.education.length > 2 && (

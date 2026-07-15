@@ -1,3 +1,4 @@
+import { formatEduDate } from '../../utils/cvDataUtils';
 import React, { useCallback } from 'react';
 import HiddenATSKeywords from '../HiddenATSKeywords';
 import { CVData, PersonalInfo } from '../../types';
@@ -127,7 +128,7 @@ const TemplateBerlinDesign: React.FC<TemplateProps> = ({ cvData, personalInfo, i
                     {cvData.education.map((edu, idx) => (
                         <div key={idx} className="border-l-4 border-zinc-900 pl-6">
                             <h3 className="text-base font-black uppercase tracking-tighter leading-none mb-1" {...editableProps(['education', idx, 'degree'])}>{edu.degree}</h3>
-                            <p className="text-sm font-bold text-zinc-400 uppercase tracking-widest">{edu.school} / {edu.year}</p>
+                            <p className="text-sm font-bold text-zinc-400 uppercase tracking-widest">{edu.school} / {formatEduDate(edu.year)}</p>
                         </div>
                     ))}
                 </div>

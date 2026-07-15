@@ -1,3 +1,4 @@
+import { formatEduDate } from '../../utils/cvDataUtils';
 
 import React, { useCallback } from 'react';
 import HiddenATSKeywords from '../HiddenATSKeywords';
@@ -98,7 +99,7 @@ const TemplateMinimalist: React.FC<TemplateProps> = ({ cvData, personalInfo, isE
                                 <div key={index}>
                                     <div className="flex justify-between items-baseline">
                                         <h3 className="text-base font-medium text-slate-900" {...editableProps(['education', index, 'degree'])}>{edu.degree}</h3>
-                                        <p className="text-sm text-slate-500 whitespace-nowrap ml-4" {...editableProps(['education', index, 'year'])}>{edu.year}</p>
+                                        <p className="text-sm text-slate-500 whitespace-nowrap ml-4" {...editableProps(['education', index, 'year'])}>{formatEduDate(edu.year)}</p>
                                     </div>
                                     <p className="text-base text-slate-600" {...editableProps(['education', index, 'school'])}>{edu.school}</p>
                                     {edu.description && (

@@ -1,3 +1,4 @@
+import { formatEduDate } from '../../utils/cvDataUtils';
 import React, { useCallback } from 'react';
 import { CVData, PersonalInfo, ProfileSectionKey, DEFAULT_SECTION_ORDER } from '../../types';
 import { TemplateCustomSections } from './sharedSections';
@@ -134,7 +135,7 @@ const TemplateSWEClean: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdi
                             <div key={i} className="mb-1.5">
                                 <p className="font-bold text-gray-900 text-xs" {...ed(['education', i, 'degree'])} dangerouslySetInnerHTML={{ __html: edu.degree }} />
                                 <p className="text-[10px] text-gray-500" {...ed(['education', i, 'school'])} dangerouslySetInnerHTML={{ __html: edu.school }} />
-                                <p className="text-[10.5px] text-gray-400">{edu.year}</p>
+                                <p className="text-[10.5px] text-gray-400">{formatEduDate(edu.year)}</p>
                             </div>
                         ))}
                     </section>

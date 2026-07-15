@@ -1,3 +1,4 @@
+import { formatEduDate } from '../../utils/cvDataUtils';
 import React, { useCallback } from 'react';
 import { cleanBulletHtml } from './templateUtils';
 import { CVData, PersonalInfo, ProfileSectionKey, DEFAULT_SECTION_ORDER } from '../../types';
@@ -162,7 +163,7 @@ const TemplateATSCleanPro: React.FC<TemplateProps> = ({ cvData, personalInfo, is
                                         <p className="text-xs font-semibold" style={{ color: INK_SUBLINE }} dangerouslySetInnerHTML={{ __html: edu.school }} {...editableProps(['education', i, 'school'])} />
                                         {edu.description && <p className="text-xs text-slate-500 mt-0.5" dangerouslySetInnerHTML={{ __html: edu.description }} />}
                                     </div>
-                                    <span className="text-xs text-slate-400 flex-shrink-0 ml-3" {...editableProps(['education', i, 'graduationYear'])} dangerouslySetInnerHTML={{ __html: edu.year }} />
+                                    <span className="text-xs text-slate-400 flex-shrink-0 ml-3" {...editableProps(['education', i, 'graduationYear'])}>{formatEduDate(edu.year)}</span>
                                 </div>
                             ))}
                         </div>

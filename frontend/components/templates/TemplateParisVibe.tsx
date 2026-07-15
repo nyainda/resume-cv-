@@ -1,3 +1,4 @@
+import { formatEduDate } from '../../utils/cvDataUtils';
 import React, { useCallback } from 'react';
 import HiddenATSKeywords from '../HiddenATSKeywords';
 import { CVData, PersonalInfo } from '../../types';
@@ -95,7 +96,7 @@ const TemplateParisVibe: React.FC<TemplateProps> = ({ cvData, personalInfo, isEd
                 {cvData.education.map((edu, idx) => (
                   <div key={idx}>
                     <h3 className="text-xs font-bold border-l-2 pl-3 leading-snug border-zinc-300" {...editableProps(['education', idx, 'degree'])}>{edu.degree}</h3>
-                    <p className="text-[10px] uppercase tracking-widest text-zinc-400 pl-3">{edu.school} / {edu.year}</p>
+                    <p className="text-[10px] uppercase tracking-widest text-zinc-400 pl-3">{edu.school} / {formatEduDate(edu.year)}</p>
                   </div>
                 ))}
               </div>

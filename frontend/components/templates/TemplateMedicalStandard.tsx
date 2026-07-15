@@ -1,3 +1,4 @@
+import { formatEduDate } from '../../utils/cvDataUtils';
 import React, { useCallback } from 'react';
 import { cleanBulletHtml } from './templateUtils';
 import HiddenATSKeywords from '../HiddenATSKeywords';
@@ -135,7 +136,7 @@ const TemplateMedicalStandard: React.FC<TemplateProps> = ({ cvData, personalInfo
                                 <div key={idx} className="relative pl-6" style={{ borderLeft: `2px solid ${accent}33` }}>
                                     <h3 className="text-base font-black text-slate-800" {...editableProps(['education', idx, 'degree'])}>{edu.degree}</h3>
                                     <p className="text-xs font-bold uppercase tracking-wider mt-1" style={{ color: INK_SUBLINE }}>{edu.school}</p>
-                                    <p className="text-[10px] font-black text-slate-300 uppercase mt-2">{edu.year}</p>
+                                    <p className="text-[10px] font-black text-slate-300 uppercase mt-2">{formatEduDate(edu.year)}</p>
                                 </div>
                             ))}
                         </div>

@@ -3,6 +3,7 @@ import { CVData, PersonalInfo } from '../../types';
 import { cleanBulletHtml } from './templateUtils';
 import HiddenATSKeywords from '../HiddenATSKeywords';
 import { truncate } from '../../utils/textTruncate';
+import { formatEduDateRange } from '../../utils/cvDataUtils';
 
 interface TemplateProps {
   cvData: CVData;
@@ -28,8 +29,7 @@ function isCurrentRole(dates?: string) {
 }
 
 function eduDateRange(startYear?: string, year?: string) {
-  if (startYear && year && startYear !== year) return `${startYear} – ${year}`;
-  return year ?? '';
+  return formatEduDateRange(startYear, year);
 }
 
 

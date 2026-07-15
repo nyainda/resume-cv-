@@ -1,3 +1,4 @@
+import { formatEduDate } from '../../utils/cvDataUtils';
 import React, { useCallback } from 'react';
 import { cleanBulletHtml } from './templateUtils';
 import { CVData, PersonalInfo } from '../../types';
@@ -142,7 +143,7 @@ const TemplateSWENeon: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdit
                             <div key={i} className="mb-2">
                                 <p className="text-[10px] font-bold leading-tight" style={{ color: '#e6edf3' }} {...ed(['education', i, 'degree'])} dangerouslySetInnerHTML={{ __html: edu.degree }} />
                                 <p className="text-[10.5px] mt-0.5" style={{ color: '#8b949e' }} {...ed(['education', i, 'school'])} dangerouslySetInnerHTML={{ __html: edu.school }} />
-                                <p className="text-[10.5px]" style={{ color: '#8b949e' }}>{edu.year}</p>
+                                <p className="text-[10.5px]" style={{ color: '#8b949e' }}>{formatEduDate(edu.year)}</p>
                             </div>
                         ))}
                     </div>

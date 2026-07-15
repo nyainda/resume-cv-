@@ -1,3 +1,4 @@
+import { formatEduDate } from '../../utils/cvDataUtils';
 import React, { useCallback } from 'react';
 import { cleanBulletHtml } from './templateUtils';
 import HiddenATSKeywords from '../HiddenATSKeywords';
@@ -109,7 +110,7 @@ const TemplateCreative: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdi
                   <div key={index} className="text-xs">
                     <p className="font-bold leading-snug" {...editableProps(['education', index, 'degree'])}>{edu.degree}</p>
                     <p className="text-teal-200 text-[10px]" {...editableProps(['education', index, 'school'])}>{edu.school}</p>
-                    <p className="text-teal-300 text-[10px]" {...editableProps(['education', index, 'year'])}>{edu.year}</p>
+                    <p className="text-teal-300 text-[10px]" {...editableProps(['education', index, 'year'])}>{formatEduDate(edu.year)}</p>
                   </div>
                 ))}
               </div>

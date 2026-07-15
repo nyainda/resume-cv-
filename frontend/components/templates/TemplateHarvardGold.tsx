@@ -1,3 +1,4 @@
+import { formatEduDate } from '../../utils/cvDataUtils';
 import React, { useCallback } from 'react';
 import { cleanBulletHtml } from './templateUtils';
 import HiddenATSKeywords from '../HiddenATSKeywords';
@@ -99,7 +100,7 @@ const TemplateHarvardGold: React.FC<TemplateProps> = ({ cvData, personalInfo, is
                                 <div key={index}>
                                     <div className="flex justify-between items-baseline">
                                         <h3 className="text-base font-bold text-slate-900" {...editableProps(['education', index, 'degree'])}>{edu.degree}</h3>
-                                        <span className="text-sm font-medium" style={{ color: INK_META }} {...editableProps(['education', index, 'year'])}>{edu.year}</span>
+                                        <span className="text-sm font-medium" style={{ color: INK_META }} {...editableProps(['education', index, 'year'])}>{formatEduDate(edu.year)}</span>
                                     </div>
                                     <p className="text-sm text-slate-600 italic" {...editableProps(['education', index, 'school'])}>{edu.school}</p>
                                     {edu.description && <p className="text-sm text-slate-500 mt-0.5" dangerouslySetInnerHTML={{ __html: edu.description }} />}
