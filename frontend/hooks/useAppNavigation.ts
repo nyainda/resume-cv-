@@ -129,13 +129,16 @@ export function useAppNavigation({
   }, [isAuthenticated, isNewUser]);
 
   // When auth validation completes and no valid session exists, return to landing.
-  // Exception: anonymous visitors opening a shared-CV / public-profile hash link
-  // (#s=, #share=, #p=) must never be bounced to the marketing landing page —
-  // they're not signing in, they're viewing someone else's shared document.
+  // Exceptions:
+  //  1. Anonymous visitors opening a shared-CV / public-profile hash link
+  //     (#s=, #share=, #p=) must never be bounced to the marketing landing page.
+  //  2. Users who clicked "Get Started Free" and explicitly dismissed the landing
+  //     (procv:anon_mode flag) can use the app without signing in — don't bounce them.
   useEffect(() => {
     const hash = window.location.hash;
     const isShareLink = hash.startsWith('#s=') || hash.startsWith('#share=') || hash.startsWith('#p=');
-    if (!isAuthLoading && !isAuthenticated && !isShareLink) {
+    const isAnonMode = localStorage.getItem('procv:anon_mode') === '1';
+    if (!isAuthLoading && !isAuthenticated && !isShareLink && !isAnonMode) {
       setShowLanding(true);
     }
   }, [isAuthLoading, isAuthenticated, setShowLanding]);

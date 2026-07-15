@@ -1,7 +1,7 @@
 
 import React, { useState, useCallback, ChangeEvent, useMemo, useRef, useEffect } from 'react';
 import V2ThemePicker from './V2ThemePicker';
-import { V2_TEMPLATE_IDS } from './templates/engine/templateThemes';
+import { V2_TEMPLATE_IDS, THEME_MAP } from './templates/engine/templateThemes';
 import { UserProfile, CVData, TemplateName, templateDisplayNames, JobAnalysisResult, CVGenerationMode, cvGenerationModes, ScholarshipFormat, scholarshipFormats, SavedCV, SidebarSectionsVisibility, DEFAULT_SIDEBAR_SECTIONS, SIDEBAR_TEMPLATES, STRICT_ONE_PAGE_TEMPLATES, UserProfileSlot } from '../types';
 import {
   getPageCount, getPageFraction, COMPRESSION_STEPS,
@@ -377,6 +377,23 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
   const [isAssembling, setIsAssembling] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [template, setTemplate] = useLocalStorage<TemplateName>('template', 'professional');
+
+  // Sidebar/two-column templates must always be one page — the two-column
+  // layout doesn't reflow gracefully across pages, so enforce onePage whenever
+  // the user picks a sidebar-left / sidebar-right / two-col template.
+  const handleTemplateSelect = useCallback((t: TemplateName) => {
+    setTemplate(t);
+    const layout = THEME_MAP[t]?.layout;
+    if (
+      (layout === 'sidebar-left' || layout === 'sidebar-right' || layout === 'two-col') &&
+      currentCV && !currentCV.onePage
+    ) {
+      const updated = { ...currentCV, onePage: true };
+      setCurrentCV(updated);
+      syncCurrentCVToD1(updated);
+    }
+  }, [currentCV, setTemplate, setCurrentCV, syncCurrentCVToD1]);
+
   // Sidebar Section Picker — persists user's choice of which auto-generated
   // sidebar fillers (Key Achievements, Selected Projects, References) are
   // visible. Only takes effect for templates listed in SIDEBAR_TEMPLATES.
@@ -2738,7 +2755,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
 
           <TemplateGallery
             selectedTemplate={template}
-            onSelect={setTemplate}
+            onSelect={handleTemplateSelect}
             cvData={displayCV}
             personalInfo={userProfile.personalInfo}
           />
@@ -2761,7 +2778,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
                 return (
                   <button
                     key={t}
-                    onClick={() => setTemplate(t)}
+                    onClick={() => handleTemplateSelect(t)}
                     title={templateDisplayNames[t]}
                     className="flex-none flex flex-col items-center gap-1 focus:outline-none group"
                   >

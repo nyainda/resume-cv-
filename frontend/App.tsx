@@ -207,6 +207,10 @@ const AppInner: React.FC = () => {
       if (hash.startsWith("#s=") || hash.startsWith("#share=") || hash.startsWith("#p=")) {
         return false;
       }
+      // Users who clicked "Get Started Free" without signing in are in anon mode —
+      // don't send them back to the landing on every page refresh.
+      const isAnonMode = localStorage.getItem('procv:anon_mode') === '1';
+      if (isAnonMode) return false;
       const hasSession =
         !!localStorage.getItem("procv:worker_user") ||
         !!localStorage.getItem("procv:worker_session");
@@ -608,9 +612,10 @@ const AppInner: React.FC = () => {
               setShowLanding(false);
               return;
             }
-            setAuthModalMode("signup");
-            const ok = await requireAuth();
-            if (ok) setShowLanding(false);
+            // Allow anonymous use — set the anon flag so the auth effect
+            // doesn't bounce the user back to landing after auth-check completes.
+            try { localStorage.setItem('procv:anon_mode', '1'); } catch { /* non-fatal */ }
+            setShowLanding(false);
           }}
           onSignIn={async () => {
             setAuthModalMode("signin");
