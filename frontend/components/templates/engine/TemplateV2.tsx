@@ -72,8 +72,8 @@ function computeSmartSplit(cvData: CVData): SmartSplit {
   return {
     // Education: sidebar when 1–2 entries (typical); main when many (academic CVs)
     eduInSidebar:          eduCount <= 2,
-    // Projects: sidebar only when very few and brief
-    projectsInSidebar:     projectCount <= 2,
+    // Projects: always in sidebar for sidebar/two-col layouts
+    projectsInSidebar:     true,
     // Certifications: sidebar-friendly — compact list items
     certsInSidebar:        certCount <= 6,
     // Publications: usually long titles → keep in main unless very few
