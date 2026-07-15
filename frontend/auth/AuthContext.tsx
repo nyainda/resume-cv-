@@ -133,11 +133,22 @@ export function useAuth(): AuthContextValue {
  */
 // ─── OAuth popup ──────────────────────────────────────────────────────────────
 
+// Module-level in-flight guard: only one OAuth popup may be active at a time.
+// Without this, a double-click (or two concurrent callers) registers duplicate
+// window 'message' listeners; when the popup resolves it fires both, causing
+// two linkGoogleSession calls and two server sessions for one sign-in event.
+let _oauthPopupInFlight = false;
+
 function openOAuthPopup(
     scopes: string,
     prompt = 'select_account',
     loginHint?: string,
 ): Promise<{ accessToken: string; expiresIn: number }> {
+    if (_oauthPopupInFlight) {
+        return Promise.reject(new Error('A sign-in is already in progress. Please wait.'));
+    }
+    _oauthPopupInFlight = true;
+
     return new Promise((resolve, reject) => {
         const clientId = (import.meta as { env: Record<string, string> }).env.VITE_GOOGLE_CLIENT_ID;
         if (!clientId) {
@@ -159,6 +170,7 @@ function openOAuthPopup(
 
         const popup = window.open(url, 'google_auth', 'width=520,height=640,left=200,top=100');
         if (!popup) {
+            _oauthPopupInFlight = false;
             reject(new Error('Popup was blocked. Please allow popups for this site and try again.'));
             return;
         }
@@ -168,6 +180,7 @@ function openOAuthPopup(
         function settle(accessToken: string, expiresIn: number): void {
             if (settled) return;
             settled = true;
+            _oauthPopupInFlight = false;
             clearTimeout(timer);
             clearInterval(closedPoller);
             window.removeEventListener('message', messageHandler);
@@ -179,6 +192,7 @@ function openOAuthPopup(
         function fail(msg: string): void {
             if (settled) return;
             settled = true;
+            _oauthPopupInFlight = false;
             clearTimeout(timer);
             clearInterval(closedPoller);
             window.removeEventListener('message', messageHandler);
