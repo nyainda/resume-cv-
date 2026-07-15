@@ -154,11 +154,19 @@ export async function fetchPublicProfile(slugOrId: string | number): Promise<Sha
             `${ENGINE_BASE}/api/cv/public-profile?${param}`
         );
         if (!res.ok) return null;
-        const data = await res.json() as { payload?: string };
+        const data = await res.json() as { payload?: string; show_branding?: boolean };
         if (!data.payload) return null;
         const json = LZString.decompressFromEncodedURIComponent(data.payload);
         if (!json) return null;
-        return JSON.parse(json) as SharedCVPayload;
+        const parsed = JSON.parse(json) as SharedCVPayload;
+        // Always trust the server's live tier check over whatever branding flag
+        // was baked into the payload at share-time — if the owner has since
+        // upgraded (or downgraded), viewers must see the current state, not a
+        // stale snapshot from whenever "Share" was last clicked.
+        if (typeof data.show_branding === 'boolean') {
+            parsed.procvBranding = data.show_branding;
+        }
+        return parsed;
     } catch {
         return null;
     }

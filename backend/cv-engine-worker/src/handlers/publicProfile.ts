@@ -11,7 +11,7 @@
 
 import { Env } from '../types';
 import { json, safeJson } from '../utils';
-import { verifySession } from './auth';
+import { verifySession, resolvePlan } from './auth';
 
 const MAX_PAYLOAD_BYTES = 200_000;
 
@@ -65,11 +65,23 @@ export async function handlePublicProfileGet(
         `UPDATE public_profiles SET view_count = view_count + 1 WHERE user_id = ?`
     ).bind(row.user_id).run().catch(() => {});
 
+    // Live tier check — never trust the branding flag baked into the payload
+    // at share-time. If the owner has since upgraded to Premium (or a
+    // super-admin test account), the public page must reflect that now,
+    // not whatever tier they were on when they last clicked "Share".
+    const owner = await env.CV_DB.prepare(
+        `SELECT email, plan, byok_enabled FROM user_identities WHERE id = ?`
+    ).bind(row.user_id).first<{ email: string; plan: string; byok_enabled: number }>();
+    const effectivePlan = owner ? resolvePlan(owner.email, owner.plan, env) : 'free';
+    const showBranding = effectivePlan !== 'premium';
+
     return json({
         ok: true,
         payload: row.payload,
         updated_at: row.updated_at,
         view_count: row.view_count,
+        show_branding: showBranding,
+        owner_plan: effectivePlan,
     }, request, env);
 }
 

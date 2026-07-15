@@ -49,6 +49,9 @@ interface PublicProfilePageProps {
   sharedAt: string;
   onViewCV: () => void;
   onDismiss: () => void;
+  /** Live tier check from the server — true unless the owner is on Premium.
+   *  Drives the "Made with ProCV" footer link (Premium hides it). */
+  procvBranding?: boolean;
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -59,6 +62,7 @@ const PublicProfilePage: React.FC<PublicProfilePageProps> = ({
   sharedAt,
   onViewCV,
   onDismiss,
+  procvBranding = true,
 }) => {
   const [contactCopied, setContactCopied] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
@@ -464,12 +468,19 @@ const PublicProfilePage: React.FC<PublicProfilePageProps> = ({
         {/* ── Footer ── */}
         <div className="text-center py-4 space-y-1">
           <p className="text-[11px] text-zinc-400 dark:text-zinc-600">Profile shared {formattedDate}</p>
-          <a
-            href={window.location.origin}
-            className="inline-flex items-center gap-1 text-[11px] text-zinc-400 dark:text-zinc-600 hover:text-[#C9A84C] transition-colors"
-          >
-            Build your own profile free with <span className="font-bold text-[#1B2B4B] dark:text-[#C9A84C]">ProCV</span> →
-          </a>
+          {procvBranding ? (
+            <a
+              href={window.location.origin}
+              className="inline-flex items-center gap-1 text-[11px] text-zinc-400 dark:text-zinc-600 hover:text-[#C9A84C] transition-colors"
+            >
+              Build your own profile free with <span className="font-bold text-[#1B2B4B] dark:text-[#C9A84C]">ProCV</span> →
+            </a>
+          ) : (
+            <p className="inline-flex items-center gap-1 text-[11px] text-zinc-400 dark:text-zinc-600">
+              <svg className="w-3 h-3 text-[#C9A84C]" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.4 7.2H22l-6 4.6 2.3 7.2L12 16.4 5.7 21l2.3-7.2-6-4.6h7.6z"/></svg>
+              Premium profile
+            </p>
+          )}
         </div>
       </main>
     </div>

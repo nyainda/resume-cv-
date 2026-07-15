@@ -28,7 +28,7 @@ import { isSuperAdmin } from "../middleware/requirePremium";
 // The stored `plan` column is left untouched (stays 'free'/whatever it is) —
 // this only affects what tier is reported to the client, so revoking access
 // is just removing the email from the secret, no DB cleanup needed.
-function resolvePlan(email: string, storedPlan: string, env: Env): string {
+export function resolvePlan(email: string, storedPlan: string, env: Env): string {
     return isSuperAdmin(email, env) ? "premium" : storedPlan;
 }
 

@@ -718,6 +718,7 @@ const AppInner: React.FC = () => {
         personalInfo={publicProfilePayload.personalInfo}
         template={publicProfilePayload.template}
         sharedAt={publicProfilePayload.sharedAt}
+        procvBranding={publicProfilePayload.procvBranding}
         onViewCV={() => {
           // Switch from profile page to the full CV document view
           setSharedCVPayload(publicProfilePayload);
