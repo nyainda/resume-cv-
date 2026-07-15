@@ -3,7 +3,10 @@ import React, { useState, useCallback, ChangeEvent, useMemo, useRef, useEffect }
 import V2ThemePicker from './V2ThemePicker';
 import { V2_TEMPLATE_IDS } from './templates/engine/templateThemes';
 import { UserProfile, CVData, TemplateName, templateDisplayNames, JobAnalysisResult, CVGenerationMode, cvGenerationModes, ScholarshipFormat, scholarshipFormats, SavedCV, SidebarSectionsVisibility, DEFAULT_SIDEBAR_SECTIONS, SIDEBAR_TEMPLATES, STRICT_ONE_PAGE_TEMPLATES, UserProfileSlot } from '../types';
-import { getPageCount, COMPRESSION_STEPS } from '../utils/pageFit';
+import {
+  getPageCount, getPageFraction, COMPRESSION_STEPS,
+  AUTO_ONE_PAGE_THRESHOLD, TWO_PAGE_EXPAND_FLOOR, MAX_EXPANSION_STEPS,
+} from '../utils/pageFit';
 import { enqueueSlotSync, _devGetLastSlotSyncAt } from '../services/storage/syncQueue';
 import { generateCV, generateCoverLetter, extractProfileTextFromFile, scoreCV, improveCV, CVScore } from '../services/geminiService';
 import { buildCVDeterministically } from '../services/cvDeterministicAssembler';
@@ -537,92 +540,121 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
 
   // ── One-page Fit: two-phase convergence loop ─────────────────────────────
   // Phase 1 (steps 1–3): spacing compression — reduces section gaps, entry
-  // gaps and bullet line-height without touching font sizes. Fixes "tiny
-  // overflow" in most cases with no visible text change.
-  // Phase 2 (steps 4–7): CSS zoom fallback, only after spacing is maxed out.
+  // ─── Smart layout-mode detection ─────────────────────────────────────────
   //
-  // A single `compressionStep` index into COMPRESSION_STEPS drives both
-  // `density` (zoom) and `spacingLevel` so there is no state-sync issue
-  // between the two axes.
+  //  Three modes, chosen automatically every render:
   //
-  // Key invariants:
-  //   – compressionStep is persisted (via density + spacingLevel in CVData)
-  //     so re-opening the editor starts at the right compression level.
-  //   – compressionStep resets to 0 when switching to a non-strict template.
-  //   – The ResizeObserver on scalingRef re-fires after every render triggered
-  //     by a step change, so the loop converges naturally with no manual
-  //     re-measure calls.
+  //   natural-1  — content already fits 1 page; nothing to do.
+  //   compress-1 — content is 1.0–1.3× A4 height (or onePage toggle is on).
+  //                Two-phase compression: spacing tighten → CSS zoom down.
+  //   balance-2  — content is ≥ 1.3× A4 height.
+  //                Spacing is gradually expanded until page 2 is ≥ 75 % full.
+  //
+  //  Two independent "ratchet" loops (compression + expansion) each advance
+  //  one step per ResizeObserver fire until the target is reached.  Steps
+  //  never retreat; mode switches reset the opposite loop to zero.
 
-  /** Initialise from the saved density + spacingLevel combination (backward-compatible). */
+  /** Raw fractional page count — e.g. 1.35 = 35 % of page 2 is filled. */
+  const pageFraction = useMemo(
+    () => getPageFraction(previewContentHeight),
+    [previewContentHeight],
+  );
+
+  /** Integer page count shown in the UI. */
+  const pageCount = useMemo(
+    () => getPageCount(previewContentHeight),
+    [previewContentHeight],
+  );
+
+  type LayoutMode = 'natural-1' | 'compress-1' | 'balance-2';
+
+  const layoutMode = useMemo((): LayoutMode => {
+    if (!currentCV) return 'natural-1';
+    if (currentCV.onePage) return 'compress-1';           // explicit toggle wins
+    if (pageFraction >= AUTO_ONE_PAGE_THRESHOLD) return 'balance-2'; // ≥ 1.3 → 2-page
+    if (pageFraction > 1.0)                     return 'compress-1'; // 1.0–1.3 → auto-1
+    return 'natural-1';
+  }, [currentCV?.onePage, pageFraction]);
+
+  /** Restore compressionStep from CVData saved in a previous session. */
   const initCompressionStep = (): number => {
-    if (!currentCV) return 0;
+    if (!currentCV || (currentCV.spacingLevel ?? 0) < 0) return 0;
     const d = currentCV.density ?? 1;
     const s = currentCV.spacingLevel ?? 0;
     const idx = COMPRESSION_STEPS.findIndex(step => step.density === d && step.spacingLevel === s);
     return idx === -1 ? 0 : idx;
   };
 
+  /** Restore expansionStep from saved negative spacingLevel. */
+  const initExpansionStep = (): number => {
+    if (!currentCV) return 0;
+    const s = currentCV.spacingLevel ?? 0;
+    return s < 0 ? Math.min(-s, MAX_EXPANSION_STEPS) : 0;
+  };
+
   const [compressionStep, setCompressionStep] = useState<number>(initCompressionStep);
+  const [expansionStep,   setExpansionStep]   = useState<number>(initExpansionStep);
   const [showTwoPageBanner, setShowTwoPageBanner] = useState(false);
 
-  // Sync compressionStep from saved CV if currentCV loads asynchronously
-  // after mount (useState initializer only runs once).
-  const compressionSyncedRef = useRef(!!currentCV);
+  // Sync steps when currentCV loads asynchronously after mount.
+  const layoutSyncedRef = useRef(!!currentCV);
   useEffect(() => {
-    if (!compressionSyncedRef.current && currentCV) {
+    if (layoutSyncedRef.current || !currentCV) return;
+    layoutSyncedRef.current = true;
+    const s = currentCV.spacingLevel ?? 0;
+    if (s < 0) {
+      setExpansionStep(Math.min(-s, MAX_EXPANSION_STEPS));
+    } else {
       const d = currentCV.density ?? 1;
-      const s = currentCV.spacingLevel ?? 0;
       const idx = COMPRESSION_STEPS.findIndex(step => step.density === d && step.spacingLevel === s);
       setCompressionStep(idx === -1 ? 0 : idx);
-      compressionSyncedRef.current = true;
     }
   }, [currentCV]);
 
-  /** density and spacingLevel derived from the current step — no separate state. */
-  const density = COMPRESSION_STEPS[compressionStep]?.density ?? 1;
-  const spacingLevel = COMPRESSION_STEPS[compressionStep]?.spacingLevel ?? 0;
-
-  /** Live page count derived from the ResizeObserver-tracked content height. */
-  const pageCount = useMemo(
-    () => getPageCount(previewContentHeight),
-    [previewContentHeight],
-  );
-
-  // Reset to step 0 when switching to a non-strict template OR when the
-  // one-page toggle is turned off (so spacing snaps back to normal).
+  // When layout mode changes, reset whichever loop is now inactive.
+  // natural-1 is the SUCCESS state of compression — don't reset compressionStep
+  // on that transition or the loop oscillates (content re-expands → re-compresses).
+  const prevLayoutModeRef = useRef<LayoutMode>('natural-1');
   useEffect(() => {
-    const isStrict = STRICT_ONE_PAGE_TEMPLATES.includes(template);
-    const onePageOn = !!currentCV?.onePage;
-    if (!isStrict && !onePageOn) {
+    const prev = prevLayoutModeRef.current;
+    prevLayoutModeRef.current = layoutMode;
+    if (layoutMode === 'balance-2' && prev !== 'balance-2') {
       setCompressionStep(0);
       setShowTwoPageBanner(false);
+    } else if (layoutMode === 'compress-1' && prev === 'balance-2') {
+      setExpansionStep(0);
     }
-  }, [template, currentCV?.onePage]);
+  }, [layoutMode]);
 
-  // Convergence loop: advance one step at a time until content fits one page.
-  // Phase 1 adjusts spacing only (no font change); Phase 2 reduces zoom.
-  // Runs for STRICT_ONE_PAGE_TEMPLATES (sidebar layouts) AND whenever the
-  // user has toggled on the 1-Page Mode switch (cvData.onePage).
+  // Derived density (zoom) and spacingLevel for the active mode.
+  const density = layoutMode === 'compress-1'
+    ? (COMPRESSION_STEPS[compressionStep]?.density ?? 1)
+    : 1;
+  const spacingLevel = layoutMode === 'compress-1'
+    ? (COMPRESSION_STEPS[compressionStep]?.spacingLevel ?? 0)
+    : layoutMode === 'balance-2' ? -expansionStep
+    : 0;
+
+  // Compression ratchet: advance one step per render until pageFraction ≤ 1.
   useEffect(() => {
-    const isStrict = STRICT_ONE_PAGE_TEMPLATES.includes(template);
-    const onePageOn = !!currentCV?.onePage;
-    if (!isStrict && !onePageOn) return;
-    if (pageCount <= 1) {
-      setShowTwoPageBanner(false);
-      return;
-    }
+    if (layoutMode !== 'compress-1') return;
+    if (pageFraction <= 1.0) { setShowTwoPageBanner(false); return; }
     setCompressionStep(prev => {
       const next = prev + 1;
-      if (next >= COMPRESSION_STEPS.length) {
-        setShowTwoPageBanner(true);
-        return prev; // at the floor — cannot compress further
-      }
+      if (next >= COMPRESSION_STEPS.length) { setShowTwoPageBanner(true); return prev; }
       return next;
     });
-  }, [pageCount, template, currentCV?.onePage]);
+  }, [pageFraction, layoutMode]);
 
-  // Persist settled density + spacingLevel back to CVData so the PDF download
-  // and next editor session use the exact same compression without recomputing.
+  // Expansion ratchet: advance one step per render until page 2 is ≥ 75 % full.
+  useEffect(() => {
+    if (layoutMode !== 'balance-2') return;
+    if (pageFraction >= TWO_PAGE_EXPAND_FLOOR) return; // good enough — stop
+    setExpansionStep(prev => prev >= MAX_EXPANSION_STEPS ? prev : prev + 1);
+  }, [pageFraction, layoutMode]);
+
+  // Persist settled density + spacingLevel into CVData so the PDF download
+  // and the next editor session start at the same layout without re-running loops.
   useEffect(() => {
     if (!currentCV) return;
     if (currentCV.density === density && currentCV.spacingLevel === spacingLevel) return;
@@ -3053,30 +3085,34 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
               {currentCV && (
                 <div data-pdf-hide className="flex items-center justify-center gap-2 pt-1.5 pb-0.5">
                   <span className={`text-[11px] font-medium tabular-nums select-none ${
-                    pageCount > 1
-                      ? 'text-amber-600 dark:text-amber-400'
-                      : 'text-emerald-600 dark:text-emerald-400'
+                    layoutMode === 'balance-2'
+                      ? 'text-blue-600 dark:text-blue-400'
+                      : pageCount > 1
+                        ? 'text-amber-600 dark:text-amber-400'
+                        : 'text-emerald-600 dark:text-emerald-400'
                   }`}>
-                    {pageCount === 1 ? '✓ Fits 1 page' : `Page count: ${pageCount}`}
-                    {STRICT_ONE_PAGE_TEMPLATES.includes(template) && spacingLevel > 0 && density === 1
-                      ? ` · spacing ↓`
-                      : null}
-                    {STRICT_ONE_PAGE_TEMPLATES.includes(template) && density < 1
-                      ? `${spacingLevel > 0 ? ' · spacing ↓' : ''} · zoom ${Math.round(density * 100)}%`
-                      : null}
+                    {layoutMode === 'natural-1' && pageCount === 1 && '✓ Fits 1 page'}
+                    {layoutMode === 'compress-1' && pageCount <= 1 && '✓ Compressed to 1 page'}
+                    {layoutMode === 'compress-1' && pageCount > 1 && (
+                      density < 1
+                        ? `Compressing… zoom ${Math.round(density * 100)}%`
+                        : `Compressing… spacing ↓`
+                    )}
+                    {layoutMode === 'balance-2' && `⇔ Balanced 2-page${expansionStep > 0 ? ` · spacing ↑` : ''}`}
+                    {layoutMode === 'natural-1' && pageCount > 1 && `${pageCount} pages`}
                   </span>
                 </div>
               )}
               {/* ── Two-page banner ─────────────────────────────────────────
-                  Shown when the density floor (0.85) has been reached and the
-                  CV still overflows. Never auto-deletes content. */}
+                  Shown when the compression floor (85 % zoom) is reached and
+                  the CV still overflows. Never auto-deletes content. */}
               {showTwoPageBanner && (
                 <div data-pdf-hide className="mx-4 mt-2 mb-1 flex items-start gap-3 rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-900/20 dark:border-amber-700 px-4 py-3 text-sm text-amber-800 dark:text-amber-300">
                   <span className="mt-0.5 shrink-0 text-base">⚠️</span>
                   <div className="flex-1 min-w-0">
-                    <p className="font-semibold leading-snug">This CV needs {pageCount} pages at readable size.</p>
+                    <p className="font-semibold leading-snug">Too much for one page at readable size.</p>
                     <p className="mt-0.5 text-xs text-amber-700 dark:text-amber-400">
-                      Minimum zoom (85%) reached. Consider trimming experience bullets or shortening your summary to get back to one page.
+                      Turn off the 1-Page toggle to let the CV flow naturally, or trim a few bullets to make it fit.
                     </p>
                   </div>
                   <button

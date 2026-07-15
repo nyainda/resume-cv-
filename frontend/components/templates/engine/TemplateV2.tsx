@@ -1130,7 +1130,24 @@ const TemplateV2: React.FC<TemplateV2Props> = ({ cvData, personalInfo, isEditing
     ? (rawDensity === 'spacious' ? 'balanced' : 'compact')
     : rawDensity;
 
-  const sc = applyFontScale(DENSITY_SCALES[density], cvData.fontScale ?? 1);
+  // Base scale from density + user font-scale preference
+  let sc = applyFontScale(DENSITY_SCALES[density], cvData.fontScale ?? 1);
+
+  // Balanced-two-page expansion: spacingLevel < 0 means the smart layout
+  // engine has decided this CV needs two pages and is expanding spacing to
+  // fill page 2 nicely.  Apply a multiplier to the spacing fields only —
+  // font sizes are intentionally left unchanged so text stays readable.
+  const _expLevel = -(cvData.spacingLevel ?? 0); // positive when expanding
+  if (_expLevel > 0) {
+    const mul = [1.45, 2.0, 2.7][Math.min(_expLevel - 1, 2)] ?? 1.45;
+    sc = {
+      ...sc,
+      sectionGap:  Math.round(sc.sectionGap  * mul),
+      itemGap:     Math.round(sc.itemGap      * mul),
+      bulletGap:   +( sc.bulletGap * mul).toFixed(1),
+      lineH:       +Math.min(2.0, sc.lineH + _expLevel * 0.07).toFixed(3),
+    };
+  }
 
   // Apply user accent-colour override.
   // ONLY section-heading tokens change — headerTitleColor, tagText/tagBg/tagBorder

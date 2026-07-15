@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { CVData, PersonalInfo, TemplateName, SidebarSectionsVisibility, DEFAULT_SIDEBAR_SECTIONS } from '../types';
 import { normalizeCVData } from '../utils/cvDataUtils';
+import { buildSpacingCSS } from '../utils/pageFit';
 import TemplateV2 from './templates/engine/TemplateV2';
 import { V2_TEMPLATE_IDS, LEGACY_TEMPLATE_REDIRECTS } from './templates/engine/templateThemes';
 import TemplateProfessional from './templates/TemplateProfessional';
@@ -119,7 +120,21 @@ const CVPreview: React.FC<CVPreviewProps> = (props) => {
 
   return (
     <div className="font-['Inter'] w-full overflow-x-auto pb-4">
-      <div id="cv-preview-area" data-cv-preview="true" className="min-w-[210mm] bg-white shadow-sm mx-auto relative">
+      <div
+        id="cv-preview-area"
+        data-cv-preview="true"
+        data-cv-spacing={spacingLevel !== 0 ? spacingLevel : undefined}
+        className="min-w-[210mm] bg-white shadow-sm mx-auto relative"
+      >
+        {/* Inject spacing-override CSS for the current layout mode.
+            Positive spacingLevel = compression (fit-to-1-page).
+            Negative spacingLevel = expansion (balanced-2-page).
+            Level 0 = no overrides needed.
+            The style tag is inside cv-preview-area so getCVHtml cloneNode
+            captures it automatically — no extra PDF pipeline work needed. */}
+        {spacingLevel !== 0 && (
+          <style dangerouslySetInnerHTML={{ __html: buildSpacingCSS(spacingLevel) }} />
+        )}
         {renderTemplate()}
         {/* One-page boundary line for non-V2 templates — V2 renders its own
             internally. data-pdf-hide keeps it out of downloaded PDFs. */}
