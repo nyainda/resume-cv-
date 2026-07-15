@@ -54,6 +54,7 @@ export default {
     let html: string;
     let filename = "cv.pdf";
     let format: "A4" | "Letter" = "A4";
+    let expectedPageCount: number | undefined;
 
     try {
       const body = (await request.json()) as {
@@ -80,7 +81,7 @@ export default {
       html = body.html;
       if (body.filename) filename = body.filename.replace(/[^\w\-_.]/g, "_");
       if (body.format === "Letter") format = "Letter";
-      const expectedPageCount: number | undefined = typeof body.expectedPageCount === 'number' ? body.expectedPageCount : undefined;
+      expectedPageCount = typeof body.expectedPageCount === 'number' ? body.expectedPageCount : undefined;
     } catch {
       return new Response(JSON.stringify({ error: "Invalid JSON" }), {
         status: 400,
