@@ -22,6 +22,15 @@
 import { Env } from "../types";
 import { corsHeaders, json, safeJson, ipRateLimit } from "../utils";
 import { sendAdminNotification, checkSigninSpike } from "./notifications";
+import { isSuperAdmin } from "../middleware/requirePremium";
+
+// Applies the SUPER_ADMIN_EMAILS override on top of the stored D1 plan.
+// The stored `plan` column is left untouched (stays 'free'/whatever it is) —
+// this only affects what tier is reported to the client, so revoking access
+// is just removing the email from the secret, no DB cleanup needed.
+function resolvePlan(email: string, storedPlan: string, env: Env): string {
+    return isSuperAdmin(email, env) ? "premium" : storedPlan;
+}
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -247,7 +256,7 @@ export async function verifySession(
         email: row.email,
         name: row.name,
         picture: row.picture ?? "",
-        plan: row.plan,
+        plan: resolvePlan(row.email, row.plan, env),
     };
 }
 
@@ -412,7 +421,7 @@ export async function handleAuthGoogle(
                     email: user.email,
                     name: user.name,
                     picture: user.picture,
-                    plan: user.plan,
+                    plan: resolvePlan(user.email, user.plan, env),
                 },
                 slots,
             },
@@ -622,7 +631,7 @@ export async function handleAuthMagicVerify(
                     email: user.email,
                     name: user.name || "",
                     picture: user.picture || "",
-                    plan: user.plan,
+                    plan: resolvePlan(user.email, user.plan, env),
                 },
                 slots,
             },
