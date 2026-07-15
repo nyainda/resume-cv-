@@ -23,15 +23,15 @@ const templateCategories: Record<string, TemplateName[]> = {
   'Professional': [
     'v2-ats-max', 'v2-skills-first', 'v2-starter',
     'v2-classic-pro', 'v2-standard-black', 'v2-pro', 'v2-navy',
-    'v2-harvard', 'v2-warm',
+    'v2-harvard', 'v2-warm', 'v2-steel', 'v2-teal',
   ],
   // Contemporary accent-forward designs
   'Modern': [
-    'v2-bold', 'v2-graphite',
+    'v2-bold', 'v2-graphite', 'v2-sage', 'v2-forest', 'v2-crimson',
   ],
   // Senior, C-suite and leadership roles
   'Executive': [
-    'v2-ink',
+    'v2-ink', 'v2-gold-exec', 'v2-executive-editorial',
   ],
   // Engineers, developers, and technical contributors
   'Technical': [
@@ -45,7 +45,22 @@ const templateCategories: Record<string, TemplateName[]> = {
   'Minimal': [
     'v2-minimal', 'v2-graphite',
   ],
+  // Two-column sidebar layouts — best for visual roles and senior profiles
+  'Sidebar': [
+    'v2-photo', 'v2-slate-sidebar', 'v2-gold-exec',
+    'v2-sage', 'v2-forest', 'v2-coral', 'v2-editorial',
+    'v2-steel', 'v2-teal', 'v2-crimson',
+  ],
+  // Design-forward layouts for creative industries
+  'Creative': [
+    'v2-editorial', 'v2-coral', 'v2-bold',
+  ],
 };
+
+// Flat deduplicated list of all gallery templates (V2 only — no legacy)
+export const GALLERY_TEMPLATES: TemplateName[] = Array.from(
+  new Set(Object.values(templateCategories).flat())
+);
 
 const categoryIcons: Record<string, string> = {
   'Professional': '💼',

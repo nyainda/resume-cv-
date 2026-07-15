@@ -27,7 +27,7 @@ import { useLocalStorage } from '../hooks/useLocalStorage';
 import CVPreview from './CVPreview';
 import TemplateThumbnail from './TemplateThumbnail';
 import CoverLetterPreview from './CoverLetterPreview';
-import TemplateGallery from './TemplateGallery';
+import TemplateGallery, { GALLERY_TEMPLATES } from './TemplateGallery';
 import JobAnalysis from './JobAnalysis';
 import ShareCVModal from './ShareCVModal';
 import { buildProfileUrl } from '../services/publicProfileService';
@@ -2773,7 +2773,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
               className="flex gap-2 overflow-x-auto pb-2"
               style={{ scrollbarWidth: 'thin', scrollbarColor: '#d1d5db transparent' }}
             >
-              {(Object.keys(templateDisplayNames) as TemplateName[]).map((t) => {
+              {GALLERY_TEMPLATES.map((t) => {
                 const isActive = t === template;
                 return (
                   <button
