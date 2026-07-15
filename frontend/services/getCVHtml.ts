@@ -237,13 +237,24 @@ export async function getCVHtml(opts: GetCVHtmlOptions = {}): Promise<string | n
 
   const inlinedCSS = inlineCssBlocks.join("\n");
 
+  // Centred logo watermark — rendered via position:fixed so Puppeteer/Chromium
+  // repeats it on every printed page automatically. Opacity is kept low (0.07)
+  // so it reads as a background brand mark, not an obstruction.
   const watermarkHtml = watermark ? `
-  <div data-procv-watermark style="position:fixed;bottom:0;left:0;right:0;background:linear-gradient(135deg,#1B2B4B 0%,#2d4070 100%);padding:5px 16px;display:flex;align-items:center;justify-content:center;gap:8px;z-index:99999;-webkit-print-color-adjust:exact;print-color-adjust:exact;">
-    <span style="color:#C9A84C;font-size:8.5px;font-family:Arial,Helvetica,sans-serif;font-weight:800;letter-spacing:0.1em;">PROCV.APP</span>
-    <span style="color:rgba(201,168,76,0.5);font-size:8px;font-family:Arial,Helvetica,sans-serif;">·</span>
-    <span style="color:rgba(255,255,255,0.72);font-size:8px;font-family:Arial,Helvetica,sans-serif;">Upgrade for a clean PDF without watermark</span>
-    <span style="color:rgba(201,168,76,0.5);font-size:8px;font-family:Arial,Helvetica,sans-serif;">·</span>
-    <span style="color:#C9A84C;font-size:8.5px;font-family:Arial,Helvetica,sans-serif;font-weight:700;">procv.app</span>
+  <div data-procv-watermark style="position:fixed;top:0;left:0;right:0;bottom:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none;z-index:99999;-webkit-print-color-adjust:exact;print-color-adjust:exact;">
+    <div style="display:flex;flex-direction:column;align-items:center;gap:10px;opacity:0.07;transform:rotate(-20deg);">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="160" height="160">
+        <rect width="512" height="512" rx="110" ry="110" fill="#EBFF38"/>
+        <rect x="96" y="96" width="44" height="320" rx="18" fill="#111111"/>
+        <rect x="96" y="96" width="136" height="44" rx="18" fill="#111111"/>
+        <rect x="96" y="372" width="136" height="44" rx="18" fill="#111111"/>
+        <rect x="372" y="96" width="44" height="320" rx="18" fill="#111111"/>
+        <rect x="280" y="96" width="136" height="44" rx="18" fill="#111111"/>
+        <rect x="280" y="372" width="136" height="44" rx="18" fill="#111111"/>
+        <text x="256" y="308" text-anchor="middle" fill="#111111" font-size="132" font-weight="900" font-family="system-ui,-apple-system,'Helvetica Neue',Arial,sans-serif" letter-spacing="-6">CV</text>
+      </svg>
+      <span style="font-family:Arial,Helvetica,sans-serif;font-size:22px;font-weight:900;letter-spacing:0.18em;color:#111111;">PROCV.APP</span>
+    </div>
   </div>` : '';
 
 return `<!DOCTYPE html>
