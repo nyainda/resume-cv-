@@ -146,7 +146,7 @@ const AppViewRouter: React.FC<AppViewRouterProps> = ({
   setIsPricingOpen,
 }) => {
   return (
-    <main className="container mx-auto px-4 pt-4 pb-24 sm:px-6 sm:pt-6 sm:pb-28 lg:px-8 lg:pt-8 lg:pb-28">
+    <main className="px-4 pt-4 pb-24 sm:px-6 sm:pt-6 sm:pb-10 lg:px-8 lg:pt-8">
       <div>
         {/* ── Main content column (full-width) ── */}
         <div>

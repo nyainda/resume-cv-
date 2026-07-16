@@ -1,3 +1,4 @@
+- [Sidebar redesign](sidebar-redesign.md) — AppSidebar replaces AppNavbar; flex layout in App.tsx; same props interface, zero logic changes.
 - [Template system audit outcomes](template-system-audit.md) — Phase 1+3+4 done; Phase 2 (cluster consolidation) done (gallery only); skillsFirst flag added to V2 engine.
 - [Template governance rules](template-governance.md) — root cause of duplicate templates + standing rules now in CLAUDE.md; completeness test guards against recurrence.
 - [One-Page Fit two-phase compression](one-page-fit-density-loop.md) — Phase 1: spacing (secGap/entryGap/lh) via spacingLevel 0–3; Phase 2: CSS zoom 1→0.85. Single compressionStep index into COMPRESSION_STEPS (8 steps). CVData.density+spacingLevel persisted.

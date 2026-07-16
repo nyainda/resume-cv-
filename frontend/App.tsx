@@ -52,7 +52,7 @@ import { useAppNavigation } from "./hooks/useAppNavigation";
 import { useJsonImport } from "./hooks/useJsonImport";
 import { useProfileManager } from "./hooks/useProfileManager";
 import { useCVManager } from "./hooks/useCVManager";
-import AppNavbar from "./components/AppNavbar";
+import AppSidebar from "./components/AppSidebar";
 import AppViewRouter from "./components/AppViewRouter";
 
 // ── Inner app ───────────────────────────────────────────────────────────────
@@ -735,47 +735,50 @@ const AppInner: React.FC = () => {
 
   // ── Main app ──────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-[#F8F7F4] dark:bg-neutral-900 text-zinc-900 dark:text-zinc-50 transition-colors duration-300">
+    <div className="bg-[#F8F7F4] dark:bg-neutral-900 text-zinc-900 dark:text-zinc-50 transition-colors duration-300">
       {showOnboarding && (
         <Suspense fallback={null}>
           <OnboardingWizard onComplete={handleOnboardingComplete} />
         </Suspense>
       )}
 
-      <OfflineBanner />
+      {/* ── Sidebar layout: fixed nav on the left, scrollable content on right ── */}
+      <div className="flex min-h-screen">
+        <AppSidebar
+          currentView={currentView}
+          setCurrentView={setCurrentView}
+          primaryNav={primaryNav}
+          moreNavGroups={moreNavGroups}
+          isMoreActive={isMoreActive}
+          handleNavClick={handleNavClick}
+          GATED_VIEWS={GATED_VIEWS}
+          profileExists={profileExists}
+          isEditingProfile={isEditingProfile}
+          activeSlot={activeSlot}
+          profiles={profiles}
+          userProfile={userProfile}
+          user={user}
+          isAuthenticated={isAuthenticated}
+          darkMode={!!darkMode}
+          setDarkMode={setDarkMode}
+          setIsSettingsOpen={setIsSettingsOpen}
+          setIsPricingOpen={setIsPricingOpen}
+          setIsEditingProfile={setIsEditingProfile}
+          setShowLanding={setShowLanding}
+          isMobile={isMobile}
+          signOut={signOut}
+          onSwitchProfile={handleSwitchProfile}
+          onCreateProfile={handleCreateProfile}
+          onDeleteProfile={handleDeleteProfile}
+          onRenameProfile={handleRenameProfile}
+        />
 
-      <AppNavbar
-        currentView={currentView}
-        setCurrentView={setCurrentView}
-        primaryNav={primaryNav}
-        moreNavGroups={moreNavGroups}
-        isMoreActive={isMoreActive}
-        handleNavClick={handleNavClick}
-        GATED_VIEWS={GATED_VIEWS}
-        profileExists={profileExists}
-        isEditingProfile={isEditingProfile}
-        activeSlot={activeSlot}
-        profiles={profiles}
-        userProfile={userProfile}
-        user={user}
-        isAuthenticated={isAuthenticated}
-        darkMode={!!darkMode}
-        setDarkMode={setDarkMode}
-        setIsSettingsOpen={setIsSettingsOpen}
-        setIsPricingOpen={setIsPricingOpen}
-        setIsEditingProfile={setIsEditingProfile}
-        setShowLanding={setShowLanding}
-        isMobile={isMobile}
-        signOut={signOut}
-        onSwitchProfile={handleSwitchProfile}
-        onCreateProfile={handleCreateProfile}
-        onDeleteProfile={handleDeleteProfile}
-        onRenameProfile={handleRenameProfile}
-      />
+        {/* Content column — fills remaining width, scrolls independently */}
+        <div className="flex-1 min-w-0 flex flex-col">
+          <OfflineBanner />
+          <Suspense fallback={null}><FreePlanNudge /></Suspense>
 
-      <Suspense fallback={null}><FreePlanNudge /></Suspense>
-
-      <AppViewRouter
+          <AppViewRouter
         currentView={currentView}
         setCurrentView={setCurrentView}
         profileExists={profileExists}
@@ -832,6 +835,10 @@ const AppInner: React.FC = () => {
         setIsPricingOpen={setIsPricingOpen}
       />
 
+        </div>{/* end content column */}
+      </div>{/* end flex layout */}
+
+      {/* ── Modals — rendered in the root, above the layout ── */}
       <Suspense fallback={null}>
         <SettingsModal
           isOpen={isSettingsOpen}
