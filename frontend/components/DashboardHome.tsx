@@ -693,6 +693,7 @@ const DashboardHome: React.FC<Props> = ({
 
           {/* ── QUICK ACTIONS BAR ─────────────────────────────────────────── */}
           <Card className="p-4">
+            {/* 7 items: 4-per-row on mobile (2 rows), single row on sm+ */}
             <div className="grid grid-cols-4 sm:grid-cols-7 gap-2">
               {QUICK_ACTIONS.map(a => {
                 const Icon = QA_ICONS[a.key];
@@ -1007,25 +1008,27 @@ const DashboardHome: React.FC<Props> = ({
                 );
               })()}
 
-              {/* Signal rings */}
-              <div className="grid grid-cols-5 gap-2">
-                {[
-                  { label: 'Completeness', value: profileComplete },
-                  { label: 'Achievements', value: audit.achievement_density },
-                  { label: 'Metrics',      value: audit.metric_strength },
-                  { label: 'Leadership',   value: audit.leadership_score },
-                  { label: 'Skill Depth',  value: audit.skill_evidence_score },
-                ].map(s => {
-                  const color = s.value >= 70 ? '#16a34a' : s.value >= 50 ? GOLD : '#ef4444';
-                  return (
-                    <div key={s.label} className="flex flex-col items-center gap-1.5 p-2 rounded-xl bg-zinc-50 dark:bg-zinc-800/50">
-                      <Gauge value={s.value} size={52} />
-                      <span className="text-[8px] font-bold text-zinc-500 dark:text-zinc-400 text-center leading-tight uppercase tracking-wide">
-                        {s.label}
-                      </span>
-                    </div>
-                  );
-                })}
+              {/* Signal rings — horizontal scroll on mobile, grid on sm+ */}
+              <div className="overflow-x-auto -mx-1 px-1">
+                <div className="grid grid-cols-5 gap-2" style={{ minWidth: 290 }}>
+                  {[
+                    { label: 'Completeness', value: profileComplete },
+                    { label: 'Achievements', value: audit.achievement_density },
+                    { label: 'Metrics',      value: audit.metric_strength },
+                    { label: 'Leadership',   value: audit.leadership_score },
+                    { label: 'Skill Depth',  value: audit.skill_evidence_score },
+                  ].map(s => {
+                    const color = s.value >= 70 ? '#16a34a' : s.value >= 50 ? GOLD : '#ef4444';
+                    return (
+                      <div key={s.label} className="flex flex-col items-center gap-1.5 p-2 rounded-xl bg-zinc-50 dark:bg-zinc-800/50">
+                        <Gauge value={s.value} size={48} />
+                        <span className="text-[8px] font-bold text-zinc-500 dark:text-zinc-400 text-center leading-tight uppercase tracking-wide">
+                          {s.label}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             </Card>
           )}
@@ -1145,7 +1148,7 @@ const DashboardHome: React.FC<Props> = ({
       </div>
 
       {/* ── PRO TIP BAR ───────────────────────────────────────────────────── */}
-      <div className="mt-4 flex items-center gap-3 px-4 py-3 rounded-2xl border border-[#C9A84C]/20"
+      <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3 rounded-2xl border border-[#C9A84C]/20"
         style={{ background: `${GOLD}08` }}>
         <div className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0 text-xs"
           style={{ background: GOLD, color: NAVY }}>

@@ -200,7 +200,7 @@ const CommandPalette: React.FC<Props> = ({
 
   return (
     <div
-      className="fixed inset-0 z-[500] flex items-start justify-center pt-[15vh] px-4"
+      className="fixed inset-0 z-[500] flex items-start justify-center pt-[8vh] sm:pt-[15vh] px-4"
       style={{ background: 'rgba(10,16,30,0.65)', backdropFilter: 'blur(4px)' }}
       onClick={onClose}
     >
