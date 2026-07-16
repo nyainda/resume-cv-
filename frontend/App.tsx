@@ -789,7 +789,8 @@ const AppInner: React.FC = () => {
         />
 
         {/* Content column — fills remaining width, scrolls independently */}
-        <div className="flex-1 min-w-0 flex flex-col">
+        {/* pt-14 on mobile offsets the sticky AppSidebar top bar (~48px); md:pt-0 resets for desktop sidebar layout */}
+        <div className="flex-1 min-w-0 flex flex-col pt-14 md:pt-0">
           <OfflineBanner />
           <Suspense fallback={null}><FreePlanNudge /></Suspense>
 
