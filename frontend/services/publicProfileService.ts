@@ -121,6 +121,30 @@ export async function setCustomProfileSlug(
 }
 
 /**
+ * Check whether a custom slug is available (not taken by another user).
+ * Uses the unauthenticated /slug/check endpoint — no session required.
+ * Returns 'available', 'taken', 'invalid', or 'error'.
+ */
+export async function checkSlugAvailability(
+    slug: string,
+): Promise<'available' | 'taken' | 'invalid' | 'error'> {
+    const clientErr = validateSlug(slug);
+    if (clientErr) return 'invalid';
+    try {
+        if (!ENGINE_BASE) return 'error';
+        const res = await fetchWithTimeout(
+            `${ENGINE_BASE}/api/cv/public-profile/slug/check?slug=${encodeURIComponent(slug)}`
+        );
+        if (!res.ok) return 'error';
+        const data = await res.json() as { available?: boolean; valid?: boolean };
+        if (data.valid === false) return 'invalid';
+        return data.available ? 'available' : 'taken';
+    } catch {
+        return 'error';
+    }
+}
+
+/**
  * Unpublish the authenticated user's public profile.
  * Returns true on success.
  */

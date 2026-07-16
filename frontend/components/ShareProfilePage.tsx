@@ -20,7 +20,7 @@ import {
 } from '../services/shareService';
 import {
   publishPublicProfile, unpublishPublicProfile, buildProfileUrl,
-  setCustomProfileSlug, validateSlug,
+  setCustomProfileSlug, validateSlug, checkSlugAvailability,
 } from '../services/publicProfileService';
 import { encodeSharePayload, type SharedCVPayload } from './ShareCVModal';
 import { logEvent } from '../services/eventsService';
@@ -179,10 +179,26 @@ const ShareProfilePage: React.FC<ShareProfilePageProps> = ({
   const [slugSaving, setSlugSaving] = useState(false);
   const [slugFeedback, setSlugFeedback] = useState<{ type: 'error' | 'success'; msg: string } | null>(null);
   const [unpublishing, setUnpublishing] = useState(false);
+  // Real-time slug availability while editing
+  const [slugAvailability, setSlugAvailability] = useState<'idle' | 'checking' | 'available' | 'taken' | 'invalid' | 'error'>('idle');
 
   const profileUrl = profileSlug
     ? buildProfileUrl(profileSlug)
     : (user?.id ? buildProfileUrl(String(user.id)) : '');
+
+  // ── Debounced slug availability check ────────────────────────────────
+  useEffect(() => {
+    if (!slugEditing || slugInput.length < 3) { setSlugAvailability('idle'); return; }
+    const clientErr = validateSlug(slugInput);
+    if (clientErr) { setSlugAvailability('invalid'); return; }
+    if (slugInput === profileSlug) { setSlugAvailability('idle'); return; }
+    setSlugAvailability('checking');
+    const timer = setTimeout(async () => {
+      const result = await checkSlugAvailability(slugInput);
+      setSlugAvailability(result);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [slugInput, slugEditing, profileSlug]);
 
   // ── Generate share link ───────────────────────────────────────────────
   const generateLink = useCallback(async () => {
@@ -823,39 +839,78 @@ const ShareProfilePage: React.FC<ShareProfilePageProps> = ({
                         </div>
                       ) : (
                         <div className="space-y-2">
-                          <div className="flex items-center gap-1.5 bg-white dark:bg-neutral-800 border-2 border-[#C9A84C]/50 rounded-xl px-3 py-2 focus-within:border-[#C9A84C] transition-colors">
+                          {/* Input row with availability indicator */}
+                          <div className={`flex items-center gap-1.5 bg-white dark:bg-neutral-800 border-2 rounded-xl px-3 py-2 transition-colors ${
+                            slugAvailability === 'available' ? 'border-emerald-500' :
+                            slugAvailability === 'taken'     ? 'border-red-400' :
+                            slugAvailability === 'invalid'   ? 'border-amber-400' :
+                                                               'border-[#C9A84C]/50 focus-within:border-[#C9A84C]'
+                          }`}>
                             <span className="text-[11px] text-zinc-400 font-mono whitespace-nowrap select-none">#p=</span>
                             <input
                               type="text"
                               value={slugInput}
-                              onChange={e => { setSlugInput(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '')); setSlugFeedback(null); }}
-                              onKeyDown={e => { if (e.key === 'Enter') handleSaveSlug(); if (e.key === 'Escape') setSlugEditing(false); }}
+                              onChange={e => {
+                                setSlugInput(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''));
+                                setSlugFeedback(null);
+                                setSlugAvailability('idle');
+                              }}
+                              onKeyDown={e => { if (e.key === 'Enter') handleSaveSlug(); if (e.key === 'Escape') { setSlugEditing(false); setSlugAvailability('idle'); } }}
                               placeholder="your-name"
                               maxLength={30}
                               className="flex-1 text-xs font-mono bg-transparent outline-none text-zinc-800 dark:text-zinc-100 min-w-0"
                               autoFocus
                             />
-                            {slugInput.length >= 3 && !validateSlug(slugInput) && (
+                            {/* Availability indicator icon */}
+                            {slugAvailability === 'checking' && (
+                              <svg className="animate-spin w-3.5 h-3.5 text-zinc-400 flex-shrink-0" viewBox="0 0 24 24" fill="none">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+                              </svg>
+                            )}
+                            {slugAvailability === 'available' && (
                               <svg className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}><polyline points="20 6 9 17 4 12"/></svg>
                             )}
+                            {slugAvailability === 'taken' && (
+                              <svg className="w-3.5 h-3.5 text-red-400 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                            )}
                           </div>
-                          <p className="text-[10px] text-zinc-400 dark:text-zinc-500">3–30 characters, lowercase letters, numbers and hyphens only</p>
+
+                          {/* Availability badge */}
+                          {slugAvailability === 'available' && (
+                            <p className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                              <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}><polyline points="20 6 9 17 4 12"/></svg>
+                              Available — this URL is free to use
+                            </p>
+                          )}
+                          {slugAvailability === 'taken' && (
+                            <p className="text-[10px] font-semibold text-red-500 flex items-center gap-1">
+                              <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                              Already taken — try a different name
+                            </p>
+                          )}
+                          {slugAvailability === 'idle' && (
+                            <p className="text-[10px] text-zinc-400 dark:text-zinc-500">3–30 characters, lowercase letters, numbers and hyphens only</p>
+                          )}
+
+                          {/* Post-save feedback */}
                           {slugFeedback && (
                             <p className={`text-xs font-semibold ${slugFeedback.type === 'error' ? 'text-red-500' : 'text-emerald-600 dark:text-emerald-400'}`}>
                               {slugFeedback.type === 'success' ? '✓ ' : '✗ '}{slugFeedback.msg}
                             </p>
                           )}
+
                           <div className="flex gap-2">
                             <button
                               onClick={handleSaveSlug}
-                              disabled={slugSaving || slugInput.trim().length < 3}
-                              className="flex-1 py-2 rounded-xl text-xs font-bold text-white transition-opacity hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-1.5"
+                              disabled={slugSaving || slugInput.trim().length < 3 || slugAvailability === 'taken'}
+                              className="flex-1 py-2 rounded-xl text-xs font-bold transition-opacity hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-1.5"
                               style={{ background: GOLD, color: NAVY }}
                             >
                               {slugSaving ? <>Saving…</> : 'Save URL'}
                             </button>
                             <button
-                              onClick={() => { setSlugEditing(false); setSlugFeedback(null); }}
+                              onClick={() => { setSlugEditing(false); setSlugFeedback(null); setSlugAvailability('idle'); }}
                               className="px-4 py-2 bg-zinc-100 dark:bg-neutral-700 text-zinc-600 dark:text-zinc-300 text-xs font-bold rounded-xl hover:bg-zinc-200 dark:hover:bg-neutral-600 transition-colors"
                             >
                               Cancel

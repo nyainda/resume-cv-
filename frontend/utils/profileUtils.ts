@@ -44,16 +44,20 @@ export function parseSlotData(
     const rawProfile = isPayload ? (parsed.profile ?? {}) : parsed;
     const profile = normalizeUserProfile(rawProfile) ?? rawProfile;
 
-    // Note: currentCV is intentionally NOT restored from D1 — syncSlot only
-    // stores template metadata in D1 (not the full CV content, which is too large).
-    // The full currentCV is preserved in IDB/localStorage and restored from there
-    // on boot via AppDataPersistence.restoreLocalStorageFromIDB().
+    // currentCV is restored from D1 when present (syncSlot now includes it for
+    // cross-device restore). If absent (e.g. payload was too large and it was
+    // stripped, or this is an older slot synced before this feature shipped),
+    // fall back to undefined so the local IDB/localStorage version is used.
+    const restoredCV = isPayload && parsed.currentCV && typeof parsed.currentCV === 'object'
+      ? parsed.currentCV
+      : undefined;
 
     return {
       id:                s.slot_id,
       name:              s.slot_name,
       color:             (s as any).color ?? 'indigo',
       profile,
+      currentCV:         restoredCV,
       savedCVs:          isPayload ? (parsed.savedCVs          ?? []) : [],
       savedCoverLetters: isPayload ? (parsed.savedCoverLetters ?? []) : [],
       trackedApps:       isPayload ? (parsed.trackedApps       ?? []) : [],

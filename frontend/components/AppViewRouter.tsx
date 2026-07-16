@@ -36,7 +36,7 @@ const ViewFallback: React.FC = () => (
   </div>
 );
 
-import { clearQueueForAccount, enqueueSlotSync } from '../services/storage/syncQueue';
+import { clearQueueForAccount, enqueueSlotSync, flushSyncQueue } from '../services/storage/syncQueue';
 
 interface AppViewRouterProps {
   currentView: string;
@@ -415,6 +415,9 @@ const AppViewRouter: React.FC<AppViewRouterProps> = ({
                   workerUser={user}
                   profiles={profiles}
                   onSignOut={async () => {
+                    // Flush pending slot syncs to D1 BEFORE wiping the queue so
+                    // the last generated CV reaches the server before sign-out.
+                    await flushSyncQueue('force').catch(() => {});
                     await clearQueueForAccount().catch(() => {});
                     await signOut();
                     setShowLanding(true);
@@ -449,6 +452,7 @@ const AppViewRouter: React.FC<AppViewRouterProps> = ({
                   currentApiSettings={currentApiSettings}
                   onSaveApiSettings={onSaveApiSettings}
                   onSignOut={async () => {
+                    await flushSyncQueue('force').catch(() => {});
                     await clearQueueForAccount().catch(() => {});
                     await signOut();
                     setShowLanding(true);

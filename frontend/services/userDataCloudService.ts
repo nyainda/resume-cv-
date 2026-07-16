@@ -253,8 +253,19 @@ export async function syncSlot(slot: UserProfileSlot): Promise<void> {
         const profileWithoutPhoto = slot.profile
             ? { ...slot.profile, personalInfo: { ...slot.profile.personalInfo, photo: undefined } }
             : {};
+
+        // Include currentCV for cross-device restore. Strip _trace (session-only debug
+        // artifact that can be large) before sending to D1.
+        let currentCVForD1: Record<string, unknown> | null = null;
+        if (slot.currentCV) {
+            // eslint-disable-next-line @typescript-eslint/no-unused-vars
+            const { _trace, ...cvWithoutTrace } = slot.currentCV as unknown as Record<string, unknown>;
+            currentCVForD1 = cvWithoutTrace;
+        }
+
         const slotPayload: Record<string, unknown> = {
             profile: profileWithoutPhoto,
+            currentCV: currentCVForD1,   // full CV included — stripped progressively if too large
             savedCVs: (slot.savedCVs ?? []).slice(0, 50),
             savedCoverLetters: (slot.savedCoverLetters ?? []).slice(0, 50),
             trackedApps: (slot.trackedApps ?? []).slice(0, 200),
@@ -264,27 +275,41 @@ export async function syncSlot(slot: UserProfileSlot): Promise<void> {
         let slotJsonToSend = JSON.stringify(slotPayload);
 
         // Progressive trimming when payload is too large — never silently drop everything.
-        // Tier 1 (>512KB): strip saved CVs, cover letters, tracked apps, star stories — keep profile only.
-        // Tier 2 (still >512KB after tier 1, e.g. extremely long work history): profile-only plain JSON.
+        // Tier 0.5 (>512KB): drop currentCV (largest field) — keep collections intact.
+        // Tier 1   (still >512KB): drop all collections — keep profile + no CV.
+        // Tier 2   (still >512KB, e.g. extremely long work history): profile-only plain JSON.
         if (slotJsonToSend.length > MAX_SLOT_BYTES) {
-            const profileOnlyPayload = JSON.stringify({
+            const withoutCVPayload = JSON.stringify({
                 profile: profileWithoutPhoto,
-                savedCVs: [],
-                savedCoverLetters: [],
-                trackedApps: [],
-                starStories: [],
-                _truncated: true, // sentinel so restore code can warn
+                currentCV: null,
+                savedCVs: (slot.savedCVs ?? []).slice(0, 50),
+                savedCoverLetters: (slot.savedCoverLetters ?? []).slice(0, 50),
+                trackedApps: (slot.trackedApps ?? []).slice(0, 200),
+                starStories: (slot.starStories ?? []).slice(0, 100),
             });
-            if (profileOnlyPayload.length <= MAX_SLOT_BYTES) {
-                console.warn(
-                    `[D1 sync] Slot "${slot.name}" (${slot.id}) exceeds 512 KB — ` +
-                    `savedCVs/coverLetters/trackedApps/starStories omitted from D1 backup this sync. ` +
-                    `They are still stored locally in IndexedDB and localStorage.`
-                );
-                slotJsonToSend = profileOnlyPayload;
+            if (withoutCVPayload.length <= MAX_SLOT_BYTES) {
+                slotJsonToSend = withoutCVPayload;
             } else {
-                // Absolute fallback: raw profile JSON (no photo, no collections)
-                slotJsonToSend = profileJson;
+                const profileOnlyPayload = JSON.stringify({
+                    profile: profileWithoutPhoto,
+                    currentCV: null,
+                    savedCVs: [],
+                    savedCoverLetters: [],
+                    trackedApps: [],
+                    starStories: [],
+                    _truncated: true, // sentinel so restore code can warn
+                });
+                if (profileOnlyPayload.length <= MAX_SLOT_BYTES) {
+                    console.warn(
+                        `[D1 sync] Slot "${slot.name}" (${slot.id}) exceeds 512 KB — ` +
+                        `currentCV/savedCVs/coverLetters/trackedApps/starStories omitted from D1 backup this sync. ` +
+                        `They are still stored locally in IndexedDB and localStorage.`
+                    );
+                    slotJsonToSend = profileOnlyPayload;
+                } else {
+                    // Absolute fallback: raw profile JSON (no photo, no collections, no CV)
+                    slotJsonToSend = profileJson;
+                }
             }
         }
 

@@ -18,7 +18,7 @@ import * as KeyVault from "./services/security/KeyVault";
 import { setRuntimeKeys } from "./services/security/RuntimeKeys";
 import { useProfileSlots } from "./hooks/useProfileSlots";
 import { getUserPrefix } from "./services/storage/userStorageNamespace";
-import { enqueuePrefsSync, clearQueueForAccount, enqueueSlotSync } from "./services/storage/syncQueue";
+import { enqueuePrefsSync, clearQueueForAccount, enqueueSlotSync, flushSyncQueue } from "./services/storage/syncQueue";
 import { AuthProvider, useAuth } from "./auth/AuthContext";
 import type { WorkerUser } from "./services/authService";
 const AuthModal        = lazy(() => import("./components/AuthModal"));
@@ -880,6 +880,7 @@ const AppInner: React.FC = () => {
           }}
           onSignOut={async () => {
             setShowInactivityWarning(false);
+            await flushSyncQueue('force').catch(() => {});
             await clearQueueForAccount().catch(() => {});
             await signOut().catch(() => {});
             setShowLanding(true);
