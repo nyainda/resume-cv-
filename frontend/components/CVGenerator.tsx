@@ -49,6 +49,18 @@ import { diffCV, CVDiff } from '../services/cvDoctorService';
 import { DownloadGateModal, shouldGateDownload, incrementDownloadCount } from './DownloadGateModal';
 import { useAuth } from '../auth/AuthContext';
 import WizardStepBar from './WizardStepBar';
+import { motion, AnimatePresence } from 'framer-motion';
+
+const CV_TIPS = [
+  'Tailor your CV to each job description — use the JD keywords field for best ATS matching.',
+  'Run Score My CV before applying — aim for 90+ to maximise interview chances.',
+  'The HR Detector catches overused phrases before recruiters do. Check every draft.',
+  'Add quantified results to bullets (%, $, time saved) to boost your impact score.',
+  'One-Page Mode compresses your CV automatically — ideal for roles with strict page limits.',
+  'Create separate profile slots for different career tracks, e.g. Data Science vs Engineering.',
+  'Download as PDF for applications. Use the share link for LinkedIn or your portfolio.',
+  'Your public profile is SEO-indexed — publish it for passive opportunities from recruiters.',
+];
 
 
 /**

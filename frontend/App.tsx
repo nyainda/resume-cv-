@@ -34,6 +34,7 @@ import { fetchSharePayload } from "./services/shareService";
 import { fetchPublicProfile } from "./services/publicProfileService";
 const SettingsModal         = lazy(() => import("./components/SettingsModal"));
 import CommandPalette from "./components/CommandPalette";
+import NotificationDrawer from "./components/NotificationDrawer";
 const InactivityWarningModal = lazy(() => import("./components/InactivityWarningModal"));
 const LandingPage    = lazy(() => import("./components/LandingPage"));
 const VideoTemplate  = lazy(() => import("./components/video/VideoTemplate"));

@@ -51,6 +51,7 @@ export interface AppSidebarProps {
   onDeleteProfile: (id: string) => Promise<void>;
   onRenameProfile: (id: string, name: string, color: ProfileColor) => void;
   onOpenCmdPalette?: () => void;
+  onOpenNotifications?: () => void;
 }
 
 // ── Theme helpers ─────────────────────────────────────────────────────────────
@@ -430,6 +431,18 @@ const SidebarInner: React.FC<SidebarInnerProps> = ({
             </svg>
           </button>
 
+          {/* Notifications */}
+          <button
+            onClick={() => { onOpenNotifications?.(); onAfterNavClick?.(); }}
+            title="Tips & Activity"
+            className={`flex-1 flex items-center justify-center py-1.5 rounded-lg transition-colors ${tw.iconBtn(dark)}`}
+          >
+            <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+              <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+            </svg>
+          </button>
+
           {/* Settings */}
           <button
             onClick={() => { setCurrentView('settings'); onAfterNavClick?.(); }}
@@ -604,6 +617,16 @@ const AppSidebar: React.FC<AppSidebarProps> = (props) => {
           >
             <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
               <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
+            </svg>
+          </button>
+          <button
+            onClick={() => props.onOpenNotifications?.()}
+            className={`p-2 rounded-xl transition-colors ${tw.mobileIconBtn(dark)}`}
+            aria-label="Tips &amp; Activity"
+          >
+            <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+              <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
             </svg>
           </button>
           <button
