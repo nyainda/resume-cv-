@@ -11,6 +11,7 @@ import {
   NegotiationNavIcon,
   AnalyticsNavIcon,
   LinkedInNavIcon,
+  ShareNavIcon,
 } from '../components/nav/NavIcons';
 import { FileText, Target, List, BookOpen } from '../components/icons';
 import { isPureFreeTier, getEffectiveTier } from '../services/accountTierService';
@@ -33,6 +34,7 @@ export type AppView =
   | 'pivot'
   | 'account'
   | 'settings'
+  | 'share-profile'
   | 'admin-leaks'
   | 'admin-cv-engine'
   | 'storage-map';
@@ -203,6 +205,12 @@ export function useAppNavigation({
       items: [
         { id: 'history',   label: 'CV History', icon: List },
         { id: 'analytics', label: 'Analytics',  icon: AnalyticsNavIcon },
+      ],
+    },
+    {
+      label: 'Share',
+      items: [
+        { id: 'share-profile', label: 'Share & Profile', icon: ShareNavIcon },
       ],
     },
   ];

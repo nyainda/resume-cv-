@@ -24,6 +24,7 @@ const AdminCVEnginePage    = lazy(() => import('./AdminCVEnginePage'));
 const StorageMapPage       = lazy(() => import('./StorageMapPage'));
 const AccountPage          = lazy(() => import('./AccountPage'));
 const SettingsPage         = lazy(() => import('./SettingsPage'));
+const ShareProfilePage     = lazy(() => import('./ShareProfilePage'));
 
 // ── Shared fallback spinner ────────────────────────────────────────────────────
 const ViewFallback: React.FC = () => (
@@ -111,6 +112,7 @@ const AppViewRouter: React.FC<AppViewRouterProps> = ({
   activeSlot,
   profiles,
   savedCVs,
+  savedCoverLetters,
   trackedApps,
   setTrackedApps,
   starStories,
@@ -422,6 +424,17 @@ const AppViewRouter: React.FC<AppViewRouterProps> = ({
                   onBack={() => setCurrentView('generator')}
                   onUpgrade={() => setIsPricingOpen(true)}
                   onEditProfile={() => setIsEditingProfile(true)}
+                />
+              )}
+
+              {currentView === 'share-profile' && (
+                <ShareProfilePage
+                  cvData={currentCV}
+                  userProfile={userProfile}
+                  user={user}
+                  isAuthenticated={isAuthenticated}
+                  savedCoverLetters={savedCoverLetters}
+                  onGoToGenerator={() => setCurrentView('generator')}
                 />
               )}
 
