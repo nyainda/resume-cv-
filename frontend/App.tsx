@@ -756,8 +756,8 @@ const AppInner: React.FC = () => {
         </Suspense>
       )}
 
-      {/* ── Sidebar layout: fixed nav on the left, scrollable content on right ── */}
-      <div className="flex min-h-screen">
+      {/* ── Sidebar layout: col on mobile (header above content), row on desktop ── */}
+      <div className="flex flex-col md:flex-row min-h-screen">
         <AppSidebar
           currentView={currentView}
           setCurrentView={setCurrentView}
@@ -789,8 +789,7 @@ const AppInner: React.FC = () => {
         />
 
         {/* Content column — fills remaining width, scrolls independently */}
-        {/* pt-14 on mobile offsets the sticky AppSidebar top bar (~48px); md:pt-0 resets for desktop sidebar layout */}
-        <div className="flex-1 min-w-0 flex flex-col pt-14 md:pt-0">
+        <div className="flex-1 min-w-0 flex flex-col">
           <OfflineBanner />
           <Suspense fallback={null}><FreePlanNudge /></Suspense>
 
