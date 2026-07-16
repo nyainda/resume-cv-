@@ -241,6 +241,7 @@ const AppViewRouter: React.FC<AppViewRouterProps> = ({
                     setTimeout(() => setToolkitForceTab(undefined), 200);
                   }}
                   activeSlot={activeSlot}
+                  darkMode={darkMode}
                 />
               )}
 

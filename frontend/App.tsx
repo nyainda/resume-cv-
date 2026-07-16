@@ -230,6 +230,7 @@ const AppInner: React.FC = () => {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isPricingOpen, setIsPricingOpen] = useState(false);
   const [isCmdPaletteOpen, setIsCmdPaletteOpen] = useState(false);
+  const [isNotifOpen, setIsNotifOpen] = useState(false);
   // When true, Settings opens straight into the BYOK key-entry UI (user just
   // chose BYOK from the pricing modal, before saving any key).
   const [settingsForceByok, setSettingsForceByok] = useState(false);
@@ -843,6 +844,7 @@ const AppInner: React.FC = () => {
           isMobile={isMobile}
           signOut={signOut}
           onOpenCmdPalette={() => setIsCmdPaletteOpen(true)}
+          onOpenNotifications={() => setIsNotifOpen(true)}
           onSwitchProfile={handleSwitchProfile}
           onCreateProfile={handleCreateProfile}
           onDeleteProfile={handleDeleteProfile}
@@ -960,6 +962,14 @@ const AppInner: React.FC = () => {
       </Suspense>
 
       <ToastContainer toasts={toast.toasts} onRemove={toast.removeToast} />
+
+      {/* ── Notification / Tips drawer ── */}
+      <NotificationDrawer
+        isOpen={isNotifOpen}
+        onClose={() => setIsNotifOpen(false)}
+        darkMode={!!darkMode}
+        savedCVs={savedCVs}
+      />
 
       {/* ── ⌘K Command Palette ── */}
       <CommandPalette

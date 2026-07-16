@@ -171,6 +171,8 @@ interface CVGeneratorProps {
   openToolkitAtQualityAudit?: () => void;
   /** Active profile slot — used to sync quality fixes to D1 for cross-device persistence */
   activeSlot?: UserProfileSlot | null;
+  /** Mirror of App-level dark mode so the generator can style non-Tailwind elements */
+  darkMode?: boolean;
 }
 
 const fileToBase64 = (file: File): Promise<{ base64: string, mimeType: string }> => {
@@ -258,8 +260,9 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
   onSaveStories, onGoToInterviewPrep, onRestoreProfileBullets, importedFromJson,
   profileId, initialJobDescription, initialTargetCompany, initialTargetJobTitle,
   initialCvPurpose, initialGenerationMode, initialJdKeywords, onSlotUpdate, onPinField, onUnpinField, onShareLinkAdded,
-  onUpgrade, openToolkitAtQualityAudit, activeSlot,
+  onUpgrade, openToolkitAtQualityAudit, activeSlot, darkMode = false,
 }) => {
+  const GOLD = '#C9A84C';
   const { isAuthenticated, requireAuth, user: workerUser, isLoading: isAuthLoading } = useAuth();
 
   // Shared helper: push the latest CV to D1 so changes persist across all devices.
@@ -301,6 +304,12 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
 
   const [showDownloadGate, setShowDownloadGate] = useState(false);
   const [pendingDownload, setPendingDownload] = useState(false);
+  // Pro Tip bar — cycles through CV_TIPS every 10 s
+  const [tipIdx, setTipIdx] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setTipIdx(i => (i + 1) % CV_TIPS.length), 10000);
+    return () => clearInterval(t);
+  }, []);
   // Profile-isolated "room" state — each profileId gets its own localStorage keys
   // so switching profiles never bleeds JD or targeting info across rooms.
   const [jobDescription, setJobDescription] = useLocalStorage<string>(`p:${profileId}:jd`, initialJobDescription ?? '');
@@ -1841,7 +1850,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
         <WizardStepBar
           steps={WIZARD_STEPS}
           currentStep={wizardStep}
-          darkMode={false}
+          darkMode={!!darkMode}
         />
 
         {/* Right actions */}
@@ -3447,6 +3456,71 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
           onClose={() => setShowDoctorPanel(false)}
         />
       )}
+
+      {/* ── Pro Tip bar — persistent rotating strip ───────────────────────── */}
+      <div
+        className="sticky bottom-0 left-0 right-0 z-10 mt-6 -mx-4 sm:-mx-6 lg:-mx-8"
+        style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+      >
+        <div
+          className="flex items-center gap-3 px-4 sm:px-6 py-2.5 border-t transition-colors duration-300"
+          style={{
+            background: darkMode
+              ? 'rgba(17,17,17,0.96)'
+              : 'rgba(255,255,255,0.97)',
+            borderColor: darkMode ? 'rgba(255,255,255,0.06)' : '#E5E7EB',
+            backdropFilter: 'blur(8px)',
+          }}
+        >
+          {/* Gold crown icon */}
+          <div
+            className="flex-shrink-0 w-6 h-6 rounded-md flex items-center justify-center text-[13px]"
+            style={{ background: `${GOLD}18` }}
+          >
+            💡
+          </div>
+
+          {/* Tip text — AnimatePresence fade swap */}
+          <div className="flex-1 min-w-0 overflow-hidden">
+            <AnimatePresence mode="wait" initial={false}>
+              <motion.p
+                key={tipIdx}
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                transition={{ duration: 0.3, ease: 'easeInOut' }}
+                className="text-[11px] leading-tight truncate"
+                style={{ color: darkMode ? 'rgba(255,255,255,0.55)' : '#6B7280' }}
+              >
+                <span
+                  className="font-bold mr-1"
+                  style={{ color: GOLD }}
+                >
+                  Pro tip:
+                </span>
+                {CV_TIPS[tipIdx]}
+              </motion.p>
+            </AnimatePresence>
+          </div>
+
+          {/* Dot pagination */}
+          <div className="flex-shrink-0 flex items-center gap-1">
+            {CV_TIPS.map((_, i) => (
+              <button
+                key={i}
+                onClick={() => setTipIdx(i)}
+                className="rounded-full transition-all duration-200"
+                style={{
+                  width: i === tipIdx ? '14px' : '5px',
+                  height: '5px',
+                  background: i === tipIdx ? GOLD : darkMode ? 'rgba(255,255,255,0.18)' : '#D1D5DB',
+                }}
+                aria-label={`Tip ${i + 1}`}
+              />
+            ))}
+          </div>
+        </div>
+      </div>
     </div>
   );
 };
