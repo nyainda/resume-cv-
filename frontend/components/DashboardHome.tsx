@@ -782,8 +782,8 @@ const DashboardHome: React.FC<Props> = ({
             </Card>
           </div>
 
-          {/* ── ROW 3: Analytics | HR Detector | Storage & Sync ───────────── */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {/* ── ROW 3: Analytics | HR Detector ────────────────────────────── */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
 
             {/* Analytics Overview */}
             <Card className="p-4">
@@ -884,74 +884,6 @@ const DashboardHome: React.FC<Props> = ({
                   </button>
                 </div>
               )}
-            </Card>
-
-            {/* Storage & Sync */}
-            <Card className="p-4">
-              <CardTitle
-                action={
-                  isAuthenticated && (
-                    <span className="text-[9px] text-emerald-500 dark:text-emerald-400 font-semibold">Everything backed up</span>
-                  )
-                }
-              >
-                Storage &amp; Sync
-              </CardTitle>
-              <div className="space-y-2 mb-3">
-
-                {/* Cloud Backup */}
-                <div className="flex items-center gap-3 p-3 rounded-xl bg-zinc-50 dark:bg-zinc-800/50">
-                  <div className="w-8 h-8 rounded-lg bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center flex-shrink-0">
-                    <svg className="w-4 h-4 text-blue-500 dark:text-blue-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round">
-                      <path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/>
-                    </svg>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-[11px] font-semibold text-zinc-700 dark:text-zinc-200">Cloud Backup</p>
-                    <p className="text-[9.5px] text-zinc-400 dark:text-zinc-500 mt-0.5">
-                      {isAuthenticated ? 'Synced 2 min ago' : 'Sign in to enable'}
-                    </p>
-                  </div>
-                  <div className={`w-2 h-2 rounded-full flex-shrink-0 ${isAuthenticated ? 'bg-emerald-500' : 'bg-zinc-300 dark:bg-zinc-600'}`} />
-                </div>
-
-                {/* Auto-save */}
-                <div className="flex items-center gap-3 p-3 rounded-xl bg-zinc-50 dark:bg-zinc-800/50">
-                  <div className="w-8 h-8 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 flex items-center justify-center flex-shrink-0">
-                    <svg className="w-4 h-4 text-emerald-500 dark:text-emerald-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round">
-                      <polyline points="20 6 9 17 4 12"/>
-                    </svg>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-[11px] font-semibold text-zinc-700 dark:text-zinc-200">Auto-save</p>
-                    <p className="text-[9.5px] text-zinc-400 dark:text-zinc-500 mt-0.5">On</p>
-                  </div>
-                  <div className="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0" />
-                </div>
-              </div>
-
-              {/* Stats */}
-              <div className="grid grid-cols-3 gap-2 mb-3">
-                <div className="flex flex-col items-center py-2 rounded-xl bg-zinc-50 dark:bg-zinc-800/50">
-                  <span className="text-sm font-bold text-zinc-800 dark:text-zinc-100">{savedCVs.length}</span>
-                  <span className="text-[8px] text-zinc-400 mt-0.5">CVs</span>
-                </div>
-                <div className="flex flex-col items-center py-2 rounded-xl bg-zinc-50 dark:bg-zinc-800/50">
-                  <span className="text-sm font-bold text-zinc-800 dark:text-zinc-100">{trackedApps.length}</span>
-                  <span className="text-[8px] text-zinc-400 mt-0.5">Apps</span>
-                </div>
-                <div className="flex flex-col items-center py-2 rounded-xl bg-zinc-50 dark:bg-zinc-800/50">
-                  <span className="text-sm font-bold text-zinc-800 dark:text-zinc-100">{storedLinks.length}</span>
-                  <span className="text-[8px] text-zinc-400 mt-0.5">Links</span>
-                </div>
-              </div>
-
-              <button
-                onClick={onOpenSettings}
-                className="w-full py-2 rounded-xl border border-zinc-200 dark:border-zinc-700 text-[10.5px] font-semibold text-zinc-500 dark:text-zinc-400 hover:border-[#1B2B4B]/25 dark:hover:border-[#C9A84C]/25 hover:text-[#1B2B4B] dark:hover:text-[#C9A84C] transition-colors"
-              >
-                Manage Storage →
-              </button>
             </Card>
           </div>
 
