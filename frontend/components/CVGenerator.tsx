@@ -48,6 +48,7 @@ import GenerationTracePanel from './GenerationTracePanel';
 import { diffCV, CVDiff } from '../services/cvDoctorService';
 import { DownloadGateModal, shouldGateDownload, incrementDownloadCount } from './DownloadGateModal';
 import { useAuth } from '../auth/AuthContext';
+import WizardStepBar from './WizardStepBar';
 
 
 /**
@@ -1701,6 +1702,22 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
   const purposeBadgeBg = cvPurpose === 'job' ? modeColors.badgeBg : cvPurpose === 'general' ? 'bg-violet-100 dark:bg-violet-900/40' : 'bg-teal-100 dark:bg-teal-900/40';
   const purposeBadgeText = cvPurpose === 'job' ? modeColors.badge : cvPurpose === 'general' ? 'text-violet-800 dark:text-violet-200' : 'text-teal-800 dark:text-teal-200';
 
+  // ── Wizard step derivation (zero-based) ─────────────────────────────────
+  // Step 0 = Profile, 1 = Content, 2 = Template, 3 = Finalize
+  const wizardStep = (() => {
+    if (currentCV) return 3;                                       // CV generated → Finalize
+    if (jobDescription.trim().length > 20) return 2;              // JD entered → Template
+    if (userProfile?.personalInfo?.name) return 1;                 // profile ready → Content
+    return 0;                                                       // need profile
+  })();
+
+  const WIZARD_STEPS = [
+    { label: 'Profile',  sublabel: 'your details' },
+    { label: 'Content',  sublabel: 'job description' },
+    { label: 'Template', sublabel: 'pick & preview' },
+    { label: 'Finalize', sublabel: 'download & share' },
+  ];
+
   return (
     <div className="space-y-8">
 
@@ -1800,6 +1817,73 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
         retryNotice={progressRetryNotice}
         hasDraft={!!draftCV}
       />
+      {/* ══════════════════════════════════════════════════════════════════
+          WIZARD HEADER — step bar + auto-save badge + Download CTA
+          Sticky at the top of the generator content area.
+      ══════════════════════════════════════════════════════════════════ */}
+      <div className="sticky top-0 z-20 -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8 py-2.5
+                      bg-white/95 dark:bg-neutral-900/95 backdrop-blur-sm
+                      border-b border-zinc-100 dark:border-neutral-800
+                      flex items-center justify-between gap-3">
+        {/* Step bar */}
+        <WizardStepBar
+          steps={WIZARD_STEPS}
+          currentStep={wizardStep}
+          darkMode={false}
+        />
+
+        {/* Right actions */}
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {/* Auto-save status */}
+          {currentCV && (
+            <span className="hidden sm:flex items-center gap-1 text-[10px] font-medium text-emerald-600 dark:text-emerald-400">
+              <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M20 6L9 17l-5-5"/>
+              </svg>
+              Auto-saved
+            </span>
+          )}
+
+          {/* Save Draft button */}
+          {currentCV && (
+            <button
+              onClick={() => onSaveCV(currentCV, cvPurpose)}
+              disabled={isEditing}
+              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold
+                         border border-zinc-200 dark:border-neutral-700
+                         text-zinc-600 dark:text-zinc-300
+                         hover:border-zinc-300 dark:hover:border-neutral-600
+                         hover:text-zinc-800 dark:hover:text-zinc-100
+                         disabled:opacity-40 transition-all duration-150"
+            >
+              <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/>
+                <polyline points="17 21 17 13 7 13 7 21"/>
+                <polyline points="7 3 7 8 15 8"/>
+              </svg>
+              Save
+            </button>
+          )}
+
+          {/* Download CV — primary gold CTA */}
+          <button
+            onClick={handleDownload}
+            disabled={!currentCV || isEditing || !!downloadStatus}
+            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-[11px] font-black
+                       text-white disabled:opacity-40 disabled:cursor-not-allowed
+                       transition-all duration-150 hover:opacity-90 active:scale-[0.98]"
+            style={{ background: !currentCV ? '#9CA3AF' : 'linear-gradient(135deg,#C9A84C,#b89740)' }}
+          >
+            <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+              <polyline points="7 10 12 15 17 10"/>
+              <line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+            {downloadStatus ? 'Preparing…' : 'Download CV'}
+          </button>
+        </div>
+      </div>
+
       {/* ── CV Toolkit Suggestions Banner ── */}
       {toolkitSuggestions && (
         <div className="bg-gradient-to-br from-violet-50 to-[#F8F7F4] dark:from-violet-900/20 dark:to-[#1B2B4B]/10 border border-violet-300 dark:border-violet-700 rounded-2xl p-5 flex flex-col sm:flex-row items-start gap-4">

@@ -33,6 +33,7 @@ import { decodeSharePayload, SharedCVPayload } from "./components/ShareCVModal";
 import { fetchSharePayload } from "./services/shareService";
 import { fetchPublicProfile } from "./services/publicProfileService";
 const SettingsModal         = lazy(() => import("./components/SettingsModal"));
+import CommandPalette from "./components/CommandPalette";
 const InactivityWarningModal = lazy(() => import("./components/InactivityWarningModal"));
 const LandingPage    = lazy(() => import("./components/LandingPage"));
 const VideoTemplate  = lazy(() => import("./components/video/VideoTemplate"));
@@ -227,9 +228,22 @@ const AppInner: React.FC = () => {
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isPricingOpen, setIsPricingOpen] = useState(false);
+  const [isCmdPaletteOpen, setIsCmdPaletteOpen] = useState(false);
   // When true, Settings opens straight into the BYOK key-entry UI (user just
   // chose BYOK from the pricing modal, before saving any key).
   const [settingsForceByok, setSettingsForceByok] = useState(false);
+
+  // ── ⌘K command palette keyboard shortcut ─────────────────────────────────
+  React.useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        setIsCmdPaletteOpen(open => !open);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   // ── Boot effects ─────────────────────────────────────────────────────────
   useBootEffects({ darkMode, isAuthenticated, setIsPricingOpen, setIsSettingsOpen });
@@ -767,6 +781,7 @@ const AppInner: React.FC = () => {
           setShowLanding={setShowLanding}
           isMobile={isMobile}
           signOut={signOut}
+          onOpenCmdPalette={() => setIsCmdPaletteOpen(true)}
           onSwitchProfile={handleSwitchProfile}
           onCreateProfile={handleCreateProfile}
           onDeleteProfile={handleDeleteProfile}
@@ -878,6 +893,17 @@ const AppInner: React.FC = () => {
       </Suspense>
 
       <ToastContainer toasts={toast.toasts} onRemove={toast.removeToast} />
+
+      {/* ── ⌘K Command Palette ── */}
+      <CommandPalette
+        isOpen={isCmdPaletteOpen}
+        onClose={() => setIsCmdPaletteOpen(false)}
+        onNavigate={(view) => setCurrentView(view as any)}
+        onOpenSettings={() => { setIsCmdPaletteOpen(false); setIsSettingsOpen(true); }}
+        onEditProfile={() => { setIsCmdPaletteOpen(false); setIsEditingProfile(true); }}
+        savedCVs={savedCVs}
+        darkMode={!!darkMode}
+      />
 
       {/* ── JSON import dialog ── */}
       {pendingJsonImport && (

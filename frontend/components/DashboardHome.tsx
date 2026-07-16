@@ -94,6 +94,70 @@ const StatusDot: React.FC<{ ok: boolean }> = ({ ok }) => (
   <div className={`w-2 h-2 rounded-full flex-shrink-0 ${ok ? 'bg-emerald-500' : 'bg-amber-400'}`} />
 );
 
+/** Storage & Sync card — shows local/cloud sync status in the right column */
+const StorageSyncCard: React.FC<{ savedCVCount: number }> = ({ savedCVCount }) => {
+  const [localKb, setLocalKb] = React.useState<number>(0);
+  React.useEffect(() => {
+    try {
+      let bytes = 0;
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i) ?? '';
+        bytes += k.length + (localStorage.getItem(k) ?? '').length;
+      }
+      setLocalKb(Math.round(bytes / 1024));
+    } catch { /* ignore */ }
+  }, []);
+
+  const pct = Math.min(100, Math.round((localKb / 5120) * 100)); // 5 MB quota est.
+
+  const rows = [
+    { label: 'Local storage',  val: `${localKb} KB`, ok: localKb < 4096 },
+    { label: 'CVs saved',      val: `${savedCVCount}`, ok: true },
+    { label: 'Auto-save',      val: 'Enabled',  ok: true },
+  ];
+
+  return (
+    <Card className="p-4">
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="text-[10px] font-black uppercase tracking-widest text-zinc-400 dark:text-zinc-500">Storage & Sync</h2>
+        <svg className="w-3.5 h-3.5 text-zinc-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/>
+          <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
+        </svg>
+      </div>
+
+      <div className="space-y-1.5 mb-3">
+        {rows.map(r => (
+          <div key={r.label} className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5">
+              <StatusDot ok={r.ok} />
+              <span className="text-[10px] text-zinc-500 dark:text-zinc-400">{r.label}</span>
+            </div>
+            <span className="text-[10px] font-semibold text-zinc-700 dark:text-zinc-300">{r.val}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* Storage bar */}
+      <div className="space-y-1">
+        <div className="flex justify-between text-[9px] text-zinc-400">
+          <span>Local usage</span>
+          <span>{pct}% of ~5 MB</span>
+        </div>
+        <div className="w-full h-1.5 rounded-full bg-zinc-100 dark:bg-zinc-800 overflow-hidden">
+          <div
+            className="h-full rounded-full transition-all duration-700"
+            style={{
+              width: `${pct}%`,
+              background: pct > 80 ? '#ef4444' : pct > 60 ? GOLD : '#10b981',
+            }}
+          />
+        </div>
+      </div>
+    </Card>
+  );
+};
+
 /** Template thumbnail (styled placeholder) */
 const TemplateThumbnail: React.FC<{
   name: string; bg: string; accent: string; onClick: () => void;
@@ -1050,6 +1114,9 @@ const DashboardHome: React.FC<Props> = ({
               </div>
             </Card>
           )}
+
+          {/* Storage & Sync */}
+          <StorageSyncCard savedCVCount={savedCVs.length} />
 
           {/* Next steps */}
           {nextSteps.length > 0 && (
