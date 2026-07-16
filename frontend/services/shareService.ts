@@ -6,6 +6,8 @@
 //
 // Falls back to the legacy long-hash URL if the worker is unreachable.
 
+import { getUserPrefix } from './storage/userStorageNamespace';
+
 const ENGINE_BASE: string = (import.meta.env.VITE_CV_ENGINE_URL ?? '').replace(/\/$/, '');
 
 const TIMEOUT_MS = 5000;
@@ -161,17 +163,46 @@ export interface StoredShareLink {
   expires_at: number; // unix seconds (from server)
 }
 
-const SHARE_LINKS_KEY = 'procv:shareLinks';
+// Share link history is stored per-user so it:
+//   1. Survives logout → same-user login (prefix is restored from session)
+//   2. Is isolated between accounts on the same device (different prefix)
+//   3. Is not wiped by the global procv:* clear on account switch
+const SHARE_LINKS_SUFFIX = 'cv_builder:shareLinks';
 const MAX_STORED_LINKS = 20;
+
+function getShareLinksKey(): string {
+  return `${getUserPrefix()}${SHARE_LINKS_SUFFIX}`;
+}
 
 /** Read all locally stored share links, filtering out any that have expired. */
 export function getStoredShareLinks(): StoredShareLink[] {
   try {
-    const raw = localStorage.getItem(SHARE_LINKS_KEY);
+    const key = getShareLinksKey();
+    const raw = localStorage.getItem(key);
     if (!raw) {
-      // Migrate legacy single-ID key if present
-      const legacyId = localStorage.getItem('procv:latestShareId');
-      if (legacyId) return [{ id: legacyId, created_at: Date.now(), expires_at: Math.floor(Date.now() / 1000) + 30 * 86400 }];
+      // One-time migration: pull links from the old global keys into the
+      // user-scoped key so existing share history isn't lost after this update.
+      const legacyArr = localStorage.getItem('procv:shareLinks');
+      const legacyId  = localStorage.getItem('procv:latestShareId');
+      if (legacyArr) {
+        try {
+          const parsed = JSON.parse(legacyArr) as StoredShareLink[];
+          const nowSec = Math.floor(Date.now() / 1000);
+          const valid = parsed.filter(l => l.expires_at > nowSec);
+          if (valid.length) {
+            localStorage.setItem(key, JSON.stringify(valid));
+            localStorage.removeItem('procv:shareLinks');
+            localStorage.removeItem('procv:latestShareId');
+            return valid;
+          }
+        } catch { /* malformed — fall through */ }
+      }
+      if (legacyId) {
+        const migrated = [{ id: legacyId, created_at: Date.now(), expires_at: Math.floor(Date.now() / 1000) + 30 * 86400 }];
+        localStorage.setItem(key, JSON.stringify(migrated));
+        localStorage.removeItem('procv:latestShareId');
+        return migrated;
+      }
       return [];
     }
     const arr = JSON.parse(raw) as StoredShareLink[];
@@ -180,14 +211,14 @@ export function getStoredShareLinks(): StoredShareLink[] {
   } catch { return []; }
 }
 
-/** Persist a newly created share link. Also keeps legacy key in sync. */
+/** Persist a newly created share link. */
 export function addStoredShareLink(id: string, expires_at: number): void {
   try {
+    const key = getShareLinksKey();
     const links = getStoredShareLinks();
     const deduped = links.filter(l => l.id !== id);
     deduped.unshift({ id, created_at: Date.now(), expires_at });
-    localStorage.setItem(SHARE_LINKS_KEY, JSON.stringify(deduped.slice(0, MAX_STORED_LINKS)));
-    localStorage.setItem('procv:latestShareId', id);
+    localStorage.setItem(key, JSON.stringify(deduped.slice(0, MAX_STORED_LINKS)));
   } catch { /* quota */ }
 }
 
