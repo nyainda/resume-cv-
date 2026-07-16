@@ -399,7 +399,7 @@ const SidebarInner: React.FC<SidebarInnerProps> = ({
           {/* Profile manager dropdown (opens upward) */}
           {showProfileManager && profileExists && (
             <div
-              className="absolute bottom-full left-0 mb-1 w-[340px] bg-white dark:bg-neutral-800 rounded-2xl shadow-2xl border border-zinc-200 dark:border-neutral-700 p-4 z-50 overflow-y-auto"
+              className="absolute bottom-full left-0 mb-1 w-[340px] max-w-[calc(100vw-2rem)] bg-white dark:bg-neutral-800 rounded-2xl shadow-2xl border border-zinc-200 dark:border-neutral-700 p-4 z-50 overflow-y-auto"
               style={{ maxHeight: '70vh' }}
             >
               <ProfileManager

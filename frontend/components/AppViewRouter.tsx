@@ -184,19 +184,19 @@ const AppViewRouter: React.FC<AppViewRouterProps> = ({
               {/* Quick-Score banner */}
               {currentView === 'generator' && currentCV && (currentCV.summary || (currentCV.experience ?? []).length > 0) && (
                 <div
-                  className="flex items-center justify-between gap-4 px-5 py-3.5 rounded-2xl border border-[#C9A84C]/30"
+                  className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-5 sm:py-3.5 rounded-2xl border border-[#C9A84C]/30"
                   style={{ background: 'linear-gradient(135deg, #1B2B4B08 0%, #C9A84C08 100%)' }}
                 >
-                  <div className="flex items-center gap-3">
-                    <span className="text-xl">📊</span>
-                    <div>
+                  <div className="flex items-center gap-3 min-w-0">
+                    <span className="text-xl flex-shrink-0">📊</span>
+                    <div className="min-w-0">
                       <p className="text-sm font-bold text-zinc-800 dark:text-zinc-100 leading-tight">Ready to score this CV?</p>
                       <p className="text-xs text-zinc-500 dark:text-zinc-400">Human voice · Bullet quality · Career logic · ATS match</p>
                     </div>
                   </div>
                   <button
                     onClick={() => setCurrentView('score')}
-                    className="flex-shrink-0 px-4 py-2 rounded-xl text-sm font-bold text-white whitespace-nowrap transition-opacity hover:opacity-90"
+                    className="flex-shrink-0 w-full sm:w-auto px-4 py-2 rounded-xl text-sm font-bold text-white whitespace-nowrap transition-opacity hover:opacity-90"
                     style={{ background: '#1B2B4B' }}
                   >
                     Score My CV →

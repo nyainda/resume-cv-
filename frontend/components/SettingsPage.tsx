@@ -47,6 +47,9 @@ type ST = {
   mobileTabActive: string;
   mobileTabInactive: string;
   dark: boolean;
+  // Responsive flags — populated in main component after screenW is known
+  isMobile: boolean;
+  isTablet: boolean;
 };
 
 function makeTheme(dark: boolean): ST {
@@ -72,6 +75,8 @@ function makeTheme(dark: boolean): ST {
     mobileTabActive: GOLD,
     mobileTabInactive: 'rgba(255,255,255,0.45)',
     dark: true,
+    isMobile: false,
+    isTablet: false,
   };
   return {
     pageBg: '#F8F7F4',
@@ -95,10 +100,13 @@ function makeTheme(dark: boolean): ST {
     mobileTabActive: '#B8922A',
     mobileTabInactive: '#9CA3AF',
     dark: false,
+    // responsive flags — overridden by the main component at runtime
+    isMobile: false,
+    isTablet: false,
   };
 }
 
-const SettingsThemeCtx = createContext<ST>(makeTheme(true));
+const SettingsThemeCtx = createContext<ST>(makeTheme(true) as ST);
 const useT = () => useContext(SettingsThemeCtx);
 
 // ── Nav section definitions ────────────────────────────────────────────────────
@@ -193,21 +201,44 @@ function ProviderOverviewCard({
       background: isActive ? T.providerActiveBg : T.cardBg,
       border: `1px solid ${isActive ? `${GOLD}40` : T.border}`,
       borderRadius: 10, padding: '14px 16px',
-      display: 'flex', alignItems: 'center', gap: 14, flex: 1, minWidth: 0,
+      // On mobile stack icon+text vertically; minWidth ensures wrapping in flex container
+      display: 'flex',
+      alignItems: T.isMobile ? 'flex-start' : 'center',
+      flexDirection: T.isMobile ? 'column' : 'row',
+      gap: T.isMobile ? 8 : 14,
+      flex: '1 1 240px',
+      minWidth: T.isMobile ? '100%' : 240,
     }}>
-      <div style={{ fontSize: 24, flexShrink: 0 }}>{icon}</div>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
-          <span style={{ color: T.text1, fontWeight: 700, fontSize: 13 }}>{name}</span>
-          <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 7px', borderRadius: 20, background: badgeColor.split('|')[0], color: badgeColor.split('|')[1] }}>{badge}</span>
-        </div>
-        <p style={{ color: T.text3, fontSize: 11, margin: 0, lineHeight: 1.4 }}>{model}</p>
-        <p style={{ color: T.text4, fontSize: 10, margin: '3px 0 0', lineHeight: 1.3 }}>{description}</p>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div style={{ fontSize: 24, flexShrink: 0 }}>{icon}</div>
+        {T.isMobile && (
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+              <span style={{ color: T.text1, fontWeight: 700, fontSize: 13 }}>{name}</span>
+              <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 7px', borderRadius: 20, background: badgeColor.split('|')[0], color: badgeColor.split('|')[1] }}>{badge}</span>
+            </div>
+            <p style={{ color: T.text3, fontSize: 11, margin: 0, lineHeight: 1.4 }}>{model}</p>
+          </div>
+        )}
       </div>
+      {!T.isMobile && (
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
+            <span style={{ color: T.text1, fontWeight: 700, fontSize: 13 }}>{name}</span>
+            <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 7px', borderRadius: 20, background: badgeColor.split('|')[0], color: badgeColor.split('|')[1] }}>{badge}</span>
+          </div>
+          <p style={{ color: T.text3, fontSize: 11, margin: 0, lineHeight: 1.4 }}>{model}</p>
+          <p style={{ color: T.text4, fontSize: 10, margin: '3px 0 0', lineHeight: 1.3 }}>{description}</p>
+        </div>
+      )}
+      {T.isMobile && (
+        <p style={{ color: T.text4, fontSize: 10, margin: '0 0 4px', lineHeight: 1.3 }}>{description}</p>
+      )}
       <button
         onClick={onConfigure}
         style={{
-          flexShrink: 0, fontSize: 11, fontWeight: 600, padding: '5px 12px',
+          flexShrink: 0, alignSelf: T.isMobile ? 'flex-start' : 'center',
+          fontSize: 11, fontWeight: 600, padding: '5px 12px',
           borderRadius: 7, border: `1px solid ${T.border}`,
           background: T.btnSecBg, color: T.text2,
           cursor: 'pointer', transition: 'all 0.15s',
@@ -224,7 +255,7 @@ function StatTile({ icon, label, value, sub, status }: { icon: string; label: st
   const T = useT();
   const statusColor = status === 'ok' ? '#22c55e' : status === 'warn' ? '#f59e0b' : '#60a5fa';
   return (
-    <div style={{ background: T.cardBg, border: `1px solid ${T.border}`, borderRadius: 10, padding: '12px 14px', flex: 1, minWidth: 0 }}>
+    <div style={{ background: T.cardBg, border: `1px solid ${T.border}`, borderRadius: 10, padding: '12px 14px', flex: '1 1 130px', minWidth: T.isMobile ? 'calc(50% - 4px)' : 120 }}>
       <div style={{ fontSize: 18, marginBottom: 6 }}>{icon}</div>
       <div style={{ color: T.text1, fontWeight: 700, fontSize: 18 }}>{value}</div>
       <div style={{ color: T.text3, fontSize: 10, marginTop: 2 }}>{label}</div>
@@ -241,7 +272,7 @@ function QuickAction({ icon, label, sub, onClick, variant = 'default' }: { icon:
     <button
       onClick={onClick}
       style={{
-        flex: 1, minWidth: 120, textAlign: 'left',
+        flex: '1 1 140px', minWidth: T.isMobile ? 'calc(50% - 5px)' : 130, textAlign: 'left',
         background: isDanger ? 'rgba(239,68,68,0.06)' : T.cardBg,
         border: `1px solid ${isDanger ? 'rgba(239,68,68,0.2)' : T.border}`,
         borderRadius: 10, padding: '12px 14px', cursor: 'pointer', transition: 'all 0.15s',
@@ -358,8 +389,6 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
   onSignOut, onDeleteAccount, onClearAllData, onBack, onUpgrade, onOpenOnboarding,
   onSwitchProfile,
 }) => {
-  const T = makeTheme(darkMode);
-
   const [activeSection, setActiveSection] = useState<SettingsSection>('general');
   const { effectiveTier } = useAccountTier();
 
@@ -391,6 +420,8 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
   const isTablet  = screenW >= 640 && screenW < 1280;
   // Right panel only shown at ≥1280 to avoid squeezing content on large phones / small tablets
   const isDesktop = screenW >= 1280;
+  // Combine colour tokens + responsive flags into one context value
+  const T: ST = { ...makeTheme(darkMode), isMobile, isTablet };
 
   // ── Sync timestamp ─────────────────────────────────────────────────────────
   const [syncTimeAgo, setSyncTimeAgo] = useState<string>('—');
