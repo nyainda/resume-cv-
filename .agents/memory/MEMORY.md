@@ -38,6 +38,7 @@
 - [CV preview responsive scaling](cv-preview-responsive-scaling.md) — every new CVPreview surface must use ResizeObserver-driven scale, never a hardcoded scale(0.NN); side-by-side compare views must stack on mobile.
 - [Cloudflare worker deploy drift](cf-worker-deploy-drift.md) — cv-engine-worker source can be "fixed" in-repo but stale live; if a well-documented backend bug recurs, verify D1 directly and redeploy before re-diagnosing.
 - [Cross-account profile leak fix](cross-account-profile-leak.md) — 4-file fix: IDB write-back, IDB restore filter, isNew migration guard, _applySession pass-through.
+- [Design token standard](design-token-standard.md) — canonical surface/button/border/text tokens; dark:bg-zinc-900 on cards = zero contrast vs page; full fix list + anti-patterns.
 - [Fresh import setup](fresh-import-setup.md) — after cloning/importing ProCV, root `npm install` alone fixes both workflows (vite + express missing); no secrets needed for dev.
 - [Drive removal scope](drive-removal-scope.md) — Google Drive fully removed; sessionCookieFromRequest in auth.ts had to be exported for new usage.ts handler; storage/index.ts exports updated.
 - [Usage counters + BYOK D1](usage-counters-byok-d1.md) — migrations 038 (user_usage table) + 039 (byok_enabled column); handler at handlers/usage.ts; syncTierFromServer now implemented; markByok() exported from accountTierService.

@@ -283,7 +283,7 @@ const ShareCVModal: React.FC<ShareCVModalProps> = ({
       onClick={onClose}
     >
       <div
-        className="bg-white dark:bg-zinc-900 rounded-t-3xl sm:rounded-2xl shadow-2xl w-full sm:max-w-md border border-zinc-200/60 dark:border-zinc-700/60 overflow-hidden"
+        className="bg-white dark:bg-neutral-900 rounded-t-3xl sm:rounded-2xl shadow-2xl w-full sm:max-w-md border border-zinc-200/60 dark:border-neutral-700/60 overflow-hidden"
         onClick={e => e.stopPropagation()}
       >
         {/* ── Gradient header ── */}
@@ -514,7 +514,7 @@ const ShareCVModal: React.FC<ShareCVModalProps> = ({
                   ) : (
                     <div className="space-y-2 p-3 bg-zinc-50 dark:bg-zinc-800/60 rounded-xl border border-zinc-200 dark:border-zinc-700">
                       <p className="text-[11px] font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide">Customize your link</p>
-                      <div className="flex items-center gap-1.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg px-2.5 py-1.5 focus-within:ring-2 focus-within:ring-violet-400 transition-shadow">
+                      <div className="flex items-center gap-1.5 bg-zinc-50 dark:bg-neutral-800 border border-zinc-200 dark:border-neutral-700 rounded-lg px-2.5 py-1.5 focus-within:ring-2 focus-within:ring-violet-400 transition-shadow">
                         <span className="text-[11px] text-zinc-400 font-mono whitespace-nowrap select-none">#p=</span>
                         <input
                           type="text"

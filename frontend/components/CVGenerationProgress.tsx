@@ -183,9 +183,9 @@ const CVGenerationProgress: React.FC<Props> = ({
     <div
       className={`
         fixed bottom-5 right-5 z-50 w-72 sm:w-80
-        bg-white dark:bg-zinc-900
+        bg-white dark:bg-neutral-800
         rounded-2xl shadow-2xl shadow-zinc-900/25
-        border border-zinc-200 dark:border-zinc-700
+        border border-zinc-200 dark:border-neutral-700
         overflow-hidden
         animate-in slide-in-from-bottom-4 fade-in duration-300
       `}

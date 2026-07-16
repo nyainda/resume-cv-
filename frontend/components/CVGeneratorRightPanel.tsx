@@ -135,7 +135,7 @@ const CVGeneratorRightPanel: React.FC<Props> = ({
 
       {/* ── AI Optimization Score ─────────────────────────────────── */}
       {cvScore ? (
-        <div className="rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 overflow-hidden">
+        <div className="rounded-2xl border border-zinc-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 overflow-hidden">
           <div className="px-4 pt-4 pb-3">
             <p className="text-[10px] font-black uppercase tracking-widest text-zinc-400 dark:text-zinc-500 mb-3">
               AI Optimization
@@ -194,7 +194,7 @@ const CVGeneratorRightPanel: React.FC<Props> = ({
       ) : null}
 
       {/* ── Quick Actions ─────────────────────────────────────────── */}
-      <div className="rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-4">
+      <div className="rounded-2xl border border-zinc-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 p-4">
         <p className="text-[10px] font-black uppercase tracking-widest text-zinc-400 dark:text-zinc-500 mb-3">
           Quick Actions
         </p>
@@ -214,15 +214,14 @@ const CVGeneratorRightPanel: React.FC<Props> = ({
       </div>
 
       {/* ── Export ────────────────────────────────────────────────── */}
-      <div className="rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-4">
+      <div className="rounded-2xl border border-zinc-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 p-4">
         <p className="text-[10px] font-black uppercase tracking-widest text-zinc-400 dark:text-zinc-500 mb-3">
           Export Your CV
         </p>
         <button
           onClick={onDownload}
           disabled={!hasCV || isEditing || !!downloadStatus}
-          className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-bold disabled:opacity-40 disabled:cursor-not-allowed hover:opacity-90 active:scale-95 transition-all text-white shadow-sm"
-          style={{ background: NAVY }}
+          className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-bold disabled:opacity-40 disabled:cursor-not-allowed hover:opacity-90 active:scale-95 transition-all bg-[#1B2B4B] dark:bg-[#C9A84C] text-white dark:text-[#1B2B4B] shadow-sm"
         >
           <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
             <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>

@@ -75,7 +75,7 @@ const Card: React.FC<{ children: React.ReactNode; className?: string; onClick?: 
 }) => (
   <div
     onClick={onClick}
-    className={`bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-700 shadow-sm ${onClick ? 'cursor-pointer hover:shadow-md transition-shadow' : ''} ${className}`}
+    className={`bg-white dark:bg-neutral-800 rounded-2xl border border-zinc-200 dark:border-neutral-700 shadow-sm ${onClick ? 'cursor-pointer hover:shadow-md transition-shadow' : ''} ${className}`}
   >
     {children}
   </div>
@@ -175,7 +175,7 @@ const TemplateThumbnail: React.FC<{
       </div>
       <div className="w-14 h-1 rounded-full opacity-30" style={{ background: accent }} />
     </div>
-    <div className="px-2 py-1.5 bg-white dark:bg-zinc-900 border-t border-zinc-100 dark:border-zinc-800">
+    <div className="px-2 py-1.5 bg-white dark:bg-neutral-800 border-t border-zinc-100 dark:border-neutral-700">
       <p className="text-[10px] font-semibold text-zinc-600 dark:text-zinc-300 truncate">{name}</p>
     </div>
   </button>
@@ -494,7 +494,7 @@ const DashboardHome: React.FC<Props> = ({
         </div>
         <button
           onClick={onOpenSettings}
-          className="p-2.5 rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:border-zinc-300 dark:hover:border-zinc-600 transition-all shadow-sm flex-shrink-0"
+          className="p-2.5 rounded-xl bg-white dark:bg-neutral-800 border border-zinc-200 dark:border-neutral-700 text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:border-zinc-300 dark:hover:border-neutral-600 transition-all shadow-sm flex-shrink-0"
           title="Settings"
         >
           <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -506,7 +506,7 @@ const DashboardHome: React.FC<Props> = ({
 
       {/* ── RESUME LAST SESSION ───────────────────────────────────────────── */}
       {lastSession && !sessionDismissed && (
-        <div className="flex items-center gap-3 px-4 py-3 mb-4 bg-white dark:bg-zinc-900 rounded-2xl border border-[#C9A84C]/35 dark:border-[#C9A84C]/20 shadow-sm">
+        <div className="flex items-center gap-3 px-4 py-3 mb-4 bg-white dark:bg-neutral-800 rounded-2xl border border-[#C9A84C]/35 dark:border-[#C9A84C]/20 shadow-sm">
           <div className="w-8 h-8 rounded-xl bg-[#C9A84C]/10 flex items-center justify-center flex-shrink-0 text-sm select-none">↩</div>
           <div className="flex-1 min-w-0">
             <p className="text-xs font-bold text-zinc-800 dark:text-zinc-100 leading-tight">Resume last session</p>
@@ -839,8 +839,7 @@ const DashboardHome: React.FC<Props> = ({
               )}
               <button
                 onClick={() => onNavigate('score')}
-                className="w-full py-2 rounded-xl text-[11px] font-bold transition-opacity hover:opacity-90 active:scale-95"
-                style={{ background: NAVY, color: 'white' }}
+                className="w-full py-2 rounded-xl text-[11px] font-bold transition-opacity hover:opacity-90 active:scale-95 bg-[#1B2B4B] dark:bg-[#C9A84C] text-white dark:text-[#1B2B4B]"
               >
                 Run Full Analysis →
               </button>
@@ -944,7 +943,7 @@ const DashboardHome: React.FC<Props> = ({
                     </svg>
                   </div>
                   <p className="text-xs text-zinc-500 dark:text-zinc-400">Add work experience to run an audit</p>
-                  <button onClick={onEditProfile} className="px-3 py-1.5 rounded-xl text-xs font-bold text-white hover:opacity-90 transition-opacity" style={{ background: NAVY }}>
+                  <button onClick={onEditProfile} className="px-3 py-1.5 rounded-xl text-xs font-bold bg-[#1B2B4B] dark:bg-[#C9A84C] text-white dark:text-[#1B2B4B] hover:opacity-90 transition-opacity">
                     Set Up Profile →
                   </button>
                 </div>
@@ -963,8 +962,8 @@ const DashboardHome: React.FC<Props> = ({
                   <p className="text-xs text-zinc-400 dark:text-zinc-500">Instant deterministic analysis — no AI, always accurate</p>
                 </div>
                 <div className="flex flex-wrap gap-1.5">
-                  <span className="inline-flex items-center px-2 py-1 rounded-full text-[10px] font-bold border capitalize"
-                    style={{ background: `${NAVY}10`, borderColor: `${NAVY}20`, color: NAVY }}
+                  <span className="inline-flex items-center px-2 py-1 rounded-full text-[10px] font-bold border capitalize text-[#1B2B4B] dark:text-[#C9A84C]"
+                    style={{ background: `${NAVY}10`, borderColor: `${NAVY}20` }}
                     >
                     {audit.career_stage}
                   </span>

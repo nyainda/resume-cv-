@@ -325,7 +325,7 @@ const InterviewPrep: React.FC<InterviewPrepProps> = ({ userProfile, apiKeySet, o
             </div>
 
             {/* ── Input card ──────────────────────────────────────────── */}
-            <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-zinc-200 dark:border-neutral-800 p-6 space-y-4 shadow-sm">
+            <div className="bg-white dark:bg-neutral-800 rounded-2xl border border-zinc-200 dark:border-neutral-700 p-6 space-y-4 shadow-sm">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                         <label className="block text-sm font-semibold text-zinc-700 dark:text-zinc-300 mb-1.5">
@@ -464,7 +464,7 @@ const InterviewPrep: React.FC<InterviewPrepProps> = ({ userProfile, apiKeySet, o
                         const color = categoryColors[q.category as Category] || categoryColors.Strength;
                         const icon  = categoryIcons[q.category as Category] || '💡';
                         return (
-                            <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-zinc-200 dark:border-neutral-800 overflow-hidden shadow-sm">
+                            <div className="bg-white dark:bg-neutral-800 rounded-2xl border border-zinc-200 dark:border-neutral-700 overflow-hidden shadow-sm">
                                 {/* Progress bar */}
                                 <div className="px-5 pt-4 pb-2">
                                     <div className="flex items-center justify-between mb-2">
@@ -589,7 +589,7 @@ const InterviewPrep: React.FC<InterviewPrepProps> = ({ userProfile, apiKeySet, o
                             const icon  = categoryIcons[q.category as Category] || '💡';
                             return (
                                 <div key={globalIdx}
-                                     className="bg-white dark:bg-neutral-900 rounded-2xl border border-zinc-200 dark:border-neutral-800 overflow-hidden shadow-sm">
+                                     className="bg-white dark:bg-neutral-800 rounded-2xl border border-zinc-200 dark:border-neutral-700 overflow-hidden shadow-sm">
                                     <div className="p-5">
                                         <div className="flex items-start gap-3 mb-3">
                                             <span className={`flex-shrink-0 text-xs font-bold px-2.5 py-1 rounded-full border ${color} flex items-center gap-1`}>
@@ -726,7 +726,7 @@ const InterviewPrep: React.FC<InterviewPrepProps> = ({ userProfile, apiKeySet, o
 
                     {/* ── Practice Summary ─────────────────────────── */}
                     {ratedCount > 0 && (
-                        <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-zinc-200 dark:border-neutral-800 overflow-hidden shadow-sm">
+                        <div className="bg-white dark:bg-neutral-800 rounded-2xl border border-zinc-200 dark:border-neutral-700 overflow-hidden shadow-sm">
                             {/* Header */}
                             <div className="px-5 py-4 border-b border-zinc-100 dark:border-neutral-800"
                                  style={{ background: NAV + '08' }}>
@@ -852,7 +852,7 @@ const InterviewPrep: React.FC<InterviewPrepProps> = ({ userProfile, apiKeySet, o
                     </div>
 
                     {/* ── Thank-You Letter ─────────────────────────────── */}
-                    <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-zinc-200 dark:border-neutral-800 overflow-hidden shadow-sm">
+                    <div className="bg-white dark:bg-neutral-800 rounded-2xl border border-zinc-200 dark:border-neutral-700 overflow-hidden shadow-sm">
                         <button
                             onClick={() => setShowThankYou(v => !v)}
                             className="w-full flex items-center justify-between px-5 py-4 hover:bg-zinc-50 dark:hover:bg-neutral-800/60 transition-colors"
