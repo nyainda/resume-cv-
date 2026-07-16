@@ -112,7 +112,17 @@ class AppErrorBoundary extends React.Component<{ children: React.ReactNode }, EB
               A newer version is available. Your saved CVs are safe — they're stored in your browser.
             </p>
             <button
-              onClick={() => window.location.reload()}
+              onClick={() => {
+                // Clear both stuck flags so the reload lands on a clean state:
+                //   1. chunkReloadAttempted — the guard that prevents the
+                //      auto-recovery from firing more than once per session.
+                //   2. procv:lastView — if the view that triggered the crash
+                //      (e.g. 'share-profile') is stored in sessionStorage, every
+                //      reload restores it and re-triggers the same failure.
+                try { sessionStorage.removeItem('procv:chunkReloadAttempted'); } catch { /* non-fatal */ }
+                try { sessionStorage.removeItem('procv:lastView'); } catch { /* non-fatal */ }
+                window.location.reload();
+              }}
               style={{
                 background: '#1B2B4B', color: '#fff', border: 'none',
                 borderRadius: 8, padding: '10px 24px', fontSize: 15,
