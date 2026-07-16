@@ -4,7 +4,7 @@
 
 set -e
 
-BASE_ORIGINS="https://resume-cv-gold.vercel.app,https://834955d1-1e37-4e3f-869f-5ee38d5d7b9c-00-7yu8z6k9iyvv.spock.replit.dev,https://404d5348-5ab4-4320-abe1-1e7e2111307a-00-2msd3az7h5qjm.spock.replit.dev"
+BASE_ORIGINS="https://resume-cv-gold.vercel.app,https://834955d1-1e37-4e3f-869f-5ee38d5d7b9c-00-7yu8z6k9iyvv.spock.replit.dev,https://404d5348-5ab4-4320-abe1-1e7e2111307a-00-2msd3az7h5qjm.spock.replit.dev,https://9918f7d1-d24c-4210-b3ab-7a4f39a081e6-00-24oda09bv0yw8.riker.replit.dev"
 
 if [ -n "$REPLIT_DEV_DOMAIN" ]; then
   ORIGINS="${BASE_ORIGINS},https://${REPLIT_DEV_DOMAIN}"

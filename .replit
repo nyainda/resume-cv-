@@ -58,7 +58,7 @@ externalPort = 80
 
 [userenv.shared]
 VITE_PDF_WORKER_URL = ""
-VITE_CV_ENGINE_URL = "/cf-engine"
+VITE_CV_ENGINE_URL = "https://cv-engine-worker.dripstech.workers.dev"
 PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD = "1"
 VITE_GOOGLE_CLIENT_ID = "416398275935-vgsbibc9o6mbpufgfaptoj9jntbet2mj.apps.googleusercontent.com"
 
