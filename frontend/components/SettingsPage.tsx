@@ -332,6 +332,17 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
   const [confirmText, setConfirmText] = useState('');
   const [saved, setSaved] = useState(false);
 
+  // ── Responsive breakpoints ────────────────────────────────────────────────
+  const [screenW, setScreenW] = useState(() => typeof window !== 'undefined' ? window.innerWidth : 1280);
+  useEffect(() => {
+    const onResize = () => setScreenW(window.innerWidth);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+  const isMobile  = screenW < 640;
+  const isTablet  = screenW >= 640 && screenW < 1024;
+  const isDesktop = screenW >= 1024;
+
   // ── Sync timestamp ────────────────────────────────────────────────────────
   const [syncTimeAgo, setSyncTimeAgo] = useState<string>('—');
   useEffect(() => {
@@ -1063,6 +1074,109 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
     'advanced': renderAdvanced,
   };
 
+  // ── Right-panel content (reused in desktop sidebar + mobile bottom) ────────
+  const renderRightPanel = () => (
+    <>
+      {/* Your Account */}
+      <div style={{ marginBottom: 16 }}>
+        <p style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'rgba(255,255,255,0.3)', margin: '0 0 10px' }}>Your Account</p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {user?.picture ? (
+            <img src={user.picture} alt="" referrerPolicy="no-referrer" style={{ width: 44, height: 44, borderRadius: '50%', border: `2px solid ${GOLD}50`, flexShrink: 0 }} />
+          ) : (
+            <div style={{ width: 44, height: 44, borderRadius: '50%', background: NAVY, border: `2px solid ${GOLD}50`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 900, color: GOLD, flexShrink: 0 }}>
+              {initials}
+            </div>
+          )}
+          <div style={{ minWidth: 0 }}>
+            <p style={{ color: '#fff', fontWeight: 700, fontSize: 13, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{displayName}</p>
+            <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 10, margin: '2px 0' }}>{user?.email || ''}</p>
+            <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: tierBadge.bg, color: tierBadge.color }}>
+              {tierBadge.label} {isPremium ? '👑' : ''}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div style={{ borderTop: `1px solid ${DARK_BORDER}`, paddingTop: 14, marginBottom: 14 }}>
+        <p style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'rgba(255,255,255,0.3)', margin: '0 0 8px' }}>Active AI Provider</p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(255,255,255,0.04)', border: `1px solid ${DARK_BORDER}`, borderRadius: 8, padding: '8px 10px' }}>
+          <span style={{ fontSize: 18 }}>{providerIcon}</span>
+          <div>
+            <p style={{ color: '#fff', fontWeight: 600, fontSize: 12, margin: 0 }}>{providerLabel}</p>
+            <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: 10, margin: '1px 0 0' }}>
+              {selectedProvider === 'workers-ai' ? 'Llama 70B + DeepSeek R1' :
+               selectedProvider === 'claude' ? claudeModelState :
+               selectedProvider === 'gemini' ? geminiModelState : groqModelState}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Profile Slots */}
+      {profiles.length > 0 && (
+        <div style={{ borderTop: `1px solid ${DARK_BORDER}`, paddingTop: 14, marginBottom: 14 }}>
+          <p style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'rgba(255,255,255,0.3)', margin: '0 0 8px' }}>Profile Slots</p>
+          {profiles.slice(0, 3).map(slot => (
+            <div key={slot.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 0', borderBottom: `1px solid rgba(255,255,255,0.04)` }}>
+              <div style={{ width: 8, height: 8, borderRadius: '50%', background: (slot as any).color || GOLD, flexShrink: 0 }} />
+              <p style={{ color: activeSlot?.id === slot.id ? '#fff' : 'rgba(255,255,255,0.55)', fontSize: 11, fontWeight: activeSlot?.id === slot.id ? 700 : 400, margin: 0, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{slot.name}</p>
+              {activeSlot?.id === slot.id && <span style={{ fontSize: 9, fontWeight: 700, padding: '1px 6px', borderRadius: 20, background: `${GOLD}20`, color: GOLD }}>Active</span>}
+            </div>
+          ))}
+          {profiles.length > 3 && <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: 10, marginTop: 5 }}>+{profiles.length - 3} more slots</p>}
+        </div>
+      )}
+
+      {/* Storage status */}
+      <div style={{ borderTop: `1px solid ${DARK_BORDER}`, paddingTop: 14, marginBottom: 14 }}>
+        <p style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'rgba(255,255,255,0.3)', margin: '0 0 8px' }}>Storage & Backup</p>
+        {[
+          { icon: '🗄️', label: 'CF D1', sub: syncTimeAgo, status: 'D1 Synced', ok: !d1SyncPending },
+          { icon: '💾', label: 'Auto-save', sub: 'localStorage', status: 'On', ok: true },
+          { icon: '📡', label: 'Device Sync', sub: 'cross-device', status: 'Active', ok: true },
+        ].map(row => (
+          <div key={row.label} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 0', borderBottom: `1px solid rgba(255,255,255,0.04)` }}>
+            <span style={{ fontSize: 14, flexShrink: 0 }}>{row.icon}</span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 11, fontWeight: 600, margin: 0 }}>{row.label}</p>
+              <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: 9, margin: '1px 0 0' }}>{row.sub}</p>
+            </div>
+            <span style={{ fontSize: 9, fontWeight: 700, color: row.ok ? '#22c55e' : '#fbbf24', whiteSpace: 'nowrap' }}>{row.status}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* Mini plan comparison */}
+      {!isPremium && (
+        <div style={{ borderTop: `1px solid ${DARK_BORDER}`, paddingTop: 14 }}>
+          <p style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'rgba(255,255,255,0.3)', margin: '0 0 10px' }}>Choose Your Power</p>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 0, borderRadius: 8, overflow: 'hidden', border: `1px solid ${DARK_BORDER}` }}>
+            {[
+              { label: 'Free', active: isFree },
+              { label: 'BYOK', active: isByok },
+              { label: 'Premium', active: isPremium, highlight: true },
+            ].map(col => (
+              <div key={col.label} style={{ background: col.highlight ? `${GOLD}15` : 'rgba(255,255,255,0.03)', padding: '8px 4px', textAlign: 'center', borderRight: `1px solid ${DARK_BORDER}` }}>
+                <p style={{ fontSize: 10, fontWeight: 800, color: col.highlight ? GOLD : col.active ? '#fff' : 'rgba(255,255,255,0.4)', margin: '0 0 6px' }}>{col.label}</p>
+                {[
+                  col.label === 'Free' ? '3 CVs' : 'Unlimited',
+                  col.label === 'Free' ? '2 PDFs' : col.label === 'BYOK' ? 'PDF (WM)' : 'Clean PDF',
+                  col.label === 'Free' ? '1 slot' : col.label === 'BYOK' ? '3 slots' : '5 slots',
+                ].map((v, i) => (
+                  <p key={i} style={{ fontSize: 9, color: col.highlight ? `${GOLD}cc` : 'rgba(255,255,255,0.35)', margin: '2px 0' }}>{v}</p>
+                ))}
+              </div>
+            ))}
+          </div>
+          <button onClick={onUpgrade} style={{ width: '100%', marginTop: 10, padding: '8px', borderRadius: 8, fontSize: 11, fontWeight: 700, background: GOLD, color: NAVY, cursor: 'pointer', border: 'none' }}>
+            View full comparison →
+          </button>
+        </div>
+      )}
+    </>
+  );
+
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div style={{
@@ -1071,28 +1185,57 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
       fontFamily: 'ui-sans-serif, system-ui, sans-serif',
       color: '#fff',
     }}>
+
       {/* ── Page header ── */}
-      <div style={{ padding: '20px 28px 16px', borderBottom: `1px solid ${DARK_BORDER}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div>
+      <div style={{
+        padding: isMobile ? '14px 16px 12px' : '20px 28px 16px',
+        borderBottom: `1px solid ${DARK_BORDER}`,
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
+      }}>
+        <div style={{ minWidth: 0, flex: 1 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <button onClick={onBack} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.4)', padding: 0, display: 'flex', alignItems: 'center' }}>
+            <button onClick={onBack} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.4)', padding: 0, display: 'flex', alignItems: 'center', flexShrink: 0 }}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
             </button>
-            <h1 style={{ margin: 0, fontSize: 22, fontWeight: 900, letterSpacing: '-0.02em' }}>Settings</h1>
+            <h1 style={{ margin: 0, fontSize: isMobile ? 18 : 22, fontWeight: 900, letterSpacing: '-0.02em', whiteSpace: 'nowrap' }}>Settings</h1>
           </div>
-          <p style={{ margin: '2px 0 0 24px', fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>Manage your preferences, AI providers, security and account settings.</p>
+          {!isMobile && (
+            <p style={{ margin: '2px 0 0 24px', fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>
+              Manage your preferences, AI providers, security and account settings.
+            </p>
+          )}
         </div>
         {/* All systems indicator */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: '#22c55e', fontWeight: 600 }}>
-          <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#22c55e', display: 'inline-block' }} />
-          All systems operational
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: '#22c55e', fontWeight: 600, flexShrink: 0 }}>
+          <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#22c55e', display: 'inline-block', flexShrink: 0 }} />
+          {!isMobile && 'All systems operational'}
         </div>
       </div>
 
-      <div style={{ display: 'flex', gap: 0 }}>
-        {/* ── Left settings nav ── */}
-        <div style={{ width: 200, flexShrink: 0, padding: '16px 0', borderRight: `1px solid ${DARK_BORDER}`, minHeight: 'calc(100vh - 80px)' }}>
-          <p style={{ padding: '0 16px 6px', fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'rgba(255,255,255,0.3)', margin: 0 }}>SETTINGS</p>
+      {/* ── Mobile: compact account strip ── */}
+      {isMobile && (
+        <div style={{ padding: '10px 16px', borderBottom: `1px solid ${DARK_BORDER}`, display: 'flex', alignItems: 'center', gap: 10 }}>
+          {user?.picture ? (
+            <img src={user.picture} alt="" referrerPolicy="no-referrer" style={{ width: 30, height: 30, borderRadius: '50%', border: `2px solid ${GOLD}50`, flexShrink: 0 }} />
+          ) : (
+            <div style={{ width: 30, height: 30, borderRadius: '50%', background: NAVY, border: `2px solid ${GOLD}50`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 900, color: GOLD, flexShrink: 0 }}>
+              {initials}
+            </div>
+          )}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p style={{ color: '#fff', fontWeight: 700, fontSize: 12, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{displayName}</p>
+            <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 10, margin: 0 }}>{user?.email || ''}</p>
+          </div>
+          <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: tierBadge.bg, color: tierBadge.color, flexShrink: 0 }}>
+            {tierBadge.label}
+          </span>
+          <span style={{ fontSize: 11, flexShrink: 0 }}>{providerIcon}</span>
+        </div>
+      )}
+
+      {/* ── Mobile: horizontal scrollable tab bar ── */}
+      {isMobile && (
+        <div style={{ display: 'flex', overflowX: 'auto', borderBottom: `1px solid ${DARK_BORDER}`, WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none', gap: 0 }}>
           {NAV_SECTIONS.map(section => {
             const active = activeSection === section.id;
             return (
@@ -1100,28 +1243,80 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
                 key={section.id}
                 onClick={() => setActiveSection(section.id)}
                 style={{
-                  width: '100%', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 9,
-                  padding: '8px 16px', background: active ? `${GOLD}10` : 'transparent',
-                  border: 'none', borderLeft: `2px solid ${active ? GOLD : 'transparent'}`,
-                  cursor: 'pointer', transition: 'all 0.15s', color: active ? GOLD : 'rgba(255,255,255,0.55)',
-                  fontSize: 12, fontWeight: active ? 700 : 500,
+                  flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+                  padding: '10px 14px', border: 'none', background: 'transparent', cursor: 'pointer',
+                  borderBottom: `2px solid ${active ? GOLD : 'transparent'}`, transition: 'all 0.15s',
+                  color: active ? GOLD : 'rgba(255,255,255,0.45)',
                 }}
-                onMouseEnter={e => { if (!active) { e.currentTarget.style.color = 'rgba(255,255,255,0.85)'; e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; } }}
-                onMouseLeave={e => { if (!active) { e.currentTarget.style.color = 'rgba(255,255,255,0.55)'; e.currentTarget.style.background = 'transparent'; } }}
               >
-                <span style={{ flexShrink: 0 }}>{section.icon}</span>
-                {section.label}
+                <span style={{ fontSize: 16 }}>{section.icon}</span>
+                <span style={{ fontSize: 9, fontWeight: active ? 700 : 500, whiteSpace: 'nowrap' }}>
+                  {section.label.replace('AI Providers', 'AI').replace('Profile & Sharing', 'Profile').replace('Storage & Backup', 'Storage').replace('Notifications', 'Alerts').replace('Appearance', 'Theme')}
+                </span>
               </button>
             );
           })}
         </div>
+      )}
+
+      {/* ── Main body (tablet/desktop: sidebar + content; mobile: full width) ── */}
+      <div style={{ display: 'flex', gap: 0, minHeight: isMobile ? undefined : 'calc(100vh - 80px)' }}>
+
+        {/* ── Left settings nav (tablet + desktop only) ── */}
+        {!isMobile && (
+          <div style={{
+            width: isTablet ? 180 : 200,
+            flexShrink: 0,
+            padding: '16px 0',
+            borderRight: `1px solid ${DARK_BORDER}`,
+            minHeight: 'calc(100vh - 80px)',
+          }}>
+            {!isTablet && (
+              <p style={{ padding: '0 16px 6px', fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'rgba(255,255,255,0.3)', margin: 0 }}>SETTINGS</p>
+            )}
+            {NAV_SECTIONS.map(section => {
+              const active = activeSection === section.id;
+              return (
+                <button
+                  key={section.id}
+                  onClick={() => setActiveSection(section.id)}
+                  style={{
+                    width: '100%', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 9,
+                    padding: isTablet ? '9px 14px' : '8px 16px',
+                    background: active ? `${GOLD}10` : 'transparent',
+                    border: 'none', borderLeft: `2px solid ${active ? GOLD : 'transparent'}`,
+                    cursor: 'pointer', transition: 'all 0.15s', color: active ? GOLD : 'rgba(255,255,255,0.55)',
+                    fontSize: 12, fontWeight: active ? 700 : 500,
+                  }}
+                  onMouseEnter={e => { if (!active) { e.currentTarget.style.color = 'rgba(255,255,255,0.85)'; e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; } }}
+                  onMouseLeave={e => { if (!active) { e.currentTarget.style.color = 'rgba(255,255,255,0.55)'; e.currentTarget.style.background = 'transparent'; } }}
+                >
+                  <span style={{ flexShrink: 0 }}>{section.icon}</span>
+                  {section.label}
+                </button>
+              );
+            })}
+          </div>
+        )}
 
         {/* ── Main content ── */}
-        <div style={{ flex: 1, padding: '20px 24px', overflowY: 'auto', minWidth: 0 }}>
+        <div style={{
+          flex: 1,
+          padding: isMobile ? '16px 14px' : isTablet ? '20px 20px' : '20px 24px',
+          overflowY: 'auto', minWidth: 0,
+        }}>
           {sectionContent[activeSection]?.()}
+
+          {/* Mobile: render account panel below content */}
+          {isMobile && (
+            <div style={{ marginTop: 24, paddingTop: 20, borderTop: `1px solid ${DARK_BORDER}` }}>
+              {renderRightPanel()}
+            </div>
+          )}
         </div>
 
-        {/* ── Right account panel ── */}
+        {/* ── Right account panel (desktop only) ── */}
+        {isDesktop && (
         <div style={{ width: 270, flexShrink: 0, borderLeft: `1px solid ${DARK_BORDER}`, padding: '20px 16px', overflowY: 'auto' }}>
 
           {/* Your Account */}
@@ -1236,6 +1431,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
             </div>
           )}
         </div>
+        )}
       </div>
     </div>
   );
