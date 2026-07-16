@@ -1719,7 +1719,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
   ];
 
   return (
-    <div className="space-y-8">
+    <div>
 
       {/* ── Free-tier BYOK prompt ─────────────────────────────────────────── */}
       {showByokPrompt && (
@@ -1884,6 +1884,12 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
         </div>
       </div>
 
+      {/* ══ 2-column layout — LEFT: form input | RIGHT: live preview ══════ */}
+      <div className="flex flex-col xl:flex-row xl:gap-6 xl:items-start mt-6">
+
+        {/* ── LEFT column: all form input sections ───────────────────────── */}
+        <div className="flex-1 min-w-0 space-y-4">
+
       {/* ── CV Toolkit Suggestions Banner ── */}
       {toolkitSuggestions && (
         <div className="bg-gradient-to-br from-violet-50 to-[#F8F7F4] dark:from-violet-900/20 dark:to-[#1B2B4B]/10 border border-violet-300 dark:border-violet-700 rounded-2xl p-5 flex flex-col sm:flex-row items-start gap-4">
@@ -1926,14 +1932,18 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
       />
 
       {/* === STEP 1: Purpose Selector === */}
-      <div className="bg-white dark:bg-neutral-800/50 p-6 sm:p-8 rounded-xl shadow-sm border border-zinc-200 dark:border-neutral-800">
-        <div className="space-y-2 mb-6">
-          <Label className="text-2xl font-bold">CV Customization</Label>
-          <p className="text-sm text-zinc-500 dark:text-zinc-400">Choose what type of CV you need, then configure below.</p>
+      <div className="bg-white dark:bg-neutral-800/50 p-5 sm:p-6 rounded-2xl shadow-sm border border-zinc-200 dark:border-neutral-800">
+        {/* ── Section 1: Purpose ────────────────────────────────────────── */}
+        <div className="flex items-center gap-2.5 mb-4">
+          <span className="w-6 h-6 rounded-full bg-[#1B2B4B] dark:bg-[#C9A84C] text-white dark:text-[#1B2B4B] text-[10px] font-black flex items-center justify-center flex-shrink-0">1</span>
+          <div>
+            <h3 className="text-sm font-bold text-zinc-800 dark:text-zinc-100">What are you creating this CV for?</h3>
+            <p className="text-[10px] text-zinc-400 dark:text-zinc-500 mt-0.5">Job application, general use, or academic programme</p>
+          </div>
         </div>
 
         {/* Purpose selector cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
           {(Object.entries(purposeConfig) as [CVPurpose, typeof purposeConfig[CVPurpose]][]).map(([key, cfg]) => {
             const isSelected = cvPurpose === key;
             const colorCls = {
@@ -2010,10 +2020,15 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
         {/* === JD / Grant Description Input === */}
         {cvPurpose !== 'general' && (
           <div>
-            <div className="flex items-baseline justify-between mb-2">
-              <Label className="text-xl font-semibold">
-                {cvPurpose === 'job' ? 'Job Description' : 'Grant / Scholarship Description'}
-              </Label>
+            {/* ── Section 2: Add your information ── */}
+            <div className="flex items-center justify-between mb-3 mt-5 pt-5 border-t border-zinc-100 dark:border-zinc-800">
+              <div className="flex items-center gap-2.5">
+                <span className="w-6 h-6 rounded-full bg-[#1B2B4B] dark:bg-[#C9A84C] text-white dark:text-[#1B2B4B] text-[10px] font-black flex items-center justify-center flex-shrink-0">2</span>
+                <div>
+                  <h3 className="text-sm font-bold text-zinc-800 dark:text-zinc-100">{cvPurpose === 'job' ? 'Job Description' : 'Grant / Scholarship Description'}</h3>
+                  <p className="text-[10px] text-zinc-400 dark:text-zinc-500">Paste for targeted, keyword-optimised generation</p>
+                </div>
+              </div>
               <div className="flex items-center gap-2">
                 {jdOptional && (
                   <span className="text-xs text-zinc-400 dark:text-zinc-500 italic">Optional — leave blank for a general academic CV</span>
@@ -2185,10 +2200,14 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
 
         {/* === GENERATION MODE SELECTOR (Job mode only) === */}
         {cvPurpose === 'job' && (
-          <div className="mt-8">
-            <div className="mb-4">
-              <Label className="text-base font-semibold block">Writing Style</Label>
-              <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">Choose how your CV is written. Your facts never change.</p>
+          <div className="mt-5 pt-5 border-t border-zinc-100 dark:border-zinc-800">
+            {/* ── Section 3: Writing Mode ── */}
+            <div className="flex items-center gap-2.5 mb-4">
+              <span className="w-6 h-6 rounded-full bg-[#1B2B4B] dark:bg-[#C9A84C] text-white dark:text-[#1B2B4B] text-[10px] font-black flex items-center justify-center flex-shrink-0">3</span>
+              <div>
+                <h3 className="text-sm font-bold text-zinc-800 dark:text-zinc-100">Writing Mode</h3>
+                <p className="text-[10px] text-zinc-400 dark:text-zinc-500">How your CV is written — your facts never change</p>
+              </div>
             </div>
             <div className="space-y-2.5">
               {cvGenerationModes.map((mode) => {
@@ -2286,11 +2305,12 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
           </div>
         )}
 
-        {/* Language selector */}
-        <div className="mt-6 mb-4">
+        {/* Section 4: Language selector */}
+        <div className="mt-5 pt-5 border-t border-zinc-100 dark:border-zinc-800 mb-2">
           <div className="flex flex-wrap items-center gap-3">
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">CV Language</span>
+            <div className="flex items-center gap-2.5">
+              <span className="w-6 h-6 rounded-full bg-[#1B2B4B] dark:bg-[#C9A84C] text-white dark:text-[#1B2B4B] text-[10px] font-black flex items-center justify-center flex-shrink-0">4</span>
+              <span className="text-xs font-bold text-zinc-600 dark:text-zinc-300">Language</span>
               <select
                 value={targetLanguage}
                 onChange={e => setTargetLanguage(e.target.value)}
@@ -2309,8 +2329,18 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
           </div>
         </div>
 
+        {/* ── Section 5: Generate ────────────────────────────────────────── */}
+        <div className="mt-5 pt-5 border-t border-zinc-100 dark:border-zinc-800">
+          <div className="flex items-center gap-2.5 mb-4">
+            <span className="w-6 h-6 rounded-full bg-[#C9A84C] text-[#1B2B4B] text-[10px] font-black flex items-center justify-center flex-shrink-0">5</span>
+            <div>
+              <h3 className="text-sm font-bold text-zinc-800 dark:text-zinc-100">Generate Your CV</h3>
+              <p className="text-[10px] text-zinc-400 dark:text-zinc-500">AI-powered · 7-pass quality engine · ~30 seconds</p>
+            </div>
+          </div>
+        </div>
         {/* ── Action zone ── */}
-        <div className="mt-6 rounded-2xl border border-[#1B2B4B]/10 dark:border-[#C9A84C]/20 bg-gradient-to-br from-[#1B2B4B]/4 via-transparent to-[#C9A84C]/4 dark:from-[#1B2B4B]/20 dark:via-transparent dark:to-[#C9A84C]/10 p-5 sm:p-6">
+        <div className="rounded-2xl border border-[#1B2B4B]/10 dark:border-[#C9A84C]/20 bg-gradient-to-br from-[#1B2B4B]/4 via-transparent to-[#C9A84C]/4 dark:from-[#1B2B4B]/20 dark:via-transparent dark:to-[#C9A84C]/10 p-5 sm:p-6">
           <div className="flex flex-col items-center gap-3">
             {/* Primary CTA */}
             <Button
@@ -2463,22 +2493,45 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
         )}
       </div>
 
+        </div>{/* ── end LEFT column ─────────────────────────────────────── */}
+
+        {/* ── RIGHT column: template picker + live CV preview ─────────── */}
+        <div className="w-full xl:w-[500px] flex-shrink-0 xl:sticky xl:top-[72px] xl:max-h-[calc(100vh-88px)] xl:overflow-y-auto space-y-4">
+
+          {/* Placeholder: shown before first CV generation (desktop only) */}
+          {!currentCV && !(isLoading && draftCV) && (
+            <div className="hidden xl:flex flex-col rounded-2xl border-2 border-dashed border-zinc-200 dark:border-zinc-700 items-center justify-center py-24 text-center gap-4 bg-white dark:bg-zinc-900/30">
+              <div className="w-14 h-[82px] rounded-xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center flex-shrink-0 shadow-sm">
+                <svg className="w-7 h-7 text-zinc-300 dark:text-zinc-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+                  <polyline points="14 2 14 8 20 8"/>
+                  <line x1="16" y1="13" x2="8" y2="13"/>
+                  <line x1="16" y1="17" x2="8" y2="17"/>
+                </svg>
+              </div>
+              <div className="space-y-1.5">
+                <p className="text-sm font-semibold text-zinc-400 dark:text-zinc-500">Your CV preview appears here</p>
+                <p className="text-xs text-zinc-300 dark:text-zinc-600 max-w-[180px] mx-auto leading-relaxed">Fill in the form and click Generate →</p>
+              </div>
+            </div>
+          )}
+
       {(currentCV || (isLoading && draftCV)) && (
-        <div className="bg-white dark:bg-neutral-800/50 p-4 sm:p-8 rounded-xl shadow-sm border border-zinc-200 dark:border-neutral-800">
+        <div className="bg-white dark:bg-neutral-800/50 p-4 rounded-2xl shadow-sm border border-zinc-200 dark:border-neutral-800">
           {/* Streaming draft banner — visible while polishing runs in background */}
           {isLoading && draftCV && !currentCV && (
-            <div className="mb-4 flex items-center gap-2.5 px-4 py-2.5 rounded-xl bg-violet-50 dark:bg-violet-950/40 border border-violet-200 dark:border-violet-800 animate-in fade-in duration-500">
+            <div className="mb-3 flex items-center gap-2.5 px-3 py-2 rounded-xl bg-violet-50 dark:bg-violet-950/40 border border-violet-200 dark:border-violet-800 animate-in fade-in duration-500">
               <span className="flex-shrink-0 w-1.5 h-1.5 rounded-full bg-violet-500 animate-ping" />
               <span className="flex-shrink-0 w-1.5 h-1.5 rounded-full bg-violet-500 -ml-3.5" />
               <span className="text-xs font-semibold text-violet-700 dark:text-violet-300">
-                Drafting in progress — polishing in background. Final version will appear automatically.
+                Drafting in progress — polishing in background…
               </span>
             </div>
           )}
-          <div className="flex flex-wrap items-start justify-between mb-6 gap-6">
+          <div className="flex items-center justify-between mb-4 gap-2">
             <div>
-              <h2 className="text-2xl font-bold">CV Preview</h2>
-              <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">Select a template, pick a font pairing, and make final edits.</p>
+              <h3 className="text-base font-bold text-zinc-800 dark:text-zinc-100">CV Preview</h3>
+              <p className="text-[10px] text-zinc-400 dark:text-zinc-500 mt-0.5">Template · Edit · Download</p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <Button variant="secondary" onClick={() => setIsEditing(!isEditing)} size="sm">
@@ -3262,6 +3315,9 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
           </div>
         </div>
       )}
+
+        </div>{/* ── end RIGHT column ─────────────────────────────────── */}
+      </div>{/* ── end 2-column layout ──────────────────────────────────── */}
 
       {coverLetterError && <p className="text-red-500 text-sm mt-2 p-4 bg-red-50 dark:bg-red-900/20 rounded-lg">{coverLetterError}</p>}
       {(streamingLetter || coverLetter) && (

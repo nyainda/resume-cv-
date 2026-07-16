@@ -1,3 +1,4 @@
+- [CV Generator 2-col redesign](cv-generator-2col.md) — LEFT: form card (sections 1–5 numbered, divide-y style), RIGHT: sticky 500px preview panel; placeholder before generation; cover letter/export stay full-width below.
 - [Sidebar redesign](sidebar-redesign.md) — AppSidebar replaces AppNavbar; flex layout in App.tsx; same props interface, zero logic changes.
 - [Template system audit outcomes](template-system-audit.md) — Phase 1+3+4 done; Phase 2 (cluster consolidation) done (gallery only); skillsFirst flag added to V2 engine.
 - [Template governance rules](template-governance.md) — root cause of duplicate templates + standing rules now in CLAUDE.md; completeness test guards against recurrence.
