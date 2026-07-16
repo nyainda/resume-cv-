@@ -409,18 +409,23 @@ const AppInner: React.FC = () => {
   const [sharedCVId, setSharedCVId] = useState<string | null>(null);
   // Public profile page — separate from the CV share view (#p= route)
   const [publicProfilePayload, setPublicProfilePayload] = useState<SharedCVPayload | null>(null);
+  // Set to true when a #p= link is valid but the profile can't be fetched
+  const [publicProfileNotFound, setPublicProfileNotFound] = useState(false);
   // True while an async #s= / #p= fetch is in-flight — prevents the main app
   // from rendering underneath the share view before the payload arrives.
   const [isLoadingShareLink, setIsLoadingShareLink] = useState<boolean>(() => {
     const h = window.location.hash;
     return h.startsWith("#s=") || h.startsWith("#p=");
   });
-  useEffect(() => {
-    const hash = window.location.hash;
+
+  // Extracted so it can be called both on mount AND on hashchange (same-tab navigation).
+  const processHashRef = useRef<((hash: string) => void) | null>(null);
+  processHashRef.current = (hash: string) => {
     if (hash.startsWith("#s=")) {
       const id = hash.slice("#s=".length);
       if (id) {
         setSharedCVId(id);
+        setIsLoadingShareLink(true);
         fetchSharePayload(id).then(compressed => {
           if (compressed) {
             const payload = decodeSharePayload(compressed);
@@ -430,21 +435,23 @@ const AppInner: React.FC = () => {
             }
           }
         }).finally(() => setIsLoadingShareLink(false));
-      } else {
-        setIsLoadingShareLink(false);
       }
     } else if (hash.startsWith("#p=")) {
       const slugOrId = hash.slice("#p=".length);
       if (slugOrId) {
+        setIsLoadingShareLink(true);
+        setPublicProfileNotFound(false);
         fetchPublicProfile(slugOrId).then(payload => {
-          // Show the rich PublicProfilePage instead of the CV-document view
           if (payload) {
             setPublicProfilePayload(payload);
             setShowLanding(false);
+            setPublicProfileNotFound(false);
+          } else {
+            // Profile not found or worker down — show a clear error instead of
+            // silently falling through to the main app / profile-creation form.
+            setPublicProfileNotFound(true);
           }
         }).finally(() => setIsLoadingShareLink(false));
-      } else {
-        setIsLoadingShareLink(false);
       }
     } else if (hash.startsWith("#share=")) {
       const encoded = hash.slice("#share=".length);
@@ -492,6 +499,29 @@ const AppInner: React.FC = () => {
         })
         .catch(() => {});
     }
+  };
+
+  useEffect(() => {
+    // Process the hash on initial mount
+    processHashRef.current?.(window.location.hash);
+
+    // Also re-process whenever the hash changes while the app is already open.
+    // Without this, clicking a #p= or #s= link from within the Share page
+    // (same-tab hash navigation) would change the URL but never load the profile
+    // because the effect with [] deps only runs once.
+    const onHashChange = () => {
+      const hash = window.location.hash;
+      if (hash.startsWith("#s=") || hash.startsWith("#p=") || hash.startsWith("#share=")) {
+        // Clear any previously shown profile/share so the loading state takes over
+        setSharedCVPayload(null);
+        setSharedCVId(null);
+        setPublicProfilePayload(null);
+        setPublicProfileNotFound(false);
+        processHashRef.current?.(hash);
+      }
+    };
+    window.addEventListener("hashchange", onHashChange);
+    return () => window.removeEventListener("hashchange", onHashChange);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -741,10 +771,40 @@ const AppInner: React.FC = () => {
         }}
         onDismiss={() => {
           setPublicProfilePayload(null);
+          setPublicProfileNotFound(false);
           window.history.replaceState(null, "", window.location.pathname + window.location.search);
         }}
       />
       </Suspense>
+    );
+  }
+
+  // Profile link was valid (#p=…) but the worker returned 404 / error
+  if (publicProfileNotFound) {
+    return (
+      <div className="fixed inset-0 flex flex-col items-center justify-center bg-gradient-to-b from-zinc-100 to-[#eeece5] dark:from-neutral-950 dark:to-neutral-950 px-4">
+        <div className="flex flex-col items-center gap-5 text-center max-w-sm">
+          <div className="w-14 h-14 rounded-2xl bg-[#1B2B4B] flex items-center justify-center shadow-lg">
+            <span className="text-white font-black text-base">CV</span>
+          </div>
+          <div>
+            <h1 className="text-xl font-bold text-zinc-900 dark:text-zinc-100">Profile not found</h1>
+            <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400 leading-relaxed">
+              This profile link may have expired or been removed by its owner.
+            </p>
+          </div>
+          <button
+            onClick={() => {
+              setPublicProfileNotFound(false);
+              window.history.replaceState(null, "", window.location.pathname + window.location.search);
+              setShowLanding(true);
+            }}
+            className="px-5 py-2.5 rounded-xl bg-[#1B2B4B] text-white text-sm font-semibold hover:bg-[#152238] transition-colors shadow-sm"
+          >
+            Go to ProCV →
+          </button>
+        </div>
+      </div>
     );
   }
 
