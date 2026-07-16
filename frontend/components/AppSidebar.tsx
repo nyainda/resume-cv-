@@ -831,7 +831,7 @@ const AppSidebar: React.FC<AppSidebarProps> = (props) => {
                   style={{ border: `1px solid ${dark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.07)'}` }}
                 >
                   <button
-                    onClick={() => { props.setIsSettingsOpen(true); setShowMobileDrawer(false); }}
+                    onClick={() => { props.handleNavClick('settings'); setShowMobileDrawer(false); }}
                     className="w-full flex items-center gap-3 px-4 py-3.5 transition-colors"
                     style={{ color: dark ? 'rgba(255,255,255,0.7)' : '#374151' }}
                   >
