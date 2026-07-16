@@ -54,21 +54,22 @@ type ST = {
 
 function makeTheme(dark: boolean): ST {
   if (dark) return {
-    pageBg: 'linear-gradient(135deg, #0a1628 0%, #0d1d35 50%, #0a1220 100%)',
-    cardBg: 'rgba(255,255,255,0.04)',
+    // Flat neutral dark — no blue gradient, matches App.tsx dark:bg-neutral-900/950
+    pageBg: '#111111',
+    cardBg: 'rgba(255,255,255,0.05)',
     border: 'rgba(255,255,255,0.08)',
     text1: '#ffffff',
     text2: 'rgba(255,255,255,0.6)',
     text3: 'rgba(255,255,255,0.4)',
     text4: 'rgba(255,255,255,0.3)',
-    inputBg: 'rgba(255,255,255,0.06)',
+    inputBg: 'rgba(255,255,255,0.07)',
     inputText: '#ffffff',
-    inputOptBg: '#1a2740',
-    navActiveBg: `${GOLD}10`,
+    inputOptBg: '#1a1a1a',       // neutral dark, was #1a2740 (blue)
+    navActiveBg: `${GOLD}12`,
     navActiveText: GOLD,
     navInactiveText: 'rgba(255,255,255,0.55)',
     navLabel: 'rgba(255,255,255,0.3)',
-    providerActiveBg: 'rgba(27,43,75,0.6)',
+    providerActiveBg: 'rgba(255,255,255,0.06)',  // neutral, was rgba(27,43,75,0.6) blue
     btnSecBg: 'rgba(255,255,255,0.08)',
     btnSecText: '#ffffff',
     tableAltRow: 'rgba(255,255,255,0.02)',
@@ -514,7 +515,8 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
     selectedProvider === 'gemini' ? '🔍' : '⚡';
 
   const tierBadge = isPremium ? { label: 'Premium', bg: `${GOLD}20`, color: GOLD } :
-    isByok ? { label: 'BYOK Pro', bg: `${NAVY}80`, color: '#93c5fd' } :
+    // BYOK badge: neutral in dark mode (no blue), navy-tinted in light
+    isByok ? { label: 'BYOK Pro', bg: T.dark ? 'rgba(255,255,255,0.1)' : `${NAVY}15`, color: T.dark ? T.text2 : NAVY } :
     { label: 'Free', bg: T.btnSecBg, color: T.text3 };
 
   const displayName = user?.name || user?.email?.split('@')[0] || 'User';
@@ -990,7 +992,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
                   {[row.free, row.byok, row.premium].map((val, ci) => (
                     <td key={ci} style={{
                       padding: '7px 16px', textAlign: 'center', fontSize: 11, fontWeight: 600,
-                      color: val === '✗' ? T.text4 : ci === 2 ? NAVY : val.includes('✓') ? '#22c55e' : T.text1,
+                      color: val === '✗' ? T.text4 : ci === 2 ? (T.dark ? T.text1 : NAVY) : val.includes('✓') ? '#22c55e' : T.text1,
                       background: ci === 2 ? `${GOLD}15` : 'transparent',
                     }}>
                       {val}
@@ -1156,7 +1158,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
           {user?.picture ? (
             <img src={user.picture} alt="" referrerPolicy="no-referrer" style={{ width: 44, height: 44, borderRadius: '50%', border: `2px solid ${GOLD}50`, flexShrink: 0 }} />
           ) : (
-            <div style={{ width: 44, height: 44, borderRadius: '50%', background: NAVY, border: `2px solid ${GOLD}50`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 900, color: GOLD, flexShrink: 0 }}>
+            <div style={{ width: 44, height: 44, borderRadius: '50%', background: T.dark ? '#2a2a2a' : NAVY, border: `2px solid ${GOLD}50`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 900, color: GOLD, flexShrink: 0 }}>
               {initials}
             </div>
           )}
@@ -1309,7 +1311,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
             {user?.picture ? (
               <img src={user.picture} alt="" referrerPolicy="no-referrer" style={{ width: 30, height: 30, borderRadius: '50%', border: `2px solid ${GOLD}50`, flexShrink: 0 }} />
             ) : (
-              <div style={{ width: 30, height: 30, borderRadius: '50%', background: NAVY, border: `2px solid ${GOLD}50`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 900, color: GOLD, flexShrink: 0 }}>
+              <div style={{ width: 30, height: 30, borderRadius: '50%', background: T.dark ? '#2a2a2a' : NAVY, border: `2px solid ${GOLD}50`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 900, color: GOLD, flexShrink: 0 }}>
                 {initials}
               </div>
             )}

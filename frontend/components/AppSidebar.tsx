@@ -10,7 +10,8 @@ import { clearQueueForAccount } from '../services/storage/syncQueue';
 import { Settings } from './icons';
 
 const GOLD = '#C9A84C';
-const DARK_BG = '#1B2B4B';
+// Dark mode surfaces: neutral-900 territory — no blue, matches App.tsx dark bg
+const DARK_BG = '#111111';
 
 // ── Shared types (mirror AppNavbar) ─────────────────────────────────────────
 interface NavItem {
