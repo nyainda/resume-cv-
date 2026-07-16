@@ -202,6 +202,7 @@ interface SidebarInnerProps extends AppSidebarProps {
 
 const SidebarInner: React.FC<SidebarInnerProps> = ({
   currentView,
+  setCurrentView,
   primaryNav,
   moreNavGroups,
   handleNavClick,
@@ -430,8 +431,8 @@ const SidebarInner: React.FC<SidebarInnerProps> = ({
 
           {/* Settings */}
           <button
-            onClick={() => { setIsSettingsOpen(true); onAfterNavClick?.(); }}
-            title="Settings &amp; API Keys"
+            onClick={() => { setCurrentView('settings'); onAfterNavClick?.(); }}
+            title="Settings"
             className={`flex-1 flex items-center justify-center py-1.5 rounded-lg transition-colors ${tw.iconBtn(dark)}`}
           >
             <Settings className="h-3.5 w-3.5" />
@@ -483,8 +484,8 @@ const SidebarInner: React.FC<SidebarInnerProps> = ({
             </button>
           ) : (
             <button
-              onClick={() => { setIsSettingsOpen(true); onAfterNavClick?.(); }}
-              title="Cloud Sync &amp; Settings"
+              onClick={() => { setCurrentView('settings'); onAfterNavClick?.(); }}
+              title="Settings"
               className={`flex-1 flex items-center justify-center py-1.5 rounded-lg transition-colors ${tw.iconBtn(dark)}`}
             >
               <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">

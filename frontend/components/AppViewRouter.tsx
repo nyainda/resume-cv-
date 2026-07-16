@@ -23,6 +23,7 @@ const AdminLeaksPage       = lazy(() => import('./AdminLeaksPage'));
 const AdminCVEnginePage    = lazy(() => import('./AdminCVEnginePage'));
 const StorageMapPage       = lazy(() => import('./StorageMapPage'));
 const AccountPage          = lazy(() => import('./AccountPage'));
+const SettingsPage         = lazy(() => import('./SettingsPage'));
 
 // ── Shared fallback spinner ────────────────────────────────────────────────────
 const ViewFallback: React.FC = () => (
@@ -90,6 +91,12 @@ interface AppViewRouterProps {
   setShowLanding: (v: boolean) => void;
   setIsSettingsOpen: (v: boolean) => void;
   setIsPricingOpen: (v: boolean) => void;
+  // Settings page extras
+  darkMode?: boolean;
+  setDarkMode?: (v: boolean | ((prev: boolean) => boolean)) => void;
+  currentApiSettings?: import('../types').ApiSettings;
+  onSaveApiSettings?: (settings: import('../types').ApiSettings) => void;
+  onOpenOnboarding?: () => void;
 }
 
 const AppViewRouter: React.FC<AppViewRouterProps> = ({
@@ -144,6 +151,11 @@ const AppViewRouter: React.FC<AppViewRouterProps> = ({
   setShowLanding,
   setIsSettingsOpen,
   setIsPricingOpen,
+  darkMode = false,
+  setDarkMode,
+  currentApiSettings,
+  onSaveApiSettings,
+  onOpenOnboarding,
 }) => {
   return (
     <main className="px-4 pt-4 pb-24 sm:px-6 sm:pt-6 sm:pb-10 lg:px-8 lg:pt-8">
@@ -410,6 +422,30 @@ const AppViewRouter: React.FC<AppViewRouterProps> = ({
                   onBack={() => setCurrentView('generator')}
                   onUpgrade={() => setIsPricingOpen(true)}
                   onEditProfile={() => setIsEditingProfile(true)}
+                />
+              )}
+
+              {currentView === 'settings' && currentApiSettings && onSaveApiSettings && (
+                <SettingsPage
+                  user={user}
+                  profiles={profiles}
+                  activeSlot={activeSlot}
+                  d1SyncPending={d1SyncPending}
+                  darkMode={darkMode}
+                  setDarkMode={setDarkMode ?? (() => {})}
+                  currentApiSettings={currentApiSettings}
+                  onSaveApiSettings={onSaveApiSettings}
+                  onSignOut={async () => {
+                    await clearQueueForAccount().catch(() => {});
+                    await signOut();
+                    setShowLanding(true);
+                  }}
+                  onDeleteAccount={onDeleteAccount}
+                  onClearAllData={onClearAllData}
+                  onBack={() => setCurrentView('dashboard')}
+                  onUpgrade={() => setIsPricingOpen(true)}
+                  onOpenOnboarding={() => { onOpenOnboarding?.(); }}
+                  onSwitchProfile={onSwitchProfile}
                 />
               )}
             </div>

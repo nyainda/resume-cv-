@@ -32,6 +32,7 @@ export type AppView =
   | 'score'
   | 'pivot'
   | 'account'
+  | 'settings'
   | 'admin-leaks'
   | 'admin-cv-engine'
   | 'storage-map';

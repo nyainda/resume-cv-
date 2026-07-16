@@ -848,6 +848,11 @@ const AppInner: React.FC = () => {
         setShowLanding={setShowLanding}
         setIsSettingsOpen={setIsSettingsOpen}
         setIsPricingOpen={setIsPricingOpen}
+        darkMode={!!darkMode}
+        setDarkMode={setDarkMode}
+        currentApiSettings={apiSettings}
+        onSaveApiSettings={handleApiSettingsSave}
+        onOpenOnboarding={() => setShowOnboarding(true)}
       />
 
         </div>{/* end content column */}
