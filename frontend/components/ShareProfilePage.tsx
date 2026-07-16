@@ -12,6 +12,7 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { CVData, UserProfile, SavedCoverLetter, TemplateName } from '../types';
 import type { WorkerUser } from '../services/authService';
+import { loadSessionFallback } from '../services/authService';
 import LZString from 'lz-string';
 import {
   createShareLink, buildShortShareUrl, checkShareRateLimit,
@@ -274,7 +275,7 @@ const ShareProfilePage: React.FC<ShareProfilePageProps> = ({
       sharedAt: new Date().toISOString(),
       procvBranding: needsWatermark(),
     };
-    const slug = await publishPublicProfile(payload, '');
+    const slug = await publishPublicProfile(payload, loadSessionFallback());
     setProfilePublishing(false);
     if (slug) {
       setProfileSlug(slug);
@@ -289,7 +290,7 @@ const ShareProfilePage: React.FC<ShareProfilePageProps> = ({
 
   const handleUnpublish = useCallback(async () => {
     setUnpublishing(true);
-    const ok = await unpublishPublicProfile('');
+    const ok = await unpublishPublicProfile(loadSessionFallback());
     setUnpublishing(false);
     if (ok) {
       setProfilePublished(false);
@@ -311,7 +312,7 @@ const ShareProfilePage: React.FC<ShareProfilePageProps> = ({
     if (err) { setSlugFeedback({ type: 'error', msg: err }); return; }
     setSlugSaving(true);
     setSlugFeedback(null);
-    const result = await setCustomProfileSlug(trimmed, '');
+    const result = await setCustomProfileSlug(trimmed, loadSessionFallback());
     setSlugSaving(false);
     if ('error' in result) {
       const msgs: Record<string, string> = {
