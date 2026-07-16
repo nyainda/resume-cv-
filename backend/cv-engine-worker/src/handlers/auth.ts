@@ -260,7 +260,7 @@ export async function verifySession(
     };
 }
 
-function sessionTokenFromRequest(request: Request): string {
+export function sessionTokenFromRequest(request: Request): string {
     // Cookie first (HttpOnly — invisible to JS, XSS-safe).
     // Bearer header accepted as a migration fallback for existing in-memory tokens.
     const fromCookie = sessionCookieFromRequest(request);

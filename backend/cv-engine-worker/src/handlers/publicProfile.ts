@@ -11,14 +11,9 @@
 
 import { Env } from '../types';
 import { json, safeJson } from '../utils';
-import { verifySession, resolvePlan } from './auth';
+import { verifySession, resolvePlan, sessionTokenFromRequest } from './auth';
 
 const MAX_PAYLOAD_BYTES = 200_000;
-
-function sessionToken(request: Request): string {
-    const h = request.headers.get('Authorization') || '';
-    return h.startsWith('Bearer ') ? h.slice(7).trim() : '';
-}
 
 /** Generate a random 16-char URL-safe slug for profile share links. */
 function randomSlug(): string {
@@ -89,7 +84,7 @@ export async function handlePublicProfileGet(
 export async function handlePublicProfilePost(
     request: Request, env: Env,
 ): Promise<Response> {
-    const session = await verifySession(sessionToken(request), env);
+    const session = await verifySession(sessionTokenFromRequest(request), env);
     if (!session) return json({ error: 'unauthorized' }, request, env, 401);
 
     const body = await safeJson(request);
@@ -123,7 +118,7 @@ export async function handlePublicProfilePost(
 export async function handlePublicProfileDelete(
     request: Request, env: Env,
 ): Promise<Response> {
-    const session = await verifySession(sessionToken(request), env);
+    const session = await verifySession(sessionTokenFromRequest(request), env);
     if (!session) return json({ error: 'unauthorized' }, request, env, 401);
 
     await env.CV_DB.prepare(
@@ -155,7 +150,7 @@ function isValidSlug(slug: string): boolean {
 export async function handlePublicProfileSlugPatch(
     request: Request, env: Env,
 ): Promise<Response> {
-    const session = await verifySession(sessionToken(request), env);
+    const session = await verifySession(sessionTokenFromRequest(request), env);
     if (!session) return json({ error: 'unauthorized' }, request, env, 401);
 
     const body = await safeJson(request);
