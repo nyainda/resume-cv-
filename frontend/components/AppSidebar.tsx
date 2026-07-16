@@ -621,6 +621,61 @@ const AppSidebar: React.FC<AppSidebarProps> = (props) => {
         </div>
       </header>
 
+      {/* ── Mobile: bottom tab bar ───────────────────────────────────────── */}
+      {/* Shows when authenticated — 5 primary nav items + "More" drawer toggle */}
+      <nav
+        className="md:hidden fixed bottom-0 inset-x-0 z-20 flex items-stretch transition-colors duration-300"
+        style={{
+          ...(dark
+            ? { background: DARK_BG, borderTop: '1px solid rgba(255,255,255,0.07)' }
+            : { background: '#ffffff', borderTop: '1px solid #E5E2DC' }),
+          paddingBottom: 'env(safe-area-inset-bottom)',
+        }}
+        aria-label="Bottom navigation"
+      >
+        {props.primaryNav.map((item) => {
+          const isActive = props.currentView === item.id;
+          const isGated  = isPureFreeTier() && props.GATED_VIEWS.has(item.id);
+          return (
+            <button
+              key={item.id}
+              onClick={() => props.handleNavClick(item.id)}
+              className="flex-1 flex flex-col items-center justify-center gap-0.5 py-2 min-w-0 transition-colors active:scale-95"
+              style={{ color: isActive ? GOLD : dark ? 'rgba(255,255,255,0.45)' : '#9CA3AF' }}
+              aria-label={item.label}
+              aria-current={isActive ? 'page' : undefined}
+            >
+              <div className="relative">
+                <item.icon className="h-5 w-5" />
+                {isGated && (
+                  <span
+                    className="absolute -top-1 -right-1 text-[6px] font-black px-0.5 py-px rounded leading-none"
+                    style={{ background: GOLD, color: DARK_BG }}
+                  >
+                    PRO
+                  </span>
+                )}
+              </div>
+              <span className="text-[9px] font-semibold leading-tight truncate max-w-full px-0.5">
+                {item.label === 'CV Generator' ? 'CV Gen' : item.label}
+              </span>
+            </button>
+          );
+        })}
+        {/* "More" tab — opens the full slide-over drawer */}
+        <button
+          onClick={() => setShowMobileDrawer(true)}
+          className="flex-1 flex flex-col items-center justify-center gap-0.5 py-2 min-w-0 transition-colors active:scale-95"
+          style={{ color: dark ? 'rgba(255,255,255,0.45)' : '#9CA3AF' }}
+          aria-label="More navigation"
+        >
+          <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/>
+          </svg>
+          <span className="text-[9px] font-semibold leading-tight">More</span>
+        </button>
+      </nav>
+
       {/* ── Mobile slide-over drawer ─────────────────────────────────────── */}
       {showMobileDrawer && (
         <div className="md:hidden fixed inset-0 z-50 flex">

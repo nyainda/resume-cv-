@@ -3200,6 +3200,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
                           sidebarSections={sidebarSections}
                           density={density}
                           spacingLevel={spacingLevel}
+                          autoFit={false}
                         />
                       </div>
                     </div>

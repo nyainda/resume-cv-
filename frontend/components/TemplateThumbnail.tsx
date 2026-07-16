@@ -48,6 +48,7 @@ const TemplateThumbnail: React.FC<TemplateThumbnailProps> = ({ templateName, cvD
               isEditing={false}
               onDataChange={() => {}}
               jobDescriptionForATS=""
+              autoFit={false}
             />
           </div>
         </Suspense>

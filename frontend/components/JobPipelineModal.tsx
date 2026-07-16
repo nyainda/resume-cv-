@@ -544,6 +544,7 @@ const JobPipelineModal: React.FC<JobPipelineModalProps> = ({
                                                         template={selectedTemplate}
                                                         font={selectedFont}
                                                         jobDescription={job.jobDescription || job.snippet}
+                                                        autoFit={false}
                                                     />
                                                 </div>
                                             </ResponsiveCVScale>

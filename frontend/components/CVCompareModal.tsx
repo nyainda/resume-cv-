@@ -312,6 +312,7 @@ export default function CVCompareModal({
               template={template}
               sidebarSections={sidebarSections}
               jobDescriptionForATS={jd || undefined}
+              autoFit={false}
             />
           </ResponsiveCVScale>
         </div>

@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useRef, useState, useEffect } from 'react';
 import { CVData, PersonalInfo, TemplateName, SidebarSectionsVisibility, DEFAULT_SIDEBAR_SECTIONS } from '../types';
 import { normalizeCVData } from '../utils/cvDataUtils';
 import { buildSpacingCSS } from '../utils/pageFit';
@@ -44,7 +44,18 @@ interface CVPreviewProps {
    * touching font sizes. Passed through to all sidebar templates.
    */
   spacingLevel?: number;
+  /**
+   * When true, CVPreview manages its own auto-fit scaling so the A4 document
+   * fits the container width on narrow screens (e.g. SharedCVView, CVHistory).
+   * CVGenerator passes false because it has its own ResizeObserver-driven
+   * previewScale and renders the content inside a transform wrapper itself.
+   * Defaults to true.
+   */
+  autoFit?: boolean;
 }
+
+// A4 at 96 dpi
+const A4_PX = 794;
 
 // ─── Main CVPreview ──────────────────────────────────────────────────────────
 
@@ -59,6 +70,7 @@ const CVPreview: React.FC<CVPreviewProps> = (props) => {
     sidebarSections = DEFAULT_SIDEBAR_SECTIONS,
     density = 1,
     spacingLevel = 0,
+    autoFit = true,
   } = props;
 
   // Guarantee all array fields are proper arrays before ANY template sees the data.
@@ -68,6 +80,32 @@ const CVPreview: React.FC<CVPreviewProps> = (props) => {
     () => (normalizeCVData(rawCvData) ?? rawCvData),
     [rawCvData],
   );
+
+  // ── Auto-fit: scale the A4 document to fit narrow containers ─────────────
+  // When autoFit=true (default) a ResizeObserver watches the outer wrapper and
+  // computes a scale factor that fits the 794px-wide template within the
+  // available width. The template DOM is always rendered at full A4 size (so
+  // PDF capture is never affected), and only the *visual* transform is changed.
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const [fitScale, setFitScale] = useState(1);
+
+  useEffect(() => {
+    if (!autoFit) return;
+    const el = wrapperRef.current;
+    if (!el) return;
+    const measure = () => {
+      const w = el.clientWidth;
+      if (w > 0 && w < A4_PX) {
+        setFitScale(w / A4_PX);
+      } else {
+        setFitScale(1);
+      }
+    };
+    const obs = new ResizeObserver(measure);
+    obs.observe(el);
+    measure();
+    return () => obs.disconnect();
+  }, [autoFit]);
 
   const templateProps = { cvData, personalInfo, isEditing, onDataChange, jobDescriptionForATS };
 
@@ -118,57 +156,75 @@ const CVPreview: React.FC<CVPreviewProps> = (props) => {
     }
   };
 
-  return (
-    <div className="font-['Inter'] w-full overflow-x-auto pb-4">
-      <div
-        id="cv-preview-area"
-        data-cv-preview="true"
-        data-cv-spacing={spacingLevel !== 0 ? spacingLevel : undefined}
-        className="min-w-[210mm] bg-white shadow-sm mx-auto relative"
-        style={density !== 1 ? { zoom: density } : undefined}
-      >
-        {/* Inject spacing-override CSS for the current layout mode.
-            Positive spacingLevel = compression (fit-to-1-page).
-            Negative spacingLevel = expansion (balanced-2-page).
-            Level 0 = no overrides needed.
-            The style tag is inside cv-preview-area so getCVHtml cloneNode
-            captures it automatically — no extra PDF pipeline work needed. */}
-        {spacingLevel !== 0 && (
-          <style dangerouslySetInnerHTML={{ __html: buildSpacingCSS(spacingLevel) }} />
-        )}
-        {renderTemplate()}
-        {/* One-page boundary line for non-V2 templates — V2 renders its own
-            internally. data-pdf-hide keeps it out of downloaded PDFs. */}
-        {cvData.onePage && !V2_TEMPLATE_IDS.includes(
-          LEGACY_TEMPLATE_REDIRECTS[template as string] ?? (template as string)
-        ) && template !== 'v2-executive-editorial' && (
-          <div
-            data-pdf-hide="true"
-            style={{ position: 'absolute', top: '297mm', left: 0, right: 0, zIndex: 20, pointerEvents: 'none' }}
-          >
-            <div style={{ borderTop: '1.5px dashed #ef4444', position: 'relative' }}>
-              <span style={{
-                position: 'absolute', top: -9, right: 0,
-                background: '#ef4444', color: '#fff',
-                fontSize: 8, fontWeight: 700, padding: '1px 5px',
-                borderRadius: '3px 0 0 3px', letterSpacing: '0.06em',
-                fontFamily: 'system-ui, sans-serif', lineHeight: 1.5,
-              }}>
-                PAGE 1 END
-              </span>
-            </div>
+  // When autoFit is active and the container is narrower than A4, wrap the
+  // template in a transform: scale() box. The outer div is given an explicit
+  // height equal to the scaled content height so the page doesn't collapse.
+  const scaledContent = (
+    <div
+      id="cv-preview-area"
+      data-cv-preview="true"
+      data-cv-spacing={spacingLevel !== 0 ? spacingLevel : undefined}
+      className="min-w-[210mm] bg-white shadow-sm mx-auto relative"
+      style={{
+        ...(density !== 1 ? { zoom: density } : {}),
+        ...(autoFit && fitScale < 1
+          ? {
+              transform: `scale(${fitScale})`,
+              transformOrigin: 'top center',
+            }
+          : {}),
+      }}
+    >
+      {/* Inject spacing-override CSS for the current layout mode.
+          Positive spacingLevel = compression (fit-to-1-page).
+          Negative spacingLevel = expansion (balanced-2-page).
+          Level 0 = no overrides needed.
+          The style tag is inside cv-preview-area so getCVHtml cloneNode
+          captures it automatically — no extra PDF pipeline work needed. */}
+      {spacingLevel !== 0 && (
+        <style dangerouslySetInnerHTML={{ __html: buildSpacingCSS(spacingLevel) }} />
+      )}
+      {renderTemplate()}
+      {/* One-page boundary line for non-V2 templates — V2 renders its own
+          internally. data-pdf-hide keeps it out of downloaded PDFs. */}
+      {cvData.onePage && !V2_TEMPLATE_IDS.includes(
+        LEGACY_TEMPLATE_REDIRECTS[template as string] ?? (template as string)
+      ) && template !== 'v2-executive-editorial' && (
+        <div
+          data-pdf-hide="true"
+          style={{ position: 'absolute', top: '297mm', left: 0, right: 0, zIndex: 20, pointerEvents: 'none' }}
+        >
+          <div style={{ borderTop: '1.5px dashed #ef4444', position: 'relative' }}>
+            <span style={{
+              position: 'absolute', top: -9, right: 0,
+              background: '#ef4444', color: '#fff',
+              fontSize: 8, fontWeight: 700, padding: '1px 5px',
+              borderRadius: '3px 0 0 3px', letterSpacing: '0.06em',
+              fontFamily: 'system-ui, sans-serif', lineHeight: 1.5,
+            }}>
+              PAGE 1 END
+            </span>
           </div>
-        )}
-      </div>
-      {/* Swipe hint — only visible on screens narrower than A4 (210 mm ≈ 794 px).
-          Hidden on wider viewports where the full page is visible at once.
-          `data-pdf-hide` is a belt-and-suspenders guard: getCVHtml() strips any
-          element with this attribute before PDF rendering, so this hint can
-          never leak into a downloaded PDF even if a renderer's viewport width
-          ever regresses below the 800px breakpoint again. */}
-      <p data-pdf-hide className="min-[800px]:hidden mt-2 text-center text-[11px] text-zinc-400 select-none pointer-events-none">
-        ← Swipe to see full CV →
-      </p>
+        </div>
+      )}
+    </div>
+  );
+
+  return (
+    <div ref={wrapperRef} className="font-['Inter'] w-full pb-4">
+      {autoFit && fitScale < 1 ? (
+        // When scaling, compensate the collapsed height left by transform.
+        // The A4 template height is ~1123px (297mm). After scale the visual
+        // height is A4_H * fitScale; we set that as the container height so
+        // sibling elements don't overlap the preview.
+        <div style={{ height: Math.round(1123 * fitScale), overflow: 'visible' }}>
+          {scaledContent}
+        </div>
+      ) : (
+        scaledContent
+      )}
+      {/* Swipe hint is no longer needed since we scale to fit on mobile.
+          Keep a tiny label as a hint for edge cases (e.g. user zoomed in). */}
     </div>
   );
 };
