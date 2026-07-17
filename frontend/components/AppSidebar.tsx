@@ -326,42 +326,6 @@ const SidebarInner: React.FC<SidebarInnerProps> = ({
           />
         ))}
 
-        {/* ── Career Profiles ─────────────────────────────── */}
-        <div>
-          <p className={`pl-4 mb-1 text-[9px] font-black uppercase tracking-[0.14em] md:hidden xl:block ${tw.sectionLabel(dark)}`}>
-            Career Profiles
-          </p>
-          <button
-            onClick={() => setShowProfileManager((v) => !v)}
-            title={activeSlot?.name ?? 'Career Profiles'}
-            className={`w-full flex items-center justify-start md:justify-center xl:justify-start gap-2.5 pl-4 md:pl-0 xl:pl-4 pr-3 py-[7px] md:py-2.5 xl:py-[7px] text-[11.5px] font-semibold transition-all duration-150 text-left ${tw.navInactive(dark)}`}
-            style={{ borderLeft: '2px solid transparent' }}
-          >
-            {/* People icon */}
-            <svg className="h-3.5 w-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-              <circle cx="9" cy="7" r="4"/>
-              <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
-              <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
-            </svg>
-            <span className="flex-1 leading-tight md:hidden xl:block truncate">
-              {activeSlot?.name ?? 'Profiles'}
-            </span>
-            {profiles.length > 1 && (
-              <span
-                className="text-[8px] font-black rounded-full md:hidden xl:inline-flex items-center justify-center"
-                style={{
-                  background: dark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.07)',
-                  color: dark ? 'rgba(255,255,255,0.5)' : '#6B7280',
-                  minWidth: 16,
-                  padding: '1px 4px',
-                }}
-              >
-                {profiles.length}
-              </span>
-            )}
-          </button>
-        </div>
       </nav>
 
       {/* ── Go Premium banner ─────────────────────────────────────── */}
