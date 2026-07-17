@@ -1,7 +1,7 @@
 import mammoth from 'mammoth';
 import { UserProfile, WorkExperience, Education, Project, Language } from '../types';
 import { getSelectedProvider } from './groqService';
-import { workerProxyLLM, workerTieredLLM } from './cvEngineClient';
+import { workerProxyLLM, workerTieredLLM, waitForPrewarm } from './cvEngineClient';
 import { getGeminiKey as _rtGemini, getClaudeKey as _rtClaude } from './security/RuntimeKeys';
 import { cleanImportedText } from './cvPurificationPipeline';
 import { normaliseCustomSections } from '../utils/normaliseSectionType';
@@ -193,6 +193,16 @@ async function parseWithGemini(text: string): Promise<UserProfile> {
 }
 
 async function parseWithWorkersAI(text: string): Promise<UserProfile> {
+    // Wait for the boot-time model prewarm to settle (up to 10 s) before
+    // sending the heavy parse request. This silently resolves the "cold model"
+    // symptom where the worker returns empty text on the first post-boot call.
+    // waitForPrewarm is a no-op if the models are already hot, so there is
+    // zero overhead on warm requests.
+    const warm = await waitForPrewarm(10_000);
+    if (!warm) {
+        console.info('[Import] Worker prewarm timed out or incomplete — proceeding anyway; model may still be loading.');
+    }
+
     // 8_000 chars used to be a hard truncation here — on longer real-world
     // CVs (multiple roles + projects + certifications + memberships +
     // languages, as in the "Elgon Kenya" sample that surfaced this bug) the
@@ -205,8 +215,21 @@ async function parseWithWorkersAI(text: string): Promise<UserProfile> {
     // request output room and risk a CV with many sections getting its JSON
     // response cut off mid-way.
     const userPrompt = `Extract all structured information from the following CV text and return a raw JSON object matching this exact schema:\n\n${PARSE_SCHEMA}\n${PARSE_EXTRACTION_RULES}\nCV Text:\n${text.slice(0, 60_000)}`;
-    const raw = await workerTieredLLM('parser', userPrompt, { temperature: 0.1, json: true, maxTokens: 8192, timeoutMs: 90_000 });
-    if (!raw) throw new Error('Workers AI returned no text for CV parse');
+    const callOpts = { temperature: 0.1, json: true, maxTokens: 8192, timeoutMs: 90_000 } as const;
+
+    let raw = await workerTieredLLM('parser', userPrompt, callOpts);
+
+    // Cold-model edge case: the worker is reachable but the model returned
+    // empty text (it was still loading weights when the request landed).
+    // Wait 4 s and retry once before surfacing an error — this recovers the
+    // common case where prewarm and the real call overlap in timing.
+    if (!raw) {
+        console.info('[Import] Workers AI returned empty text — model may still be cold-loading. Retrying in 4 s…');
+        await new Promise<void>((resolve) => setTimeout(resolve, 4_000));
+        raw = await workerTieredLLM('parser', userPrompt, callOpts);
+    }
+
+    if (!raw) throw new Error('Workers AI returned no text for CV parse. The AI model may be cold-starting — please try again in a few seconds.');
     const cleaned = raw.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```\s*$/i, '').trim();
     return buildUserProfile(JSON.parse(cleaned));
 }

@@ -687,6 +687,44 @@ export function rewarmCVEngineModels(): Promise<PrewarmResult[]> {
     return prewarmCVEngineModels();
 }
 
+/**
+ * Await the boot-time prewarm promise up to `timeoutMs` milliseconds.
+ * Resolves `true` when at least one model is confirmed hot; `false` on
+ * timeout or when the engine is not configured.
+ *
+ * This is the correct hook for any AI operation that wants to ensure the
+ * worker is warm before firing a heavy request. If prewarm hasn't started
+ * yet (e.g. the user acted faster than the idle callback), it starts it now.
+ *
+ * Usage:
+ *   const warm = await waitForPrewarm(8_000);
+ *   if (!warm) console.info('Proceeding with potentially cold worker.');
+ *   const result = await workerTieredLLM(...);
+ */
+export async function waitForPrewarm(timeoutMs = 10_000): Promise<boolean> {
+    if (!isCVEngineConfigured()) return false;
+    // Kick off prewarm if it hasn't started yet (rare: user acted before idle cb)
+    if (!prewarmPromise) void prewarmCVEngineModels();
+    try {
+        const results = await Promise.race([
+            prewarmPromise!,
+            new Promise<PrewarmResult[]>((_, reject) =>
+                setTimeout(() => reject(new Error('prewarm-timeout')), timeoutMs),
+            ),
+        ]);
+        return results.some((r) => r.ok);
+    } catch {
+        // Timed out — proceed anyway; the real call may still succeed if
+        // the model finished loading between the prewarm timeout and now.
+        return false;
+    }
+}
+
+/** True once prewarmCVEngineModels() has settled (regardless of outcome). */
+export function isPrewarmSettled(): boolean {
+    return prewarmStarted && prewarmPromise !== null;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Account Tier Detection — calls /api/cv/account-tier to probe whether the
 // Cloudflare Workers AI binding has paid-model access (Llama 3.3 70B).
@@ -1473,6 +1511,11 @@ export async function workerVisionExtract(
     if (!isCVEngineConfigured()) return null;
     if (!base64Image || !prompt) return null;
     if (mimeType && !/^image\//i.test(mimeType)) return null; // PDFs not supported
+    // Kick off prewarm in parallel with request preparation — vision model
+    // (Llama 3.2 11B Vision) has its own cold-start cycle separate from the
+    // text models. Fire-and-forget here; we don't wait because the vision
+    // call itself has a generous 60 s timeout.
+    void prewarmCVEngineModels();
     const u = buildEngineURL('/api/cv/vision-extract');
     try {
         const r = await fetchWithTimeout(
@@ -1509,6 +1552,11 @@ export async function workerVisionExtract(
  */
 export async function workerExtractDoc(file: File): Promise<string | null> {
     if (!isCVEngineConfigured()) return null;
+    // Warm the worker silently in the background while we prepare the request.
+    // extract-doc uses env.AI.toMarkdown() which has its own cold-start on the
+    // first call, independent of the LLM models. Firing prewarm here ensures
+    // the Worker process itself is alive and eliminates one class of 502/timeout.
+    void prewarmCVEngineModels();
     const u = buildEngineURL('/api/cv/extract-doc');
     try {
         const form = new FormData();
