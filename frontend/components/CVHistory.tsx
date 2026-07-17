@@ -106,19 +106,9 @@ function ScoreRing({ score, size = 36 }: { score: number; size?: number }) {
     );
 }
 
-// ─── Hook: load CV data reactively from IDB ───────────────────────────────────
+// ─── CV data: read directly from the saved object (same pattern as cv.template) ─
 function useCVData(cv: SavedCV): CVData | null {
-    const [data, setData] = useState<CVData | null>(() => getCVDataCached(cv.id) ?? cv.data ?? null);
-    useEffect(() => {
-        let cancelled = false;
-        if (!data) {
-            loadCVData(cv.id).then(d => {
-                if (!cancelled && d) setData(d);
-            });
-        }
-        return () => { cancelled = true; };
-    }, [cv.id, data]);
-    return data;
+    return getCVDataCached(cv.id) ?? cv.data ?? null;
 }
 
 // ─── Right-side Preview Panel ─────────────────────────────────────────────────

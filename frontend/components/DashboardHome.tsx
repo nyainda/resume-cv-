@@ -36,7 +36,6 @@ interface Props {
   user?: WorkerUser | null;
   onNavigate: (view: string) => void;
   onEditProfile: () => void;
-  onOpenSettings: () => void;
 }
 
 /* ── Tiny inline components ────────────────────────────────────────────────── */
@@ -268,7 +267,6 @@ const DashboardHome: React.FC<Props> = ({
   user,
   onNavigate,
   onEditProfile,
-  onOpenSettings,
 }) => {
   // ── Tier / identity ───────────────────────────────────────────────────────
   const effectiveTier = getEffectiveTier();
@@ -561,7 +559,7 @@ const DashboardHome: React.FC<Props> = ({
 
           {/* Settings button */}
           <button
-            onClick={onOpenSettings}
+            onClick={() => onNavigate('settings')}
             className="p-2.5 rounded-xl bg-white dark:bg-neutral-800 border border-zinc-200 dark:border-neutral-700 text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:border-zinc-300 dark:hover:border-neutral-600 transition-all shadow-sm"
             title="Settings"
           >
