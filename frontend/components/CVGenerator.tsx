@@ -462,6 +462,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
   // zoomOverride (null = auto-fit) lets the user manually set a scale.
   const [autoFitScale, setAutoFitScale] = useState(1);
   const [zoomOverride, setZoomOverride] = useState<number | null>(null);
+  const [previewFocused, setPreviewFocused] = useState(false);
 
   useEffect(() => {
     const paperEl = paperAreaRef.current;
@@ -1957,7 +1958,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
       <div className="flex flex-col lg:flex-row lg:gap-6 lg:items-start mt-6">
 
         {/* ── LEFT column: all form input sections ───────────────────────── */}
-        <div className="flex-1 min-w-0 space-y-4">
+        <div className={`flex-1 min-w-0 space-y-4 transition-all duration-300${previewFocused ? ' hidden lg:hidden' : ''}`}>
 
       {/* ── CV Toolkit Suggestions Banner ── */}
       {toolkitSuggestions && (
@@ -2603,7 +2604,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
         </div>{/* ── end LEFT column ─────────────────────────────────────── */}
 
         {/* ── RIGHT column: template picker + live CV preview ─────────── */}
-        <div className="w-full lg:w-[440px] flex-shrink-0 lg:sticky lg:top-[72px] lg:max-h-[calc(100vh-88px)] lg:overflow-y-auto space-y-4">
+        <div className={`w-full flex-shrink-0 lg:sticky lg:top-[72px] lg:max-h-[calc(100vh-88px)] lg:overflow-y-auto space-y-4 transition-all duration-300${previewFocused ? ' lg:flex-1' : ' lg:w-[440px]'}`}>
 
           {/* Placeholder: shown before first CV generation (desktop only) */}
           {!currentCV && !(isLoading && draftCV) && (
@@ -3180,6 +3181,27 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
                     title="Zoom in"
                     className="w-6 h-6 flex items-center justify-center rounded text-zinc-500 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-neutral-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-sm font-medium select-none"
                   >+</button>
+                  {/* Focus toggle — large screens only */}
+                  <div className="hidden lg:flex items-center ml-1 pl-2 border-l border-zinc-300 dark:border-neutral-600">
+                    <button
+                      onClick={() => setPreviewFocused(f => !f)}
+                      title={previewFocused ? 'Back to split view' : 'Expand preview'}
+                      className="w-6 h-6 flex items-center justify-center rounded text-zinc-500 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-neutral-700 transition-colors select-none"
+                    >
+                      {previewFocused ? (
+                        /* compress / split icon */
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
+                          <path d="M6 2H2v4M10 2h4v4M6 14H2v-4M10 14h4v-4" />
+                          <path d="M6 8h4" />
+                        </svg>
+                      ) : (
+                        /* expand icon */
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
+                          <path d="M2 6V2h4M10 2h4v4M14 10v4h-4M6 14H2v-4" />
+                        </svg>
+                      )}
+                    </button>
+                  </div>
                 </div>
               </div>
 
