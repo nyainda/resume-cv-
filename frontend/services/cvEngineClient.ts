@@ -547,6 +547,33 @@ const PREWARM_TIMEOUT_MS = 15000;
 let prewarmStarted = false;
 let prewarmPromise: Promise<PrewarmResult[]> | null = null;
 
+// ── Prewarm result cache ──────────────────────────────────────────────────────
+// Cloudflare Workers AI keeps models warm for ~10 minutes after the last call.
+// We cache a successful prewarm timestamp in sessionStorage so page refreshes
+// and re-navigations within that window skip the 3-ping network round-trip
+// entirely. No Neurons burned, no latency added. The cache is cleared
+// automatically when the tab closes (sessionStorage lifetime).
+//
+// TTL is set to 8 minutes — conservative buffer below the ~10-min cold window.
+// Only a full-success prewarm (all 3 models responded) writes the cache; a
+// partial success does not, so the next load will retry the cold model.
+// ─────────────────────────────────────────────────────────────────────────────
+const PREWARM_CACHE_KEY = 'cv_pw_ok_ts';
+const PREWARM_CACHE_TTL_MS = 8 * 60 * 1000; // 8 minutes
+
+function readPrewarmCache(): number {
+    try { return parseInt(sessionStorage.getItem(PREWARM_CACHE_KEY) ?? '0', 10) || 0; }
+    catch { return 0; }
+}
+
+function writePrewarmCache(): void {
+    try { sessionStorage.setItem(PREWARM_CACHE_KEY, String(Date.now())); } catch { /* private browsing */ }
+}
+
+function clearPrewarmCache(): void {
+    try { sessionStorage.removeItem(PREWARM_CACHE_KEY); } catch { /* ignore */ }
+}
+
 export interface PrewarmResult {
     task: string;
     ok: boolean;
@@ -623,10 +650,27 @@ async function prewarmOne(task: string): Promise<PrewarmResult> {
  * first real generation doesn't hit a cold model. Idempotent — safe to call
  * multiple times. Returns the same Promise on subsequent calls during the
  * session (so a manual "wake up" button can `await` the in-flight warm-up).
+ *
+ * Smart caching: if all models were confirmed hot within the last 8 minutes
+ * (stored in sessionStorage), this resolves immediately with no network calls.
  */
 export function prewarmCVEngineModels(): Promise<PrewarmResult[]> {
     if (!isCVEngineConfigured()) return Promise.resolve([]);
     if (prewarmStarted && prewarmPromise) return prewarmPromise;
+
+    // Check sessionStorage cache before firing any network requests.
+    // If a full-success prewarm ran within the TTL window, the models are
+    // still warm — skip the ping entirely.
+    const cachedAt = readPrewarmCache();
+    if (cachedAt && (Date.now() - cachedAt) < PREWARM_CACHE_TTL_MS) {
+        prewarmStarted = true;
+        prewarmPromise = Promise.resolve(
+            PREWARM_TASKS.map((task) => ({ task, ok: true, ms: 0, note: 'cached — models still warm' }))
+        );
+        console.info(`[CV Engine] Pre-warm skipped — models confirmed hot ${Math.round((Date.now() - cachedAt) / 1000)}s ago (cache TTL ${PREWARM_CACHE_TTL_MS / 60000} min).`);
+        return prewarmPromise;
+    }
+
     prewarmStarted = true;
     prewarmPromise = Promise.all(PREWARM_TASKS.map(prewarmOne)).then(async (results) => {
         const logResults = (tag: string, res: PrewarmResult[]) => {
@@ -663,6 +707,17 @@ export function prewarmCVEngineModels(): Promise<PrewarmResult[]> {
         // blocks prewarm from resolving. The result persists in localStorage and
         // `_cachedTier` for the rest of the session (TTL 1 hour).
         void detectAccountTier();
+
+        // Cache a full-success prewarm so the next page load (within TTL)
+        // skips all three network pings. Partial success is not cached — the
+        // cold model will be retried on the next load.
+        const allHot = results.every((r) => r.ok);
+        if (allHot) {
+            writePrewarmCache();
+        } else {
+            // A previously-cached success is now stale (one model went cold again).
+            clearPrewarmCache();
+        }
 
         return results;
     }).catch((e) => {
@@ -1511,11 +1566,6 @@ export async function workerVisionExtract(
     if (!isCVEngineConfigured()) return null;
     if (!base64Image || !prompt) return null;
     if (mimeType && !/^image\//i.test(mimeType)) return null; // PDFs not supported
-    // Kick off prewarm in parallel with request preparation — vision model
-    // (Llama 3.2 11B Vision) has its own cold-start cycle separate from the
-    // text models. Fire-and-forget here; we don't wait because the vision
-    // call itself has a generous 60 s timeout.
-    void prewarmCVEngineModels();
     const u = buildEngineURL('/api/cv/vision-extract');
     try {
         const r = await fetchWithTimeout(
@@ -1552,11 +1602,6 @@ export async function workerVisionExtract(
  */
 export async function workerExtractDoc(file: File): Promise<string | null> {
     if (!isCVEngineConfigured()) return null;
-    // Warm the worker silently in the background while we prepare the request.
-    // extract-doc uses env.AI.toMarkdown() which has its own cold-start on the
-    // first call, independent of the LLM models. Firing prewarm here ensures
-    // the Worker process itself is alive and eliminates one class of 502/timeout.
-    void prewarmCVEngineModels();
     const u = buildEngineURL('/api/cv/extract-doc');
     try {
         const form = new FormData();
