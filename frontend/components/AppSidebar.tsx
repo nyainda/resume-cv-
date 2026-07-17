@@ -359,69 +359,6 @@ const SidebarInner: React.FC<SidebarInnerProps> = ({
         style={{ borderColor: tw.divider(dark) }}
       >
 
-        {/* Profile switcher button */}
-        <div className="relative" ref={profileManagerRef}>
-          <button
-            onClick={() => setShowProfileManager((v) => !v)}
-            className={`w-full flex items-center justify-start md:justify-center xl:justify-start gap-2.5 px-3 md:px-0 xl:px-3 py-3 transition-colors ${tw.profileRow(dark)}`}
-          >
-            {isAuthenticated && user?.picture ? (
-              <img
-                src={user.picture}
-                alt={user.name ?? ''}
-                referrerPolicy="no-referrer"
-                className="w-7 h-7 rounded-full flex-shrink-0"
-                style={{ outline: `2px solid rgba(201,168,76,0.45)`, outlineOffset: 1 }}
-              />
-            ) : (
-              <div
-                className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-black flex-shrink-0"
-                style={{ background: GOLD, color: DARK_BG }}
-              >
-                {userInitial}
-              </div>
-            )}
-            <div className="flex-1 min-w-0 text-left md:hidden xl:block">
-              <p className={`text-[11px] font-bold truncate leading-tight ${tw.userDisplayName(dark)}`}>
-                {userDisplayName}
-              </p>
-              <p
-                className="text-[9px] font-semibold leading-tight mt-0.5"
-                style={{ color: tierColor }}
-              >
-                {tierLabel}
-              </p>
-            </div>
-            <svg
-              className={`h-3 w-3 flex-shrink-0 md:hidden xl:block ${tw.profileChevron(dark)}`}
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth={2.5}
-            >
-              <path d="m6 9 6 6 6-6" />
-            </svg>
-          </button>
-
-          {/* Profile manager dropdown (opens upward) */}
-          {showProfileManager && profileExists && (
-            <div
-              className="absolute bottom-full left-0 mb-1 w-[340px] max-w-[calc(100vw-2rem)] bg-white dark:bg-neutral-800 rounded-2xl shadow-2xl border border-zinc-200 dark:border-neutral-700 p-4 z-50 overflow-y-auto"
-              style={{ maxHeight: '70vh' }}
-            >
-              <ProfileManager
-                profiles={profiles}
-                activeProfileId={activeSlot?.id ?? null}
-                onSwitch={(slot) => { onSwitchProfile(slot); setShowProfileManager(false); }}
-                onCreate={onCreateProfile}
-                onDelete={onDeleteProfile}
-                onRename={onRenameProfile}
-                currentProfile={userProfile}
-                onClose={() => setShowProfileManager(false)}
-              />
-            </div>
-          )}
-        </div>
 
         {/* Quick-action icon strip — hidden in icon-only (md/lg) mode, shown on xl+ */}
         <div className="hidden xl:flex items-center justify-around px-3 pb-3 gap-1">
