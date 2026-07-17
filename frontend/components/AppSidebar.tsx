@@ -293,7 +293,7 @@ const SidebarInner: React.FC<SidebarInnerProps> = ({
       </button>
 
       {/* ── Nav sections ──────────────────────────────────────────── */}
-      <nav className="flex-1 overflow-y-auto py-3 space-y-4 no-scrollbar">
+      <nav className="flex-1 overflow-y-auto py-3 space-y-4 thin-scrollbar">
         <SidebarSection
           label="Main"
           items={mainItems}
@@ -576,7 +576,7 @@ const AppSidebar: React.FC<AppSidebarProps> = (props) => {
     <>
       {/* ── Desktop sidebar ──────────────────────────────────────────────── */}
       <aside
-        className={`hidden md:flex flex-col flex-shrink-0 md:w-16 xl:w-[148px] sticky top-0 h-screen z-20 transition-colors duration-300 ${tw.sidebarBg(dark)}`}
+        className={`hidden md:flex flex-col flex-shrink-0 md:w-16 xl:w-[200px] sticky top-0 h-screen z-20 transition-colors duration-300 ${tw.sidebarBg(dark)}`}
         style={tw.sidebarStyle(dark)}
       >
         <SidebarInner {...innerProps} />
