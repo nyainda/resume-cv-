@@ -11,9 +11,11 @@ const ChevronRight: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
 );
 import TemplateThumbnail from './TemplateThumbnail';
 import CVPreview from './CVPreview';
-import ResponsiveCVScale from './ResponsiveCVScale';
 import { downloadCV } from '../services/cvDownloadService';
 import { getCVDataCached, loadCVData } from '../services/storage/cvDataStore';
+
+const GOLD = '#C9A84C';
+const NAVY = '#1B2B4B';
 
 interface CVHistoryProps {
     savedCVs: SavedCV[];
@@ -23,10 +25,10 @@ interface CVHistoryProps {
     onNewCV?: () => void;
 }
 
-const purposeConfig: Record<string, { label: string; dot: string; pillActive: string; pillInactive: string; icon: React.FC<any> }> = {
-    job:      { label: 'Job',         dot: 'bg-blue-500',   pillActive: 'bg-blue-600 text-white',   pillInactive: 'text-zinc-600 dark:text-zinc-400', icon: Briefcase },
-    academic: { label: 'Scholarship', dot: 'bg-teal-500',   pillActive: 'bg-teal-600 text-white',   pillInactive: 'text-zinc-600 dark:text-zinc-400', icon: BookOpen  },
-    general:  { label: 'General',     dot: 'bg-violet-500', pillActive: 'bg-violet-600 text-white', pillInactive: 'text-zinc-600 dark:text-zinc-400', icon: Globe     },
+const purposeConfig: Record<string, { label: string; dot: string; color: string; bg: string; icon: React.FC<any> }> = {
+    job:      { label: 'Job',         dot: 'bg-blue-500',   color: 'text-blue-600 dark:text-blue-400',   bg: 'bg-blue-500/12 dark:bg-blue-500/15',   icon: Briefcase },
+    academic: { label: 'Scholarship', dot: 'bg-teal-500',   color: 'text-teal-600 dark:text-teal-400',   bg: 'bg-teal-500/12 dark:bg-teal-500/15',   icon: BookOpen  },
+    general:  { label: 'General',     dot: 'bg-violet-500', color: 'text-violet-600 dark:text-violet-400', bg: 'bg-violet-500/12 dark:bg-violet-500/15', icon: Globe   },
 };
 
 const PREVIEW_TEMPLATES: TemplateName[] = [
@@ -66,6 +68,59 @@ function exactDate(iso: string): string {
     return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
+function scoreColor(score: number): string {
+    if (score >= 80) return '#16a34a';
+    if (score >= 60) return GOLD;
+    return '#ef4444';
+}
+function scoreBg(score: number): string {
+    if (score >= 80) return 'rgba(22,163,74,0.1)';
+    if (score >= 60) return `${GOLD}18`;
+    return 'rgba(239,68,68,0.1)';
+}
+function scoreLabel(score: number): string {
+    if (score >= 85) return 'Excellent';
+    if (score >= 70) return 'Strong';
+    if (score >= 55) return 'Good';
+    if (score >= 40) return 'Building';
+    return 'Needs Work';
+}
+
+/** Mini circular score ring */
+function ScoreRing({ score, size = 36 }: { score: number; size?: number }) {
+    const r = size / 2 - 3.5;
+    const circ = 2 * Math.PI * r;
+    const dash = circ * (Math.min(score, 100) / 100);
+    const c = scoreColor(score);
+    return (
+        <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ flexShrink: 0 }}>
+            <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={c} strokeOpacity={0.15} strokeWidth="3" />
+            <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={c} strokeWidth="3"
+                strokeLinecap="round"
+                strokeDasharray={`${dash} ${circ}`}
+                strokeDashoffset={circ / 4}
+                style={{ transition: 'stroke-dasharray 0.6s ease' }}
+            />
+            <text x={size/2} y={size/2 + 3.5} textAnchor="middle" fontSize={size < 40 ? "8.5" : "11"} fontWeight="700" fill={c}>{score}</text>
+        </svg>
+    );
+}
+
+// ─── Hook: load CV data reactively from IDB ───────────────────────────────────
+function useCVData(cv: SavedCV): CVData | null {
+    const [data, setData] = useState<CVData | null>(() => getCVDataCached(cv.id) ?? cv.data ?? null);
+    useEffect(() => {
+        let cancelled = false;
+        if (!data) {
+            loadCVData(cv.id).then(d => {
+                if (!cancelled && d) setData(d);
+            });
+        }
+        return () => { cancelled = true; };
+    }, [cv.id, data]);
+    return data;
+}
+
 // ─── Right-side Preview Panel ─────────────────────────────────────────────────
 interface PreviewPanelProps {
     cv: SavedCV;
@@ -73,22 +128,47 @@ interface PreviewPanelProps {
     onClose: () => void;
     onLoad: (cvData: CVData) => void;
     onDelete: (id: string) => void;
+    isDesktop?: boolean;
 }
 
-const PreviewPanel: React.FC<PreviewPanelProps> = ({ cv, userProfile, onClose, onLoad, onDelete }) => {
+const PreviewPanel: React.FC<PreviewPanelProps> = ({ cv, userProfile, onClose, onLoad, onDelete, isDesktop }) => {
     const [selectedTemplate, setSelectedTemplate] = useState<TemplateName>(cv.template || 'v2-classic-pro');
     const [showAllTemplates, setShowAllTemplates] = useState(false);
     const [isDownloading, setIsDownloading] = useState(false);
     const [downloadError, setDownloadError] = useState<string | null>(null);
     const [confirmDelete, setConfirmDelete] = useState(false);
-    const [zoom, setZoom] = useState(0.9);
     const previewRef = useRef<HTMLDivElement>(null);
-    const cvData = getCVDataCached(cv.id) ?? cv.data;
+    const containerRef = useRef<HTMLDivElement>(null);
+    const [autoZoom, setAutoZoom] = useState(0.45);
+    const cvData = useCVData(cv);
+
+    // Reset template when CV changes
+    useEffect(() => {
+        setSelectedTemplate(cv.template || 'v2-classic-pro');
+        setConfirmDelete(false);
+    }, [cv.id, cv.template]);
+
+    // Auto-fit zoom using ResizeObserver
+    useEffect(() => {
+        if (!containerRef.current) return;
+        const observer = new ResizeObserver(entries => {
+            for (const entry of entries) {
+                const w = entry.contentRect.width;
+                if (w > 0) {
+                    // A4 page is 794px wide; fit with some padding
+                    setAutoZoom(Math.max(0.3, Math.min(0.75, (w - 24) / 794)));
+                }
+            }
+        });
+        observer.observe(containerRef.current);
+        return () => observer.disconnect();
+    }, []);
 
     const purpose = purposeConfig[cv.purpose] || purposeConfig.job;
     const PurposeIcon = purpose.icon;
-    const roleCount  = cvData?.experience?.length ?? 0;
-    const skillCount = cvData?.skills?.length ?? 0;
+    const roleCount   = cvData?.experience?.length ?? 0;
+    const skillCount  = cvData?.skills?.length ?? 0;
+    const atsScore    = cv.qualityReport?.score ?? (cv as any).atsScore as number | undefined;
     const visibleTemplates = showAllTemplates ? ALL_TEMPLATES : PREVIEW_TEMPLATES;
 
     const handleDownload = async () => {
@@ -112,78 +192,89 @@ const PreviewPanel: React.FC<PreviewPanelProps> = ({ cv, userProfile, onClose, o
         onClose();
     };
 
-    // AI insight copy based on purpose
-    const aiInsight = cv.purpose === 'job'
-        ? `This CV is tailored for job applications and ATS-optimised.`
-        : cv.purpose === 'academic'
-        ? `This CV is formatted for academic / scholarship applications.`
-        : `General-purpose CV — suitable for multiple application types.`;
-
     return (
-        <div className="flex flex-col h-full bg-white dark:bg-neutral-900 border-l border-zinc-200 dark:border-neutral-700/80 overflow-hidden">
+        <div className="flex flex-col h-full bg-white dark:bg-neutral-900 overflow-hidden">
 
             {/* Panel header */}
             <div className="flex items-start justify-between px-4 pt-4 pb-3 border-b border-zinc-100 dark:border-neutral-800 flex-shrink-0">
-                <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                        cv.purpose === 'job' ? 'bg-blue-500/15' : cv.purpose === 'academic' ? 'bg-teal-500/15' : 'bg-violet-500/15'
-                    }`}>
-                        <PurposeIcon className={`h-4 w-4 ${
-                            cv.purpose === 'job' ? 'text-blue-500' : cv.purpose === 'academic' ? 'text-teal-500' : 'text-violet-500'
-                        }`} />
+                <div className="flex items-center gap-3 min-w-0 flex-1">
+                    {/* Purpose icon */}
+                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${purpose.bg}`}>
+                        <PurposeIcon className={`h-4.5 w-4.5 ${purpose.color}`} style={{ width: 18, height: 18 }} />
                     </div>
-                    <div className="min-w-0">
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                            <h3 className="text-sm font-bold text-zinc-900 dark:text-zinc-50 truncate leading-tight">{cv.name}</h3>
-                            <span className={`inline-flex px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide ${
-                                cv.purpose === 'job' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400'
-                                : cv.purpose === 'academic' ? 'bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400'
-                                : 'bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-400'
-                            }`}>
-                                {purpose.label}
-                            </span>
-                        </div>
-                        <p className="text-[10.5px] text-zinc-400 dark:text-zinc-500 mt-0.5">
-                            Created {exactDate(cv.createdAt)}
-                            {roleCount > 0 && ` · ${roleCount} roles`}
-                            {skillCount > 0 && ` · ${skillCount} skills`}
+                    <div className="min-w-0 flex-1">
+                        <h3 className="text-[13px] font-bold text-zinc-900 dark:text-zinc-50 truncate leading-snug">{cv.name}</h3>
+                        <p className="text-[10px] text-zinc-400 dark:text-zinc-500 mt-0.5 truncate">
+                            {exactDate(cv.createdAt)}
+                            {roleCount > 0 && ` · ${roleCount} role${roleCount > 1 ? 's' : ''}`}
+                            {skillCount > 0 && ` · ${skillCount} skill${skillCount > 1 ? 's' : ''}`}
                         </p>
                     </div>
+                    {/* ATS score ring */}
+                    {atsScore !== undefined && atsScore > 0 && (
+                        <ScoreRing score={atsScore} size={38} />
+                    )}
                 </div>
-                <button
-                    onClick={onClose}
-                    className="ml-2 p-1.5 rounded-lg text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-neutral-800 transition-colors flex-shrink-0"
-                >
-                    <X className="h-4 w-4" />
-                </button>
+                {!isDesktop && (
+                    <button
+                        onClick={onClose}
+                        className="ml-2 p-1.5 rounded-lg text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-neutral-800 transition-colors flex-shrink-0"
+                    >
+                        <X className="h-4 w-4" />
+                    </button>
+                )}
             </div>
 
-            {/* Template section */}
-            <div className="px-4 py-3 border-b border-zinc-100 dark:border-neutral-800 flex-shrink-0">
-                <div className="flex items-center justify-between mb-2">
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 dark:text-zinc-500">Template</span>
-                    <span className="text-[10px] text-zinc-400 dark:text-zinc-600">{templateDisplayNames[selectedTemplate]}</span>
+            {/* Score + metadata strip */}
+            {atsScore !== undefined && atsScore > 0 && (
+                <div className="flex items-center gap-2 px-4 py-2 border-b border-zinc-100 dark:border-neutral-800 flex-shrink-0">
+                    <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg flex-1"
+                        style={{ background: scoreBg(atsScore) }}>
+                        <span className="text-[10px] font-black uppercase tracking-wide" style={{ color: scoreColor(atsScore) }}>
+                            ATS Score
+                        </span>
+                        <span className="font-black text-[13px] ml-auto" style={{ color: scoreColor(atsScore) }}>
+                            {atsScore}<span className="text-[10px] font-semibold opacity-70">/100</span>
+                        </span>
+                    </div>
+                    <div className="text-[10px] font-semibold px-2 py-1.5 rounded-lg bg-zinc-50 dark:bg-neutral-800 text-zinc-500 dark:text-zinc-400 border border-zinc-200 dark:border-neutral-700">
+                        {scoreLabel(atsScore)}
+                    </div>
+                    <span className={`inline-flex items-center gap-1 px-2 py-1.5 rounded-lg text-[10px] font-bold ${purpose.bg} ${purpose.color}`}>
+                        <PurposeIcon style={{ width: 11, height: 11 }} />
+                        {purpose.label}
+                    </span>
                 </div>
-                <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+            )}
+
+            {/* Template switcher */}
+            <div className="px-4 py-2.5 border-b border-zinc-100 dark:border-neutral-800 flex-shrink-0">
+                <div className="flex items-center justify-between mb-2">
+                    <span className="text-[9.5px] font-black uppercase tracking-widest text-zinc-400 dark:text-zinc-500">Template</span>
+                    <span className="text-[10px] font-semibold text-zinc-500 dark:text-zinc-400 truncate max-w-[140px]">
+                        {templateDisplayNames[selectedTemplate] || selectedTemplate}
+                    </span>
+                </div>
+                <div className="flex gap-1.5 overflow-x-auto pb-0.5 scrollbar-none">
                     {visibleTemplates.map(t => (
                         <button
                             key={t}
                             onClick={() => setSelectedTemplate(t)}
                             title={templateDisplayNames[t]}
-                            className={`flex-shrink-0 w-10 h-14 rounded-md overflow-hidden border-2 transition-all duration-150 ${
+                            className={`flex-shrink-0 w-9 h-12 rounded-lg overflow-hidden border-2 transition-all duration-150 ${
                                 selectedTemplate === t
-                                    ? 'border-[#C9A84C] shadow-md shadow-[#C9A84C]/25'
-                                    : 'border-zinc-200 dark:border-neutral-700 hover:border-[#1B2B4B]/40 dark:hover:border-[#C9A84C]/40'
+                                    ? 'border-[#C9A84C] shadow-md shadow-[#C9A84C]/20 scale-105'
+                                    : 'border-zinc-200 dark:border-neutral-700 hover:border-[#C9A84C]/50 opacity-70 hover:opacity-100'
                             }`}
                         >
-                            <div className="w-full h-full pointer-events-none" style={{ transform: 'scale(0.18)', transformOrigin: 'top left', width: '556%', height: '556%' }}>
+                            <div className="w-full h-full pointer-events-none" style={{ transform: 'scale(0.16)', transformOrigin: 'top left', width: '625%', height: '625%' }}>
                                 <TemplateThumbnail templateName={t} />
                             </div>
                         </button>
                     ))}
                     <button
                         onClick={() => setShowAllTemplates(s => !s)}
-                        className="flex-shrink-0 w-10 h-14 rounded-md border-2 border-dashed border-zinc-200 dark:border-neutral-700 hover:border-[#C9A84C]/60 flex items-center justify-center text-[10px] font-bold text-zinc-400 dark:text-zinc-500 hover:text-[#C9A84C] transition-colors"
+                        className="flex-shrink-0 w-9 h-12 rounded-lg border-2 border-dashed border-zinc-200 dark:border-neutral-700 hover:border-[#C9A84C]/60 flex items-center justify-center text-[9px] font-black text-zinc-400 dark:text-zinc-500 hover:text-[#C9A84C] transition-colors"
                     >
                         {showAllTemplates ? '↑' : `+${ALL_TEMPLATES.length - PREVIEW_TEMPLATES.length}`}
                     </button>
@@ -197,15 +288,19 @@ const PreviewPanel: React.FC<PreviewPanelProps> = ({ cv, userProfile, onClose, o
             )}
 
             {/* Live preview */}
-            <div className="flex-1 overflow-y-auto bg-zinc-50 dark:bg-neutral-950 relative min-h-0">
-                <div className="p-3">
-                    <div
-                        ref={previewRef}
-                        data-cv-preview-active="true"
-                        className="origin-top mx-auto"
-                        style={{ transform: `scale(${zoom})`, transformOrigin: 'top center', width: `${(1 / zoom) * 100}%` }}
-                    >
-                        {cvData && (
+            <div ref={containerRef} className="flex-1 overflow-y-auto bg-zinc-100 dark:bg-neutral-950 relative min-h-0">
+                {cvData ? (
+                    <div className="py-3 px-3">
+                        <div
+                            ref={previewRef}
+                            data-cv-preview-active="true"
+                            className="origin-top mx-auto shadow-xl rounded-sm"
+                            style={{
+                                transform: `scale(${autoZoom})`,
+                                transformOrigin: 'top center',
+                                width: `${(1 / autoZoom) * 100}%`,
+                            }}
+                        >
                             <CVPreview
                                 cvData={cvData}
                                 personalInfo={userProfile.personalInfo}
@@ -214,79 +309,64 @@ const PreviewPanel: React.FC<PreviewPanelProps> = ({ cv, userProfile, onClose, o
                                 onDataChange={() => {}}
                                 jobDescriptionForATS=""
                             />
-                        )}
+                        </div>
                     </div>
-                </div>
+                ) : (
+                    <div className="flex items-center justify-center h-full py-16">
+                        <div className="flex flex-col items-center gap-3 text-zinc-400 dark:text-zinc-600">
+                            <svg className="w-6 h-6 animate-spin" viewBox="0 0 24 24" fill="none">
+                                <circle cx="12" cy="12" r="10" stroke="currentColor" strokeOpacity=".2" strokeWidth="3"/>
+                                <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="3" strokeLinecap="round"/>
+                            </svg>
+                            <p className="text-xs font-medium">Loading preview…</p>
+                        </div>
+                    </div>
+                )}
             </div>
 
-            {/* Zoom controls */}
-            <div className="flex items-center justify-center gap-2 px-4 py-2 border-t border-zinc-100 dark:border-neutral-800 bg-white dark:bg-neutral-900 flex-shrink-0">
-                <button
-                    onClick={() => setZoom(z => Math.max(0.5, +(z - 0.05).toFixed(2)))}
-                    className="w-6 h-6 flex items-center justify-center rounded text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-neutral-800 transition-colors text-sm font-bold"
-                >−</button>
-                <span className="text-[11px] font-semibold text-zinc-500 dark:text-zinc-400 w-10 text-center tabular-nums">
-                    {Math.round(zoom * 100)}%
-                </span>
-                <button
-                    onClick={() => setZoom(z => Math.min(1.5, +(z + 0.05).toFixed(2)))}
-                    className="w-6 h-6 flex items-center justify-center rounded text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-neutral-800 transition-colors text-sm font-bold"
-                >+</button>
-            </div>
-
-            {/* Quick Actions */}
-            <div className="px-4 py-3 border-t border-zinc-100 dark:border-neutral-800 flex-shrink-0">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 dark:text-zinc-500 mb-2">Quick Actions</p>
+            {/* Actions */}
+            <div className="px-4 py-3 border-t border-zinc-100 dark:border-neutral-800 flex-shrink-0 bg-white dark:bg-neutral-900">
                 <div className="grid grid-cols-3 gap-2">
-                    <button
-                        onClick={handleLoadAndClose}
-                        className="flex flex-col items-center gap-1 py-2.5 px-1 rounded-xl bg-zinc-50 dark:bg-neutral-800 hover:bg-[#1B2B4B]/8 dark:hover:bg-[#1B2B4B]/30 border border-zinc-200 dark:border-neutral-700 transition-colors group"
-                    >
-                        <Eye className="h-4 w-4 text-[#1B2B4B] dark:text-[#C9A84C] group-hover:scale-110 transition-transform" />
-                        <span className="text-[9.5px] font-semibold text-zinc-600 dark:text-zinc-400 leading-tight text-center">Load & Edit</span>
-                    </button>
+                    {/* Primary: Download */}
                     <button
                         onClick={handleDownload}
-                        disabled={isDownloading}
-                        className="flex flex-col items-center gap-1 py-2.5 px-1 rounded-xl bg-zinc-50 dark:bg-neutral-800 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 border border-zinc-200 dark:border-neutral-700 transition-colors group disabled:opacity-50"
+                        disabled={isDownloading || !cvData}
+                        className="col-span-2 flex items-center justify-center gap-2 py-2.5 rounded-xl text-[11.5px] font-bold transition-all disabled:opacity-50 shadow-sm hover:shadow-md active:scale-[0.98]"
+                        style={{ background: NAVY, color: '#fff' }}
                     >
-                        <Download className="h-4 w-4 text-emerald-600 dark:text-emerald-400 group-hover:scale-110 transition-transform" />
-                        <span className="text-[9.5px] font-semibold text-zinc-600 dark:text-zinc-400 leading-tight text-center">
-                            {isDownloading ? 'Saving…' : 'Download PDF'}
-                        </span>
+                        <Download className="h-3.5 w-3.5" />
+                        {isDownloading ? 'Saving PDF…' : 'Download PDF'}
                     </button>
+
+                    {/* Edit */}
+                    <button
+                        onClick={handleLoadAndClose}
+                        disabled={!cvData}
+                        className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-[11.5px] font-bold border border-zinc-200 dark:border-neutral-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-neutral-800 transition-colors disabled:opacity-50"
+                    >
+                        <Eye className="h-3.5 w-3.5" />
+                        Edit
+                    </button>
+                </div>
+
+                {/* Delete */}
+                <div className="mt-2">
                     {confirmDelete ? (
-                        <div className="flex flex-col items-center justify-center gap-1 py-2.5 px-1 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
-                            <span className="text-[9px] text-red-600 dark:text-red-400 font-semibold text-center leading-tight">Sure?</span>
-                            <div className="flex gap-1.5">
-                                <button onClick={() => { onDelete(cv.id); onClose(); }} className="text-[9px] font-bold text-red-600 dark:text-red-400 hover:underline">Yes</button>
-                                <button onClick={() => setConfirmDelete(false)} className="text-[9px] text-zinc-500 hover:underline">No</button>
-                            </div>
+                        <div className="flex items-center justify-center gap-3 py-2 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+                            <span className="text-[11px] text-red-600 dark:text-red-400 font-semibold">Delete this CV?</span>
+                            <button onClick={() => { onDelete(cv.id); onClose(); }}
+                                className="text-[11px] font-black text-red-600 dark:text-red-400 hover:underline">Yes, delete</button>
+                            <button onClick={() => setConfirmDelete(false)}
+                                className="text-[11px] text-zinc-500 hover:underline">Cancel</button>
                         </div>
                     ) : (
                         <button
                             onClick={() => setConfirmDelete(true)}
-                            className="flex flex-col items-center gap-1 py-2.5 px-1 rounded-xl bg-zinc-50 dark:bg-neutral-800 hover:bg-red-50 dark:hover:bg-red-900/20 border border-zinc-200 dark:border-neutral-700 transition-colors group"
+                            className="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl text-[11px] font-semibold text-zinc-400 dark:text-zinc-500 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/15 transition-colors"
                         >
-                            <Trash className="h-4 w-4 text-red-400 group-hover:scale-110 transition-transform" />
-                            <span className="text-[9.5px] font-semibold text-zinc-600 dark:text-zinc-400 leading-tight text-center">Delete</span>
+                            <Trash className="h-3.5 w-3.5" /> Remove from library
                         </button>
                     )}
-                </div>
-            </div>
-
-            {/* AI Insights */}
-            <div className="px-4 pb-4 flex-shrink-0">
-                <div className="rounded-xl bg-zinc-50 dark:bg-neutral-800 border border-zinc-200 dark:border-neutral-700 p-3">
-                    <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 dark:text-zinc-500 mb-2">AI Insights</p>
-                    <div className="flex items-start gap-2">
-                        <div className="w-4 h-4 rounded-full bg-emerald-500 flex items-center justify-center flex-shrink-0 mt-0.5">
-                            <svg viewBox="0 0 12 12" className="w-2.5 h-2.5 text-white fill-none stroke-white stroke-[1.8]">
-                                <polyline points="2,6 5,9 10,3" />
-                            </svg>
-                        </div>
-                        <p className="text-[11px] text-zinc-600 dark:text-zinc-300 leading-relaxed">{aiInsight}</p>
-                    </div>
                 </div>
             </div>
         </div>
@@ -304,16 +384,16 @@ interface CVCardProps {
 
 const CVCard: React.FC<CVCardProps> = ({ cv, isSelected, onPreview, onLoad, onDelete }) => {
     const [menuOpen, setMenuOpen] = useState(false);
-    const [confirmDelete, setConfirmDelete] = useState(false);
     const [hovered, setHovered] = useState(false);
+    const [confirmDelete, setConfirmDelete] = useState(false);
     const menuRef = useRef<HTMLDivElement>(null);
-    const cvData = getCVDataCached(cv.id) ?? cv.data;
+    const cvData = useCVData(cv);
     const purpose = purposeConfig[cv.purpose] || purposeConfig.job;
     const PurposeIcon = purpose.icon;
     const template = cv.template || 'v2-classic-pro';
-    const atsScore = (cv as any).atsScore as number | undefined;
+    const atsScore = cv.qualityReport?.score ?? (cv as any).atsScore as number | undefined;
+    const templateName = templateDisplayNames[template] || template;
 
-    // Close menu on outside click
     useEffect(() => {
         if (!menuOpen) return;
         const handler = (e: MouseEvent) => {
@@ -330,50 +410,44 @@ const CVCard: React.FC<CVCardProps> = ({ cv, isSelected, onPreview, onLoad, onDe
         <div
             className={`group relative bg-white dark:bg-neutral-800 rounded-2xl border transition-all duration-200 overflow-hidden flex flex-col cursor-pointer ${
                 isSelected
-                    ? 'border-[#C9A84C] shadow-lg shadow-[#C9A84C]/15 ring-1 ring-[#C9A84C]/30'
-                    : 'border-zinc-200/80 dark:border-neutral-700/80 shadow-sm hover:shadow-md hover:border-[#C9A84C]/40 dark:hover:border-[#C9A84C]/30'
+                    ? 'border-[#C9A84C] shadow-lg shadow-[#C9A84C]/12 ring-1 ring-[#C9A84C]/25'
+                    : 'border-zinc-200/80 dark:border-neutral-700/80 shadow-sm hover:shadow-md hover:border-[#C9A84C]/35 dark:hover:border-[#C9A84C]/25'
             }`}
             onMouseEnter={() => setHovered(true)}
-            onMouseLeave={() => { setHovered(false); }}
+            onMouseLeave={() => setHovered(false)}
             onClick={onPreview}
         >
-            {/* Thumbnail */}
-            <div
-                className="relative overflow-hidden bg-gradient-to-br from-zinc-50 to-zinc-100 dark:from-neutral-750 dark:to-neutral-800 flex-shrink-0"
-                style={{ height: 190 }}
-            >
-                <div className="absolute inset-0 flex items-start justify-center pt-2 overflow-hidden pointer-events-none">
-                    <div style={{ transform: 'scale(0.76)', transformOrigin: 'top center', width: '132%', marginLeft: '-16%' }}>
+            {/* ── Thumbnail ── */}
+            <div className="relative overflow-hidden bg-zinc-100 dark:bg-neutral-750 flex-shrink-0" style={{ height: 180 }}>
+                <div className="absolute inset-0 flex items-start justify-center pt-1.5 overflow-hidden pointer-events-none">
+                    <div style={{ transform: 'scale(0.74)', transformOrigin: 'top center', width: '136%', marginLeft: '-18%' }}>
                         <TemplateThumbnail templateName={template} />
                     </div>
                 </div>
 
-                {/* Purpose badge top-left */}
+                {/* Purpose badge */}
                 <div className="absolute top-2.5 left-2.5 z-10">
-                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9.5px] font-bold shadow-sm ${
-                        cv.purpose === 'job' ? 'bg-blue-500 text-white'
-                        : cv.purpose === 'academic' ? 'bg-teal-500 text-white'
-                        : 'bg-violet-500 text-white'
+                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold shadow-sm backdrop-blur-sm ${
+                        cv.purpose === 'job' ? 'bg-blue-600 text-white'
+                        : cv.purpose === 'academic' ? 'bg-teal-600 text-white'
+                        : 'bg-violet-600 text-white'
                     }`}>
-                        <PurposeIcon className="h-2.5 w-2.5" />
+                        <PurposeIcon style={{ width: 9, height: 9 }} />
                         {purpose.label}
                     </span>
                 </div>
 
-                {/* ATS badge top-right (unless menu is open) */}
+                {/* ATS score badge */}
                 {atsScore !== undefined && atsScore > 0 && !menuOpen && (
                     <div className="absolute top-2.5 right-2.5 z-10">
-                        <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[9.5px] font-bold shadow-sm ${
-                            atsScore >= 80 ? 'bg-emerald-500 text-white'
-                            : atsScore >= 60 ? 'bg-amber-500 text-white'
-                            : 'bg-red-500 text-white'
-                        }`}>
-                            ATS {atsScore}
-                        </span>
+                        <div className="flex items-center gap-1 pl-1.5 pr-2 py-0.5 rounded-full shadow-sm backdrop-blur-sm"
+                            style={{ background: scoreColor(atsScore), }}>
+                            <span className="text-white text-[9.5px] font-black">{atsScore}</span>
+                        </div>
                     </div>
                 )}
 
-                {/* "…" menu button — always visible on hover / when selected */}
+                {/* Context menu button */}
                 <div
                     className={`absolute top-2 right-2 z-20 transition-opacity duration-150 ${hovered || menuOpen || isSelected ? 'opacity-100' : 'opacity-0'}`}
                     ref={menuRef}
@@ -381,22 +455,20 @@ const CVCard: React.FC<CVCardProps> = ({ cv, isSelected, onPreview, onLoad, onDe
                 >
                     <button
                         onClick={() => { setMenuOpen(o => !o); setConfirmDelete(false); }}
-                        className="w-6 h-6 rounded-md bg-black/50 hover:bg-black/70 text-white flex items-center justify-center backdrop-blur-sm transition-colors text-xs leading-none"
-                    >
-                        ···
-                    </button>
+                        className="w-6 h-6 rounded-md bg-black/55 hover:bg-black/75 text-white flex items-center justify-center backdrop-blur-sm transition-colors text-xs leading-none"
+                    >···</button>
                     {menuOpen && (
                         <div className="absolute right-0 top-7 w-36 bg-white dark:bg-neutral-800 rounded-xl shadow-xl border border-zinc-200 dark:border-neutral-700 py-1 z-30 overflow-hidden">
                             <button
                                 onClick={() => { onLoad(); setMenuOpen(false); }}
                                 className="w-full flex items-center gap-2 px-3 py-2 text-[11px] font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-neutral-700 transition-colors"
                             >
-                                <Eye className="h-3 w-3" /> Load &amp; Edit
+                                <Eye className="h-3 w-3" /> Load & Edit
                             </button>
                             <div className="my-0.5 border-t border-zinc-100 dark:border-neutral-700" />
                             {confirmDelete ? (
                                 <div className="px-3 py-2 flex items-center gap-2">
-                                    <span className="text-[10px] text-red-500 font-semibold flex-1">Confirm?</span>
+                                    <span className="text-[10px] text-red-500 font-semibold flex-1">Delete?</span>
                                     <button onClick={() => { onDelete(); setMenuOpen(false); }} className="text-[10px] font-bold text-red-500 hover:underline">Yes</button>
                                     <button onClick={() => setConfirmDelete(false)} className="text-[10px] text-zinc-400 hover:underline">No</button>
                                 </div>
@@ -413,7 +485,8 @@ const CVCard: React.FC<CVCardProps> = ({ cv, isSelected, onPreview, onLoad, onDe
                 </div>
 
                 {/* Hover overlay */}
-                <div className={`absolute inset-0 bg-[#1B2B4B]/75 flex flex-col items-center justify-center gap-2 transition-opacity duration-200 ${hovered && !menuOpen ? 'opacity-100' : 'opacity-0'}`}>
+                <div className={`absolute inset-0 flex flex-col items-center justify-center gap-2 transition-opacity duration-200 ${hovered && !menuOpen ? 'opacity-100' : 'opacity-0'}`}
+                    style={{ background: 'rgba(27,43,75,0.82)', backdropFilter: 'blur(1px)' }}>
                     <button
                         onClick={e => { e.stopPropagation(); onPreview(); }}
                         className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-white text-[#1B2B4B] text-xs font-bold hover:bg-zinc-50 transition-colors shadow-md"
@@ -422,37 +495,53 @@ const CVCard: React.FC<CVCardProps> = ({ cv, isSelected, onPreview, onLoad, onDe
                     </button>
                     <button
                         onClick={e => { e.stopPropagation(); onLoad(); }}
-                        className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-[#C9A84C] text-white text-xs font-bold hover:bg-[#b8963f] transition-colors shadow-md"
+                        className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-white text-xs font-bold transition-colors shadow-md"
+                        style={{ background: GOLD }}
                     >
-                        Load &amp; Edit
+                        Load & Edit
                     </button>
                 </div>
+
+                {/* Selected indicator bar */}
+                {isSelected && (
+                    <div className="absolute bottom-0 inset-x-0 h-0.5" style={{ background: GOLD }} />
+                )}
             </div>
 
-            {/* Card body */}
-            <div className="px-3 py-2.5 flex-1 flex flex-col min-h-0">
-                <p className="text-[12.5px] font-bold text-zinc-900 dark:text-zinc-100 truncate leading-tight" title={cv.name}>
-                    {cv.name}
-                </p>
-                <p className="text-[10.5px] text-zinc-400 dark:text-zinc-500 mt-0.5">
-                    {relativeTime(cv.createdAt)}
-                    <span className="mx-1 opacity-40">·</span>
-                    {exactDate(cv.createdAt)}
-                </p>
+            {/* ── Card body ── */}
+            <div className="px-3 pt-2.5 pb-3 flex-1 flex flex-col gap-1.5">
+                {/* Name row */}
+                <div className="flex items-start justify-between gap-1.5">
+                    <p className="text-[12.5px] font-bold text-zinc-900 dark:text-zinc-100 truncate leading-snug flex-1" title={cv.name}>
+                        {cv.name}
+                    </p>
+                    {atsScore !== undefined && atsScore > 0 && (
+                        <ScoreRing score={atsScore} size={30} />
+                    )}
+                </div>
+
+                {/* Date + template */}
+                <div className="flex items-center gap-1 flex-wrap">
+                    <span className="text-[10px] text-zinc-400 dark:text-zinc-500">{relativeTime(cv.createdAt)}</span>
+                    <span className="text-zinc-200 dark:text-zinc-700 text-[10px]">·</span>
+                    <span className="text-[10px] text-zinc-400 dark:text-zinc-500 truncate max-w-[90px]">{templateName}</span>
+                </div>
+
+                {/* Stats chips */}
                 {cvData && (
-                    <div className="flex items-center gap-1 flex-wrap mt-1.5">
+                    <div className="flex items-center gap-1 flex-wrap">
                         {cvData.experience?.length > 0 && (
-                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9.5px] font-medium bg-zinc-100 dark:bg-neutral-700 text-zinc-500 dark:text-zinc-400">
-                                <Briefcase className="h-2 w-2" /> {cvData.experience.length}r
+                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-semibold bg-zinc-100 dark:bg-neutral-700 text-zinc-500 dark:text-zinc-400">
+                                <Briefcase className="h-2 w-2" /> {cvData.experience.length} role{cvData.experience.length !== 1 ? 's' : ''}
                             </span>
                         )}
                         {cvData.skills?.length > 0 && (
-                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9.5px] font-medium bg-zinc-100 dark:bg-neutral-700 text-zinc-500 dark:text-zinc-400">
-                                ✦ {cvData.skills.length}
+                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-semibold bg-zinc-100 dark:bg-neutral-700 text-zinc-500 dark:text-zinc-400">
+                                ✦ {cvData.skills.length} skills
                             </span>
                         )}
                         {cvData.education?.length > 0 && (
-                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9.5px] font-medium bg-zinc-100 dark:bg-neutral-700 text-zinc-500 dark:text-zinc-400">
+                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-semibold bg-zinc-100 dark:bg-neutral-700 text-zinc-500 dark:text-zinc-400">
                                 <BookOpen className="h-2 w-2" /> {cvData.education.length}
                             </span>
                         )}
@@ -496,11 +585,30 @@ const CVHistory: React.FC<CVHistoryProps> = ({ savedCVs, onLoad, onDelete, userP
     // Reset to page 1 when filter/sort/search changes
     useEffect(() => { setPage(1); }, [filter, sortBy, search]);
 
+    // Auto-select first CV on large screens (lg = 1024px+)
+    useEffect(() => {
+        const isLg = typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches;
+        if (!isLg || paginated.length === 0) return;
+        // If current selection is no longer on this page, select the first item
+        const stillVisible = previewCV && paginated.some(cv => cv.id === previewCV.id);
+        if (!stillVisible) {
+            setPreviewCV(paginated[0]);
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [paginated]);
+
     const counts = useMemo(() => ({
         job:      savedCVs.filter(c => c.purpose === 'job').length,
         academic: savedCVs.filter(c => c.purpose === 'academic').length,
         general:  savedCVs.filter(c => c.purpose === 'general').length,
     }), [savedCVs]);
+
+    const lastGeneratedDate = useMemo(() => {
+        if (!savedCVs.length) return null;
+        const latest = savedCVs.reduce((a, b) =>
+            new Date(a.createdAt) > new Date(b.createdAt) ? a : b);
+        return latest.createdAt;
+    }, [savedCVs]);
 
     const handleLoad = useCallback(async (cv: SavedCV) => {
         const data = getCVDataCached(cv.id) ?? cv.data ?? await loadCVData(cv.id);
@@ -512,18 +620,19 @@ const CVHistory: React.FC<CVHistoryProps> = ({ savedCVs, onLoad, onDelete, userP
         return (
             <div className="flex flex-col items-center justify-center py-24 px-6 text-center">
                 <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-[#1B2B4B]/8 to-[#C9A84C]/8 dark:from-[#1B2B4B]/30 dark:to-[#C9A84C]/10 flex items-center justify-center mb-5 shadow-inner">
-                    <span className="text-3xl">✨</span>
+                    <FileText className="h-9 w-9 text-zinc-300 dark:text-zinc-600" />
                 </div>
-                <h3 className="text-xl font-bold text-zinc-800 dark:text-zinc-200 mb-2">No saved CVs yet</h3>
+                <h3 className="text-xl font-bold text-zinc-800 dark:text-zinc-200 mb-2">Your CV library is empty</h3>
                 <p className="text-sm text-zinc-500 dark:text-zinc-400 max-w-sm leading-relaxed mb-6">
-                    Create and save your first CV to see it here.
+                    Generate and save your first CV to build your personal library.
                 </p>
                 {onNewCV && (
                     <button
                         onClick={onNewCV}
-                        className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#1B2B4B] hover:bg-[#152238] text-white text-sm font-semibold transition-colors shadow-md"
+                        className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-white text-sm font-bold transition-all shadow-md hover:shadow-lg active:scale-95"
+                        style={{ background: NAVY }}
                     >
-                        + Create New CV
+                        + Create Your First CV
                     </button>
                 )}
             </div>
@@ -534,27 +643,48 @@ const CVHistory: React.FC<CVHistoryProps> = ({ savedCVs, onLoad, onDelete, userP
         <div className="flex gap-0 min-h-full relative">
 
             {/* ── Main content column ── */}
-            <div
-                className="flex-1 min-w-0 flex flex-col gap-4 transition-all duration-300"
-                style={{ paddingRight: previewCV ? '0' : undefined }}
-            >
+            <div className="flex-1 min-w-0 flex flex-col gap-4 transition-all duration-300">
 
-                {/* Header */}
+                {/* ── Header ── */}
                 <div className="flex items-start justify-between gap-3 flex-wrap">
                     <div>
-                        <h2 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50 flex items-center gap-2">
-                            CV History
-                            <span className="text-lg">✨</span>
+                        <h2 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50 leading-tight" style={{ fontFamily: "'Playfair Display', serif" }}>
+                            CV Library
                         </h2>
-                        <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-0.5">All your saved CVs in one place.</p>
+                        <p className="text-sm text-zinc-400 dark:text-zinc-500 mt-0.5">
+                            {savedCVs.length} saved CV{savedCVs.length !== 1 ? 's' : ''}
+                            {lastGeneratedDate && ` · Last generated ${relativeTime(lastGeneratedDate)}`}
+                        </p>
                     </div>
-                    {onNewCV && (
-                        <button
-                            onClick={onNewCV}
-                            className="flex-shrink-0 inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#1B2B4B] hover:bg-[#152238] dark:bg-[#C9A84C] dark:hover:bg-[#b8963f] text-white text-sm font-semibold transition-colors shadow-sm"
-                        >
-                            <span className="text-base leading-none">+</span> New CV
-                        </button>
+                    <div className="flex items-center gap-2">
+                        {onNewCV && (
+                            <button
+                                onClick={onNewCV}
+                                className="flex-shrink-0 inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-white text-sm font-bold transition-all shadow-sm hover:shadow-md active:scale-95"
+                                style={{ background: NAVY }}
+                            >
+                                <span className="text-base leading-none">+</span> New CV
+                            </button>
+                        )}
+                    </div>
+                </div>
+
+                {/* Stats chips */}
+                <div className="flex items-center gap-2 flex-wrap -mt-1">
+                    {counts.job > 0 && (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10.5px] font-semibold bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-800/30">
+                            <Briefcase className="h-2.5 w-2.5" /> {counts.job} Job
+                        </span>
+                    )}
+                    {counts.academic > 0 && (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10.5px] font-semibold bg-teal-50 dark:bg-teal-900/20 text-teal-600 dark:text-teal-400 border border-teal-100 dark:border-teal-800/30">
+                            <BookOpen className="h-2.5 w-2.5" /> {counts.academic} Scholarship
+                        </span>
+                    )}
+                    {counts.general > 0 && (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10.5px] font-semibold bg-violet-50 dark:bg-violet-900/20 text-violet-600 dark:text-violet-400 border border-violet-100 dark:border-violet-800/30">
+                            <Globe className="h-2.5 w-2.5" /> {counts.general} General
+                        </span>
                     )}
                 </div>
 
@@ -566,95 +696,95 @@ const CVHistory: React.FC<CVHistoryProps> = ({ savedCVs, onLoad, onDelete, userP
                         </p>
                         <button
                             onClick={() => window.dispatchEvent(new CustomEvent('procv:openPricing'))}
-                            className="flex-shrink-0 px-3 py-1.5 text-xs font-bold rounded-lg bg-[#C9A84C] hover:bg-[#b8963f] text-white transition-colors"
+                            className="flex-shrink-0 px-3 py-1.5 text-xs font-bold rounded-lg text-white transition-colors"
+                            style={{ background: GOLD }}
                         >
                             Upgrade
                         </button>
                     </div>
                 )}
 
-                {/* Filter pills row */}
-                <div className="flex items-center gap-1.5 flex-wrap">
-                    {([
-                        { key: 'all',      label: 'All',         count: savedCVs.length, icon: null,       activeClass: 'bg-[#1B2B4B] dark:bg-[#C9A84C] text-white shadow-sm' },
-                        { key: 'job',      label: 'Job',         count: counts.job,      icon: Briefcase,  activeClass: 'bg-blue-600 text-white shadow-sm' },
-                        { key: 'academic', label: 'Scholarship', count: counts.academic, icon: BookOpen,   activeClass: 'bg-teal-600 text-white shadow-sm' },
-                        { key: 'general',  label: 'General',     count: counts.general,  icon: Globe,      activeClass: 'bg-violet-600 text-white shadow-sm' },
-                    ] as const).map(({ key, label, count, icon: Icon, activeClass }) => (
-                        <button
-                            key={key}
-                            onClick={() => setFilter(key)}
-                            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11.5px] font-semibold transition-all duration-150 border ${
-                                filter === key
-                                    ? `${activeClass} border-transparent`
-                                    : 'border-zinc-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-zinc-600 dark:text-zinc-400 hover:border-zinc-300 dark:hover:border-neutral-600'
-                            }`}
-                        >
-                            {Icon && <Icon className="h-3 w-3" />}
-                            {label}
-                            <span className={`text-[10px] font-bold px-1 rounded-full ${
-                                filter === key ? 'bg-white/25' : 'bg-zinc-100 dark:bg-neutral-700 text-zinc-500 dark:text-zinc-400'
-                            }`}>{count}</span>
-                        </button>
-                    ))}
-                </div>
-
-                {/* Toolbar: search + sort + view toggle */}
-                <div className="flex items-center gap-2">
-                    {/* Search */}
-                    <div className="relative flex-1 max-w-64">
-                        <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-zinc-400" viewBox="0 0 20 20" fill="currentColor">
-                            <path fillRule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z" clipRule="evenodd" />
-                        </svg>
-                        <input
-                            type="text"
-                            placeholder="Search CVs…"
-                            value={search}
-                            onChange={e => setSearch(e.target.value)}
-                            className="w-full pl-8 pr-8 py-2 text-xs rounded-lg border border-zinc-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-zinc-700 dark:text-zinc-300 placeholder-zinc-400 dark:placeholder-zinc-600 focus:outline-none focus:border-[#1B2B4B] dark:focus:border-[#C9A84C] transition-colors"
-                        />
-                        {search && (
-                            <button onClick={() => setSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300">
-                                <X className="h-3 w-3" />
+                {/* Filter pills + toolbar */}
+                <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                    {/* Filter pills */}
+                    <div className="flex items-center gap-1.5 flex-wrap flex-1">
+                        {([
+                            { key: 'all', label: 'All', count: savedCVs.length },
+                            { key: 'job', label: 'Job', count: counts.job },
+                            { key: 'academic', label: 'Scholarship', count: counts.academic },
+                            { key: 'general', label: 'General', count: counts.general },
+                        ] as const).map(({ key, label, count }) => (
+                            <button
+                                key={key}
+                                onClick={() => setFilter(key)}
+                                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-all duration-150 border ${
+                                    filter === key
+                                        ? 'bg-[#1B2B4B] dark:bg-[#C9A84C] border-transparent text-white shadow-sm'
+                                        : 'border-zinc-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-zinc-600 dark:text-zinc-400 hover:border-zinc-300 dark:hover:border-neutral-600'
+                                }`}
+                            >
+                                {label}
+                                <span className={`text-[9.5px] font-bold px-1 py-0.5 rounded-full min-w-[18px] text-center ${
+                                    filter === key ? 'bg-white/20 text-white' : 'bg-zinc-100 dark:bg-neutral-700 text-zinc-500 dark:text-zinc-400'
+                                }`}>{count}</span>
                             </button>
-                        )}
+                        ))}
                     </div>
 
-                    {/* Sort dropdown */}
-                    <div className="flex items-center gap-1 text-xs text-zinc-500 dark:text-zinc-400 flex-shrink-0">
-                        <span className="hidden sm:inline font-medium">Sort:</span>
+                    {/* Toolbar: search + sort + view */}
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                        {/* Search */}
+                        <div className="relative">
+                            <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3 w-3 text-zinc-400" viewBox="0 0 20 20" fill="currentColor">
+                                <path fillRule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z" clipRule="evenodd" />
+                            </svg>
+                            <input
+                                type="text"
+                                placeholder="Search…"
+                                value={search}
+                                onChange={e => setSearch(e.target.value)}
+                                className="w-32 sm:w-44 pl-7 pr-7 py-1.5 text-[11.5px] rounded-lg border border-zinc-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-zinc-700 dark:text-zinc-300 placeholder-zinc-400 focus:outline-none focus:border-[#1B2B4B] dark:focus:border-[#C9A84C] transition-colors"
+                            />
+                            {search && (
+                                <button onClick={() => setSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600">
+                                    <X className="h-3 w-3" />
+                                </button>
+                            )}
+                        </div>
+
+                        {/* Sort */}
                         <select
                             value={sortBy}
                             onChange={e => setSortBy(e.target.value as 'newest' | 'oldest')}
-                            className="pl-2 pr-6 py-2 text-xs rounded-lg border border-zinc-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-zinc-600 dark:text-zinc-400 focus:outline-none focus:border-[#1B2B4B] dark:focus:border-[#C9A84C] transition-colors appearance-none cursor-pointer"
+                            className="py-1.5 pl-2 pr-6 text-[11.5px] rounded-lg border border-zinc-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-zinc-600 dark:text-zinc-400 focus:outline-none focus:border-[#1B2B4B] dark:focus:border-[#C9A84C] transition-colors appearance-none cursor-pointer"
                         >
                             <option value="newest">Newest</option>
                             <option value="oldest">Oldest</option>
                         </select>
-                    </div>
 
-                    {/* View mode toggle */}
-                    <div className="flex items-center rounded-lg border border-zinc-200 dark:border-neutral-700 overflow-hidden flex-shrink-0">
-                        <button
-                            onClick={() => setViewMode('grid')}
-                            title="Grid view"
-                            className={`p-2 transition-colors ${viewMode === 'grid' ? 'bg-[#1B2B4B] dark:bg-[#C9A84C] text-white' : 'bg-white dark:bg-neutral-800 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300'}`}
-                        >
-                            <svg viewBox="0 0 16 16" className="h-3.5 w-3.5 fill-current">
-                                <rect x="1" y="1" width="6" height="6" rx="1"/><rect x="9" y="1" width="6" height="6" rx="1"/>
-                                <rect x="1" y="9" width="6" height="6" rx="1"/><rect x="9" y="9" width="6" height="6" rx="1"/>
-                            </svg>
-                        </button>
-                        <button
-                            onClick={() => setViewMode('list')}
-                            title="List view"
-                            className={`p-2 transition-colors border-l border-zinc-200 dark:border-neutral-700 ${viewMode === 'list' ? 'bg-[#1B2B4B] dark:bg-[#C9A84C] text-white' : 'bg-white dark:bg-neutral-800 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300'}`}
-                        >
-                            <svg viewBox="0 0 16 16" className="h-3.5 w-3.5 fill-current">
-                                <rect x="1" y="2" width="14" height="2.5" rx="1"/><rect x="1" y="6.75" width="14" height="2.5" rx="1"/>
-                                <rect x="1" y="11.5" width="14" height="2.5" rx="1"/>
-                            </svg>
-                        </button>
+                        {/* View toggle */}
+                        <div className="flex items-center rounded-lg border border-zinc-200 dark:border-neutral-700 overflow-hidden">
+                            <button
+                                onClick={() => setViewMode('grid')}
+                                title="Grid"
+                                className={`p-1.5 transition-colors ${viewMode === 'grid' ? 'bg-[#1B2B4B] dark:bg-[#C9A84C] text-white' : 'bg-white dark:bg-neutral-800 text-zinc-400 hover:text-zinc-600'}`}
+                            >
+                                <svg viewBox="0 0 16 16" className="h-3 w-3 fill-current">
+                                    <rect x="1" y="1" width="6" height="6" rx="1"/><rect x="9" y="1" width="6" height="6" rx="1"/>
+                                    <rect x="1" y="9" width="6" height="6" rx="1"/><rect x="9" y="9" width="6" height="6" rx="1"/>
+                                </svg>
+                            </button>
+                            <button
+                                onClick={() => setViewMode('list')}
+                                title="List"
+                                className={`p-1.5 transition-colors border-l border-zinc-200 dark:border-neutral-700 ${viewMode === 'list' ? 'bg-[#1B2B4B] dark:bg-[#C9A84C] text-white' : 'bg-white dark:bg-neutral-800 text-zinc-400 hover:text-zinc-600'}`}
+                            >
+                                <svg viewBox="0 0 16 16" className="h-3 w-3 fill-current">
+                                    <rect x="1" y="2" width="14" height="2.5" rx="1"/><rect x="1" y="6.75" width="14" height="2.5" rx="1"/>
+                                    <rect x="1" y="11.5" width="14" height="2.5" rx="1"/>
+                                </svg>
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -677,7 +807,7 @@ const CVHistory: React.FC<CVHistoryProps> = ({ savedCVs, onLoad, onDelete, userP
                         </p>
                     </div>
                 ) : viewMode === 'grid' ? (
-                    <div className={`grid gap-4 ${previewCV ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3' : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'}`}>
+                    <div className={`grid gap-4 ${previewCV ? 'grid-cols-1 sm:grid-cols-2 xl:grid-cols-3' : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'}`}>
                         {paginated.map(cv => (
                             <CVCard
                                 key={cv.id}
@@ -690,53 +820,57 @@ const CVHistory: React.FC<CVHistoryProps> = ({ savedCVs, onLoad, onDelete, userP
                         ))}
                     </div>
                 ) : (
-                    /* List view */
-                    <div className="flex flex-col gap-2">
+                    /* ── List view ── */
+                    <div className="flex flex-col gap-1.5">
                         {paginated.map(cv => {
-                            const cvData = getCVDataCached(cv.id) ?? cv.data;
+                            const atsScore = cv.qualityReport?.score ?? (cv as any).atsScore as number | undefined;
                             const purpose = purposeConfig[cv.purpose] || purposeConfig.job;
                             const PurposeIcon = purpose.icon;
-                            const atsScore = (cv as any).atsScore as number | undefined;
+                            const tmplName = templateDisplayNames[cv.template || 'v2-classic-pro'] || cv.template || '';
                             return (
                                 <div
                                     key={cv.id}
                                     onClick={() => setPreviewCV(cv)}
                                     className={`group flex items-center gap-3 px-4 py-3 bg-white dark:bg-neutral-800 rounded-xl border transition-all duration-150 cursor-pointer ${
                                         previewCV?.id === cv.id
-                                            ? 'border-[#C9A84C] ring-1 ring-[#C9A84C]/30 shadow-sm'
-                                            : 'border-zinc-200 dark:border-neutral-700 hover:border-[#C9A84C]/40 hover:shadow-sm'
+                                            ? 'border-[#C9A84C] ring-1 ring-[#C9A84C]/25 shadow-sm'
+                                            : 'border-zinc-200 dark:border-neutral-700 hover:border-[#C9A84C]/35 hover:shadow-sm'
                                     }`}
                                 >
-                                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                                        cv.purpose === 'job' ? 'bg-blue-500/15' : cv.purpose === 'academic' ? 'bg-teal-500/15' : 'bg-violet-500/15'
-                                    }`}>
-                                        <PurposeIcon className={`h-4 w-4 ${
-                                            cv.purpose === 'job' ? 'text-blue-500' : cv.purpose === 'academic' ? 'text-teal-500' : 'text-violet-500'
-                                        }`} />
+                                    {/* Mini thumbnail */}
+                                    <div className="w-9 h-12 rounded-lg overflow-hidden flex-shrink-0 border border-zinc-200 dark:border-neutral-700 bg-zinc-50 dark:bg-neutral-750">
+                                        <div className="w-full h-full pointer-events-none" style={{ transform: 'scale(0.16)', transformOrigin: 'top left', width: '625%', height: '625%' }}>
+                                            <TemplateThumbnail templateName={cv.template || 'v2-classic-pro'} />
+                                        </div>
                                     </div>
+
+                                    {/* Purpose icon */}
+                                    <div className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 ${purpose.bg}`}>
+                                        <PurposeIcon className={`${purpose.color}`} style={{ width: 14, height: 14 }} />
+                                    </div>
+
                                     <div className="flex-1 min-w-0">
-                                        <p className="text-sm font-bold text-zinc-900 dark:text-zinc-100 truncate">{cv.name}</p>
-                                        <p className="text-[10.5px] text-zinc-400 dark:text-zinc-500">
-                                            {relativeTime(cv.createdAt)} · {exactDate(cv.createdAt)}
-                                            {cvData ? ` · ${cvData.experience?.length || 0} roles · ${cvData.skills?.length || 0} skills` : ''}
+                                        <p className="text-[12.5px] font-bold text-zinc-900 dark:text-zinc-100 truncate leading-snug">{cv.name}</p>
+                                        <p className="text-[10px] text-zinc-400 dark:text-zinc-500 truncate">
+                                            {relativeTime(cv.createdAt)} · {tmplName}
                                         </p>
                                     </div>
+
+                                    {/* ATS score */}
                                     {atsScore !== undefined && atsScore > 0 && (
-                                        <span className={`flex-shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
-                                            atsScore >= 80 ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400'
-                                            : atsScore >= 60 ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400'
-                                            : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
-                                        }`}>ATS {atsScore}</span>
+                                        <ScoreRing score={atsScore} size={32} />
                                     )}
+
+                                    {/* Actions (hover) */}
                                     <button
                                         onClick={e => { e.stopPropagation(); handleLoad(cv); }}
-                                        className="flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold border border-zinc-200 dark:border-neutral-600 text-zinc-600 dark:text-zinc-400 hover:border-[#C9A84C]/60 hover:text-[#1B2B4B] dark:hover:text-[#C9A84C] transition-colors opacity-0 group-hover:opacity-100"
+                                        className="flex-shrink-0 px-3 py-1.5 rounded-lg text-[11px] font-semibold border border-zinc-200 dark:border-neutral-600 text-zinc-600 dark:text-zinc-400 hover:border-[#C9A84C]/60 hover:text-[#1B2B4B] dark:hover:text-[#C9A84C] transition-colors opacity-0 group-hover:opacity-100"
                                     >
                                         Edit
                                     </button>
                                     <button
                                         onClick={e => { e.stopPropagation(); onDelete(cv.id); if (previewCV?.id === cv.id) setPreviewCV(null); }}
-                                        className="flex-shrink-0 p-1.5 rounded-lg text-zinc-300 dark:text-zinc-600 hover:text-red-400 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors opacity-0 group-hover:opacity-100"
+                                        className="flex-shrink-0 p-1.5 rounded-lg text-zinc-300 dark:text-zinc-600 hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors opacity-0 group-hover:opacity-100"
                                     >
                                         <Trash className="h-3.5 w-3.5" />
                                     </button>
@@ -766,9 +900,10 @@ const CVHistory: React.FC<CVHistoryProps> = ({ savedCVs, onLoad, onDelete, userP
                                     onClick={() => setPage(p)}
                                     className={`w-7 h-7 rounded-lg text-xs font-semibold transition-colors ${
                                         p === safePage
-                                            ? 'bg-[#1B2B4B] dark:bg-[#C9A84C] text-white shadow-sm'
+                                            ? 'text-white shadow-sm'
                                             : 'border border-zinc-200 dark:border-neutral-700 text-zinc-500 dark:text-zinc-400 hover:border-zinc-300'
                                     }`}
+                                    style={p === safePage ? { background: NAVY } : {}}
                                 >
                                     {p}
                                 </button>
@@ -785,11 +920,11 @@ const CVHistory: React.FC<CVHistoryProps> = ({ savedCVs, onLoad, onDelete, userP
                 )}
             </div>
 
-            {/* ── Right preview panel ── */}
+            {/* ── Right preview panel (desktop: lg+, always visible when a cv is selected) ── */}
             {previewCV && (
                 <div
                     className="hidden lg:flex flex-col flex-shrink-0 ml-4 rounded-2xl overflow-hidden border border-zinc-200 dark:border-neutral-700 shadow-xl"
-                    style={{ width: 360, alignSelf: 'flex-start', position: 'sticky', top: 0, maxHeight: 'calc(100vh - 80px)' }}
+                    style={{ width: 420, alignSelf: 'flex-start', position: 'sticky', top: 0, maxHeight: 'calc(100vh - 80px)' }}
                 >
                     <PreviewPanel
                         key={previewCV.id}
@@ -798,15 +933,16 @@ const CVHistory: React.FC<CVHistoryProps> = ({ savedCVs, onLoad, onDelete, userP
                         onClose={() => setPreviewCV(null)}
                         onLoad={onLoad}
                         onDelete={id => { onDelete(id); setPreviewCV(null); }}
+                        isDesktop
                     />
                 </div>
             )}
 
-            {/* Mobile: full-screen overlay */}
+            {/* ── Mobile: full-screen overlay ── */}
             {previewCV && (
-                <div className="lg:hidden fixed inset-0 z-50 flex flex-col bg-white dark:bg-neutral-900" >
+                <div className="lg:hidden fixed inset-0 z-50 flex flex-col bg-white dark:bg-neutral-900">
                     <PreviewPanel
-                        key={previewCV.id}
+                        key={`mob-${previewCV.id}`}
                         cv={previewCV}
                         userProfile={userProfile}
                         onClose={() => setPreviewCV(null)}
