@@ -49,6 +49,7 @@ import { diffCV, CVDiff } from '../services/cvDoctorService';
 import { DownloadGateModal, shouldGateDownload, incrementDownloadCount } from './DownloadGateModal';
 import { useAuth } from '../auth/AuthContext';
 import WizardStepBar from './WizardStepBar';
+import ProfileSlidePanel from './ProfileSlidePanel';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const CV_TIPS = [
@@ -398,6 +399,10 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
   }, []);
   const [error, setError] = useState<string | null>(null);
   const [showByokPrompt, setShowByokPrompt] = useState(false);
+  // ── Design sub-tabs (Templates / Design / Layout / Colors / Fonts) ────────
+  const [activeDesignTab, setActiveDesignTab] = useState<'templates' | 'design' | 'layout' | 'colors' | 'fonts'>('templates');
+  // ── Profile slide panel ───────────────────────────────────────────────────
+  const [showProfilePanel, setShowProfilePanel] = useState(false);
   const [isAssembling, setIsAssembling] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [template, setTemplate] = useLocalStorage<TemplateName>('template', 'professional');
@@ -1905,6 +1910,49 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
         </div>
       </div>
 
+      {/* ══ Design sub-tabs — Templates / Design / Layout / Colors / Fonts ══
+          Positioned below the wizard step bar. Controls the right-panel content.  */}
+      <div
+        className="-mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8 border-b overflow-x-auto no-scrollbar"
+        style={{ borderColor: darkMode ? 'rgba(255,255,255,0.06)' : '#F3F4F6' }}
+      >
+        <div className="flex gap-0">
+          {(
+            [
+              { key: 'templates', label: 'Templates',  icon: '▤' },
+              { key: 'design',    label: 'Design',     icon: '🎨' },
+              { key: 'layout',    label: 'Layout',     icon: '⊞' },
+              { key: 'colors',    label: 'Colors',     icon: '🎨' },
+              { key: 'fonts',     label: 'Fonts',      icon: 'Aa' },
+            ] as const
+          ).map(({ key, label, icon }) => {
+            const isActive = activeDesignTab === key;
+            return (
+              <button
+                key={key}
+                onClick={() => setActiveDesignTab(key)}
+                className="relative flex items-center gap-1.5 px-4 py-2.5 text-xs font-semibold whitespace-nowrap transition-colors flex-shrink-0"
+                style={{
+                  color: isActive
+                    ? '#C9A84C'
+                    : darkMode ? 'rgba(255,255,255,0.4)' : '#9CA3AF',
+                }}
+              >
+                <span className="text-sm">{icon}</span>
+                {label}
+                {isActive && (
+                  <motion.div
+                    layoutId="designTabIndicator"
+                    className="absolute bottom-0 left-0 right-0 h-[2px] rounded-t"
+                    style={{ background: '#C9A84C' }}
+                  />
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       {/* ══ 2-column layout — LEFT: form input | RIGHT: live preview ══════ */}
       <div className="flex flex-col lg:flex-row lg:gap-6 lg:items-start mt-6">
 
@@ -1943,6 +1991,44 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
             ×
           </button>
         </div>
+      )}
+
+      {/* ── Build Your Profile prompt — shown when profile is incomplete (Step 0) ── */}
+      {wizardStep === 0 && (
+        <button
+          onClick={() => setShowProfilePanel(true)}
+          className="w-full flex items-center gap-3 p-4 rounded-2xl border-2 border-dashed text-left transition-all hover:border-[#C9A84C]/60 hover:bg-amber-50/30 dark:hover:bg-amber-900/10 group"
+          style={{ borderColor: '#C9A84C40' }}
+        >
+          <div
+            className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 text-base transition-transform group-hover:scale-105"
+            style={{ background: 'linear-gradient(135deg,#1B2B4B,#2d4a7a)', color: '#C9A84C' }}
+          >
+            👤
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-bold text-zinc-700 dark:text-zinc-200">Build Your Profile</p>
+            <p className="text-xs text-zinc-400 dark:text-zinc-500">
+              Review your details, check completion, and add any missing information
+            </p>
+          </div>
+          <svg className="w-4 h-4 text-zinc-400 dark:text-zinc-500 flex-shrink-0 group-hover:text-[#C9A84C] transition-colors" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+            <path d="M9 18l6-6-6-6"/>
+          </svg>
+        </button>
+      )}
+
+      {/* ── View Profile shortcut — shown after Step 0 ── */}
+      {wizardStep > 0 && (
+        <button
+          onClick={() => setShowProfilePanel(true)}
+          className="flex items-center gap-1.5 text-xs text-zinc-400 dark:text-zinc-500 hover:text-[#C9A84C] dark:hover:text-[#C9A84C] transition-colors"
+        >
+          <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+          </svg>
+          View Profile
+        </button>
       )}
 
       {/* === Profile Intelligence Score === */}
@@ -2773,6 +2859,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
             );
           })()}
 
+          {activeDesignTab === 'templates' && (<>
           <TemplateGallery
             selectedTemplate={template}
             onSelect={handleTemplateSelect}
@@ -2819,6 +2906,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
               })}
             </div>
           </div>
+          </>)}
 
           {/* ── Sidebar Section Picker ───────────────────────────────────
               Only visible for sidebar templates. Lets the user toggle off the
@@ -2871,16 +2959,87 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
             </div>
           )}
 
-          {/* ── V2 Theme & Font Picker ────────────────────────────────────────
-              Requires a generated CV — accent colour, header panel, font
-              pairing and bullet style are stored inside the CV object itself,
-              so there must be a CV to write to. */}
+          {/* ── Layout tab: layout type selector + one-page toggle ─────────── */}
+          {activeDesignTab === 'layout' && (
+            <div className="mt-5">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-[10px] font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-widest">Layout Style</span>
+                <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                  <span className="font-semibold text-zinc-700 dark:text-zinc-300">{templateDisplayNames[template]}</span> active
+                </span>
+              </div>
+              <div className="grid grid-cols-5 gap-1.5">
+                {([
+                  { id: 'single-col',    label: 'Standard',  icon: '▤', pick: 'v2-pro' as TemplateName,           tip: 'Single column, ATS-safe' },
+                  { id: 'sidebar-left',  label: 'Sidebar L', icon: '▧', pick: 'v2-slate-sidebar' as TemplateName,  tip: 'Dark sidebar on left' },
+                  { id: 'sidebar-right', label: 'Sidebar R', icon: '▨', pick: 'v2-gold-exec' as TemplateName,     tip: 'Accent sidebar on right' },
+                  { id: 'photo',         label: 'Photo',     icon: '📷', pick: 'v2-photo' as TemplateName,         tip: 'Circular photo + sidebar' },
+                  { id: 'timeline',      label: 'Timeline',  icon: '⋮',  pick: 'timeline' as TemplateName,         tip: 'Chronological timeline' },
+                ] as const).map(({ id, label, icon, pick, tip }) => {
+                  const currentLayout = THEME_MAP[template as keyof typeof THEME_MAP]?.layout ?? 'single-col';
+                  const isActive =
+                    id === 'photo'    ? template === 'v2-photo' :
+                    id === 'timeline' ? template === 'timeline' :
+                    id === currentLayout;
+                  return (
+                    <button
+                      key={id}
+                      onClick={() => handleTemplateSelect(pick)}
+                      title={tip}
+                      className={`flex flex-col items-center gap-1.5 py-2.5 px-1 rounded-xl border-2 text-center transition-all duration-150 ${
+                        isActive
+                          ? 'border-[#C9A84C] bg-amber-50 dark:bg-amber-900/20 shadow-sm'
+                          : 'border-zinc-200 dark:border-neutral-700 hover:border-[#C9A84C]/40 hover:bg-zinc-50 dark:hover:bg-neutral-800/60'
+                      }`}
+                    >
+                      <span className="text-base leading-none">{icon}</span>
+                      <span className={`text-[9px] font-bold leading-tight ${isActive ? 'text-[#C9A84C]' : 'text-zinc-500 dark:text-zinc-400'}`}>
+                        {label}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+              {/* One-page toggle shortcut */}
+              {currentCV && (
+                <div className="mt-3 flex items-center justify-between py-2.5 px-3 rounded-xl border border-zinc-200 dark:border-neutral-700 bg-zinc-50 dark:bg-neutral-800/50">
+                  <div>
+                    <p className="text-xs font-semibold text-zinc-700 dark:text-zinc-200">One-Page Mode</p>
+                    <p className="text-[10px] text-zinc-400 dark:text-zinc-500">Auto-compress to fit a single A4 page</p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      const updated = { ...currentCV, onePage: !currentCV.onePage };
+                      setCurrentCV(updated);
+                      syncCurrentCVToD1(updated);
+                    }}
+                    className={`relative w-9 h-5 rounded-full transition-colors flex-shrink-0 ${
+                      currentCV.onePage ? 'bg-[#C9A84C]' : 'bg-zinc-200 dark:bg-neutral-600'
+                    }`}
+                    aria-pressed={currentCV.onePage}
+                  >
+                    <span
+                      className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${
+                        currentCV.onePage ? 'translate-x-4' : 'translate-x-0'
+                      }`}
+                    />
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── Design / Colors / Fonts tab: V2 Theme & Font Picker ─────────── */}
+          {(activeDesignTab === 'design' || activeDesignTab === 'colors' || activeDesignTab === 'fonts') && (
+          <>
           {currentCV ? (
             <V2ThemePicker cvData={currentCV} onChange={(cv) => { setCurrentCV(cv); syncCurrentCVToD1(cv); }} />
           ) : (
             <div className="mt-5 rounded-xl border border-dashed border-zinc-200 dark:border-neutral-700 px-4 py-5 text-center">
               <p className="text-xs text-zinc-400 dark:text-zinc-500">Generate a CV first to unlock accent colour, header panel, font pairing &amp; more.</p>
             </div>
+          )}
+          </>
           )}
 
           {/* ── Import Quality Report ─────────────────────────────────────── */}
@@ -3522,6 +3681,14 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
           onClose={() => setShowDoctorPanel(false)}
         />
       )}
+
+      {/* ── Profile Slide Panel ───────────────────────────────────────────── */}
+      <ProfileSlidePanel
+        isOpen={showProfilePanel}
+        onClose={() => setShowProfilePanel(false)}
+        userProfile={userProfile}
+        darkMode={darkMode}
+      />
 
       {/* ── Pro Tip bar — persistent rotating strip ───────────────────────── */}
       <div
