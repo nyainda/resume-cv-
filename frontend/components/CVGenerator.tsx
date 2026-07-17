@@ -1906,7 +1906,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
       </div>
 
       {/* ══ 2-column layout — LEFT: form input | RIGHT: live preview ══════ */}
-      <div className="flex flex-col xl:flex-row xl:gap-6 xl:items-start mt-6">
+      <div className="flex flex-col lg:flex-row lg:gap-6 lg:items-start mt-6">
 
         {/* ── LEFT column: all form input sections ───────────────────────── */}
         <div className="flex-1 min-w-0 space-y-4">
@@ -2517,11 +2517,11 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
         </div>{/* ── end LEFT column ─────────────────────────────────────── */}
 
         {/* ── RIGHT column: template picker + live CV preview ─────────── */}
-        <div className="w-full xl:w-[500px] flex-shrink-0 xl:sticky xl:top-[72px] xl:max-h-[calc(100vh-88px)] xl:overflow-y-auto space-y-4">
+        <div className="w-full lg:w-[440px] xl:w-[500px] flex-shrink-0 lg:sticky lg:top-[72px] lg:max-h-[calc(100vh-88px)] lg:overflow-y-auto space-y-4">
 
           {/* Placeholder: shown before first CV generation (desktop only) */}
           {!currentCV && !(isLoading && draftCV) && (
-            <div className="hidden xl:flex flex-col rounded-2xl border-2 border-dashed border-zinc-200 dark:border-zinc-700 items-center justify-center py-24 text-center gap-4 bg-white dark:bg-zinc-900/30">
+            <div className="hidden lg:flex flex-col rounded-2xl border-2 border-dashed border-zinc-200 dark:border-zinc-700 items-center justify-center py-24 text-center gap-4 bg-white dark:bg-zinc-900/30">
               <div className="w-14 h-[82px] rounded-xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center flex-shrink-0 shadow-sm">
                 <svg className="w-7 h-7 text-zinc-300 dark:text-zinc-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>

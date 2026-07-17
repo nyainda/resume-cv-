@@ -146,7 +146,7 @@ const NavLink: React.FC<NavLinkProps> = ({ item, isActive, isGated, darkMode: da
   <button
     onClick={onClick}
     title={item.label}
-    className={`w-full flex items-center gap-2.5 pl-4 pr-2 py-[7px] text-[11.5px] font-semibold transition-all duration-150 text-left ${
+    className={`w-full flex items-center justify-start md:justify-center lg:justify-start gap-2.5 pl-4 md:pl-0 md:pr-0 lg:pl-4 lg:pr-2 py-[7px] md:py-2.5 lg:py-[7px] text-[11.5px] font-semibold transition-all duration-150 text-left ${
       isActive ? tw.navActive(dark) : tw.navInactive(dark)
     }`}
     style={{
@@ -154,10 +154,10 @@ const NavLink: React.FC<NavLinkProps> = ({ item, isActive, isGated, darkMode: da
     }}
   >
     <item.icon className="h-3.5 w-3.5 flex-shrink-0" />
-    <span className="flex-1 leading-tight">{item.label}</span>
+    <span className="flex-1 leading-tight md:hidden lg:block">{item.label}</span>
     {isGated && (
       <span
-        className="text-[7px] font-black px-1 py-0.5 rounded mr-1 flex-shrink-0"
+        className="text-[7px] font-black px-1 py-0.5 rounded mr-1 flex-shrink-0 md:hidden lg:inline-block"
         style={{ background: tw.proBadgeBg(dark), color: GOLD }}
       >
         PRO
@@ -178,7 +178,7 @@ const SidebarSection: React.FC<SidebarSectionProps> = ({
   label, items, currentView, darkMode: dark, onNavClick, GATED_VIEWS,
 }) => (
   <div>
-    <p className={`pl-4 mb-1 text-[9px] font-black uppercase tracking-[0.14em] ${tw.sectionLabel(dark)}`}>
+    <p className={`pl-4 mb-1 text-[9px] font-black uppercase tracking-[0.14em] md:hidden lg:block ${tw.sectionLabel(dark)}`}>
       {label}
     </p>
     {items.map((item) => (
@@ -268,7 +268,7 @@ const SidebarInner: React.FC<SidebarInnerProps> = ({
             onAfterNavClick?.();
           }
         }}
-        className="flex items-center gap-2.5 px-4 pt-5 pb-4 flex-shrink-0 hover:opacity-90 transition-opacity"
+        className="w-full flex items-center justify-center md:justify-center lg:justify-start gap-2.5 px-4 md:px-0 lg:px-4 pt-5 pb-4 flex-shrink-0 hover:opacity-90 transition-opacity"
       >
         <img
           src="/logo.svg"
@@ -276,7 +276,7 @@ const SidebarInner: React.FC<SidebarInnerProps> = ({
           className="h-8 w-8 rounded-lg flex-shrink-0 shadow-md"
           draggable={false}
         />
-        <div className="text-left leading-none">
+        <div className="text-left leading-none md:hidden lg:block">
           <div
             className={`text-[14px] font-extrabold ${tw.logoText(dark)}`}
             style={{ fontFamily: "'Playfair Display', serif" }}
@@ -326,7 +326,7 @@ const SidebarInner: React.FC<SidebarInnerProps> = ({
       {/* ── Go Premium banner ─────────────────────────────────────── */}
       {!isPremium && (
         <div
-          className="mx-2 mb-2 rounded-xl p-3 flex-shrink-0"
+          className="hidden lg:block mx-2 mb-2 rounded-xl p-3 flex-shrink-0"
           style={tw.premiumBanner(dark)}
         >
           <div className="flex items-center gap-1.5 mb-1">
@@ -358,7 +358,7 @@ const SidebarInner: React.FC<SidebarInnerProps> = ({
         <div className="relative" ref={profileManagerRef}>
           <button
             onClick={() => setShowProfileManager((v) => !v)}
-            className={`w-full flex items-center gap-2.5 px-3 py-3 transition-colors ${tw.profileRow(dark)}`}
+            className={`w-full flex items-center justify-start md:justify-center lg:justify-start gap-2.5 px-3 md:px-0 lg:px-3 py-3 transition-colors ${tw.profileRow(dark)}`}
           >
             {isAuthenticated && user?.picture ? (
               <img
@@ -376,7 +376,7 @@ const SidebarInner: React.FC<SidebarInnerProps> = ({
                 {userInitial}
               </div>
             )}
-            <div className="flex-1 min-w-0 text-left">
+            <div className="flex-1 min-w-0 text-left md:hidden lg:block">
               <p className={`text-[11px] font-bold truncate leading-tight ${tw.userDisplayName(dark)}`}>
                 {userDisplayName}
               </p>
@@ -388,7 +388,7 @@ const SidebarInner: React.FC<SidebarInnerProps> = ({
               </p>
             </div>
             <svg
-              className={`h-3 w-3 flex-shrink-0 ${tw.profileChevron(dark)}`}
+              className={`h-3 w-3 flex-shrink-0 md:hidden lg:block ${tw.profileChevron(dark)}`}
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
@@ -418,8 +418,8 @@ const SidebarInner: React.FC<SidebarInnerProps> = ({
           )}
         </div>
 
-        {/* Quick-action icon strip */}
-        <div className="flex items-center justify-around px-3 pb-3 gap-1">
+        {/* Quick-action icon strip — hidden in icon-only (md) mode, shown on lg+ */}
+        <div className="hidden lg:flex items-center justify-around px-3 pb-3 gap-1">
           {/* ⌘K search */}
           <button
             onClick={() => { onOpenCmdPalette?.(); onAfterNavClick?.(); }}
@@ -576,7 +576,7 @@ const AppSidebar: React.FC<AppSidebarProps> = (props) => {
     <>
       {/* ── Desktop sidebar ──────────────────────────────────────────────── */}
       <aside
-        className={`hidden md:flex flex-col flex-shrink-0 w-[148px] sticky top-0 h-screen z-20 transition-colors duration-300 ${tw.sidebarBg(dark)}`}
+        className={`hidden md:flex flex-col flex-shrink-0 md:w-16 lg:w-[148px] sticky top-0 h-screen z-20 transition-colors duration-300 ${tw.sidebarBg(dark)}`}
         style={tw.sidebarStyle(dark)}
       >
         <SidebarInner {...innerProps} />
