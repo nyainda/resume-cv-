@@ -282,6 +282,7 @@ const AppViewRouter: React.FC<AppViewRouterProps> = ({
                   activeSlot={activeSlot}
                   currentCV={currentCV}
                   isAuthenticated={isAuthenticated}
+                  user={user}
                   onNavigate={(view) => setCurrentView(view as any)}
                   onEditProfile={() => setIsEditingProfile(true)}
                   onOpenSettings={() => setIsSettingsOpen(true)}

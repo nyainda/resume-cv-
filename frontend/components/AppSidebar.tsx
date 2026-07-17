@@ -359,6 +359,63 @@ const SidebarInner: React.FC<SidebarInnerProps> = ({
         style={{ borderColor: tw.divider(dark) }}
       >
 
+        {/* Identity row — avatar + name + tier (xl wide sidebar only) */}
+        <div className="hidden xl:flex items-center gap-2.5 px-3 pt-3 pb-1">
+          {/* Avatar */}
+          <div className="relative flex-shrink-0">
+            {isAuthenticated && user?.picture ? (
+              <img
+                src={user.picture}
+                alt={user.name || user.email}
+                className="h-8 w-8 rounded-full object-cover"
+                onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+              />
+            ) : (
+              <div
+                className="h-8 w-8 rounded-full flex items-center justify-center text-[13px] font-black"
+                style={{ background: GOLD, color: DARK_BG }}
+              >
+                {userInitial}
+              </div>
+            )}
+            {isAuthenticated && (
+              <span
+                className="absolute bottom-0 right-0 w-2 h-2 rounded-full bg-emerald-500 border-[1.5px]"
+                style={{ borderColor: dark ? DARK_BG : '#ffffff' }}
+              />
+            )}
+          </div>
+
+          {/* Name + tier badge */}
+          <div className="flex-1 min-w-0 leading-none">
+            <p className={`text-[11.5px] font-bold truncate ${tw.userDisplayName(dark)}`}>
+              {userDisplayName}
+            </p>
+            <span
+              className="inline-block mt-[3px] text-[8.5px] font-black px-1.5 py-[2px] rounded-full"
+              style={{ background: isPremium ? `${GOLD}25` : isByok ? 'rgba(124,58,237,0.15)' : (dark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)'), color: tierColor }}
+            >
+              {tierLabel}
+            </span>
+          </div>
+        </div>
+
+        {/* Icon-only avatar — shown in md/lg narrow mode */}
+        <div className="hidden md:flex xl:hidden items-center justify-center pt-3 pb-1">
+          <div
+            className="h-8 w-8 rounded-full flex items-center justify-center text-[13px] font-black overflow-hidden"
+            style={{ background: GOLD, color: DARK_BG }}
+          >
+            {isAuthenticated && user?.picture ? (
+              <img
+                src={user.picture}
+                alt=""
+                className="h-8 w-8 rounded-full object-cover"
+                onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+              />
+            ) : userInitial}
+          </div>
+        </div>
 
         {/* Quick-action icon strip — hidden in icon-only (md/lg) mode, shown on xl+ */}
         <div className="hidden xl:flex items-center justify-around px-3 pb-3 gap-1">

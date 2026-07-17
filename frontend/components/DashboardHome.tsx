@@ -1,5 +1,7 @@
 import React, { useMemo, useEffect, useState } from 'react';
 import type { UserProfileSlot, SavedCV, SavedCoverLetter, TrackedApplication, CVData, UserProfile } from '../types';
+import type { WorkerUser } from '../services/authService';
+import { getEffectiveTier } from '../services/accountTierService';
 import { scoreCVCompleteness } from '../utils/cvCompleteness';
 import { profileToCV } from '../utils/profileToCV';
 import { getStoredShareLinks, fetchAllShareStats } from '../services/shareService';
@@ -31,6 +33,7 @@ interface Props {
   activeSlot: UserProfileSlot | null;
   currentCV: CVData | null;
   isAuthenticated: boolean;
+  user?: WorkerUser | null;
   onNavigate: (view: string) => void;
   onEditProfile: () => void;
   onOpenSettings: () => void;
@@ -262,10 +265,21 @@ const DashboardHome: React.FC<Props> = ({
   activeSlot,
   currentCV,
   isAuthenticated,
+  user,
   onNavigate,
   onEditProfile,
   onOpenSettings,
 }) => {
+  // ── Tier / identity ───────────────────────────────────────────────────────
+  const effectiveTier = getEffectiveTier();
+  const isPremium = effectiveTier === 'premium';
+  const isByok    = effectiveTier === 'byok';
+  const tierLabel = isPremium ? '★ Premium' : isByok ? '⚡ BYOK' : 'Free';
+  const tierColor = isPremium ? GOLD : isByok ? '#7C3AED' : '#6B7280';
+  const tierBg    = isPremium ? `${GOLD}18` : isByok ? 'rgba(124,58,237,0.12)' : 'rgba(0,0,0,0.06)';
+  const userInitial = ((isAuthenticated && user ? (user.name || user.email) : '') || 'U')
+    .charAt(0).toUpperCase();
+
   // ── Derived slot data ─────────────────────────────────────────────────────
   const savedCVs: SavedCV[]                = activeSlot?.savedCVs ?? [];
   const savedCLs: SavedCoverLetter[]       = activeSlot?.savedCoverLetters ?? [];
@@ -480,10 +494,12 @@ const DashboardHome: React.FC<Props> = ({
     <div className="max-w-[1380px] mx-auto py-4 sm:py-6">
 
       {/* ── PAGE HEADER ───────────────────────────────────────────────────── */}
-      <div className="flex items-start justify-between mb-5 gap-4">
-        <div>
+      <div className="flex items-center justify-between mb-5 gap-4">
+
+        {/* Greeting */}
+        <div className="min-w-0">
           <h1
-            className="text-xl sm:text-2xl font-bold text-zinc-900 dark:text-zinc-50 leading-tight"
+            className="text-xl sm:text-2xl font-bold text-zinc-900 dark:text-zinc-50 leading-tight truncate"
             style={{ fontFamily: "'Playfair Display', serif" }}
           >
             Good {timeGreeting}, {firstName || 'there'} 👋
@@ -492,16 +508,69 @@ const DashboardHome: React.FC<Props> = ({
             Let's build your next opportunity.
           </p>
         </div>
-        <button
-          onClick={onOpenSettings}
-          className="p-2.5 rounded-xl bg-white dark:bg-neutral-800 border border-zinc-200 dark:border-neutral-700 text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:border-zinc-300 dark:hover:border-neutral-600 transition-all shadow-sm flex-shrink-0"
-          title="Settings"
-        >
-          <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="12" cy="12" r="3"/>
-            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
-          </svg>
-        </button>
+
+        {/* Right: avatar + name + tier + settings */}
+        <div className="flex items-center gap-2.5 flex-shrink-0">
+
+          {/* Profile picture + identity */}
+          {isAuthenticated && user && (
+            <div className="flex items-center gap-2.5 pl-2 pr-3 py-1.5 rounded-2xl bg-white dark:bg-neutral-800 border border-zinc-200 dark:border-neutral-700 shadow-sm">
+              {/* Avatar */}
+              <div className="relative flex-shrink-0">
+                {user.picture ? (
+                  <img
+                    src={user.picture}
+                    alt={user.name || user.email}
+                    className="h-8 w-8 rounded-full object-cover ring-2 ring-white dark:ring-neutral-800"
+                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                  />
+                ) : (
+                  <div
+                    className="h-8 w-8 rounded-full flex items-center justify-center text-[13px] font-black ring-2 ring-white dark:ring-neutral-800"
+                    style={{ background: GOLD, color: NAVY }}
+                  >
+                    {userInitial}
+                  </div>
+                )}
+                {/* Online dot */}
+                <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-white dark:border-neutral-800" />
+              </div>
+
+              {/* Name + tier */}
+              <div className="leading-none hidden sm:block">
+                <p className="text-[12px] font-bold text-zinc-800 dark:text-zinc-100 truncate max-w-[120px]">
+                  {user.name?.split(' ')[0] || user.email.split('@')[0]}
+                </p>
+                <span
+                  className="inline-block mt-0.5 text-[9px] font-black px-1.5 py-0.5 rounded-full"
+                  style={{ background: tierBg, color: tierColor }}
+                >
+                  {tierLabel}
+                </span>
+              </div>
+
+              {/* Tier badge only on mobile (no name) */}
+              <span
+                className="inline-block sm:hidden text-[9px] font-black px-1.5 py-0.5 rounded-full"
+                style={{ background: tierBg, color: tierColor }}
+              >
+                {tierLabel}
+              </span>
+            </div>
+          )}
+
+          {/* Settings button */}
+          <button
+            onClick={onOpenSettings}
+            className="p-2.5 rounded-xl bg-white dark:bg-neutral-800 border border-zinc-200 dark:border-neutral-700 text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:border-zinc-300 dark:hover:border-neutral-600 transition-all shadow-sm"
+            title="Settings"
+          >
+            <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="3"/>
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+            </svg>
+          </button>
+        </div>
       </div>
 
       {/* ── RESUME LAST SESSION ───────────────────────────────────────────── */}
