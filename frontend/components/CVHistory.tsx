@@ -808,6 +808,24 @@ const CVHistory: React.FC<CVHistoryProps> = ({ savedCVs, onLoad, onDelete, userP
                                 onDelete={() => { onDelete(cv.id); if (previewCV?.id === cv.id) setPreviewCV(null); }}
                             />
                         ))}
+                        {/* Ghost card — fills the empty column slot when CVs don't fill the row */}
+                        {onNewCV && (
+                            <button
+                                onClick={onNewCV}
+                                className="group flex flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-zinc-200 dark:border-neutral-700 hover:border-[#C9A84C]/60 dark:hover:border-[#C9A84C]/40 hover:bg-[#C9A84C]/[0.03] dark:hover:bg-[#C9A84C]/[0.05] transition-all duration-200 cursor-pointer"
+                                style={{ minHeight: 240 }}
+                            >
+                                <div className="w-11 h-11 rounded-xl bg-zinc-100 dark:bg-neutral-800 group-hover:bg-[#C9A84C]/10 flex items-center justify-center transition-colors">
+                                    <svg className="w-5 h-5 text-zinc-400 dark:text-zinc-500 group-hover:text-[#C9A84C] transition-colors" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                                        <path d="M12 5v14M5 12h14"/>
+                                    </svg>
+                                </div>
+                                <div className="text-center px-4">
+                                    <p className="text-[12px] font-bold text-zinc-500 dark:text-zinc-400 group-hover:text-[#1B2B4B] dark:group-hover:text-[#C9A84C] transition-colors">New CV</p>
+                                    <p className="text-[10px] text-zinc-400 dark:text-zinc-500 mt-0.5">Generate with AI</p>
+                                </div>
+                            </button>
+                        )}
                     </div>
                 ) : (
                     /* ── List view ── */
@@ -910,12 +928,12 @@ const CVHistory: React.FC<CVHistoryProps> = ({ savedCVs, onLoad, onDelete, userP
                 )}
             </div>
 
-            {/* ── Right preview panel (desktop: lg+, always visible when a cv is selected) ── */}
-            {previewCV && (
-                <div
-                    className="hidden lg:flex flex-col flex-shrink-0 ml-4 rounded-2xl overflow-hidden border border-zinc-200 dark:border-neutral-700 shadow-xl"
-                    style={{ width: 420, alignSelf: 'flex-start', position: 'sticky', top: 0, maxHeight: 'calc(100vh - 80px)' }}
-                >
+            {/* ── Right preview panel (desktop lg+: always rendered) ── */}
+            <div
+                className="hidden lg:flex flex-col flex-shrink-0 ml-4 rounded-2xl overflow-hidden border border-zinc-200 dark:border-neutral-700 shadow-sm"
+                style={{ width: 420, alignSelf: 'flex-start', position: 'sticky', top: 0, maxHeight: 'calc(100vh - 80px)' }}
+            >
+                {previewCV ? (
                     <PreviewPanel
                         key={previewCV.id}
                         cv={previewCV}
@@ -925,8 +943,52 @@ const CVHistory: React.FC<CVHistoryProps> = ({ savedCVs, onLoad, onDelete, userP
                         onDelete={id => { onDelete(id); setPreviewCV(null); }}
                         isDesktop
                     />
-                </div>
-            )}
+                ) : (
+                    /* Empty state — shown until user clicks a CV */
+                    <div className="flex flex-col items-center justify-between h-full bg-white dark:bg-neutral-900 p-6" style={{ minHeight: 480 }}>
+                        {/* Template stack illustration */}
+                        <div className="flex-1 flex flex-col items-center justify-center gap-5 w-full">
+                            <div className="relative w-40 h-52 select-none">
+                                {/* Back card */}
+                                <div className="absolute inset-0 rounded-xl border border-zinc-200 dark:border-neutral-700 bg-zinc-50 dark:bg-neutral-800 shadow-sm"
+                                    style={{ transform: 'rotate(-6deg) translateY(6px)', transformOrigin: 'center bottom' }} />
+                                {/* Mid card */}
+                                <div className="absolute inset-0 rounded-xl border border-zinc-200 dark:border-neutral-700 bg-zinc-100 dark:bg-neutral-750 shadow-sm"
+                                    style={{ transform: 'rotate(-2deg) translateY(3px)', transformOrigin: 'center bottom' }} />
+                                {/* Front card — template thumbnail */}
+                                <div className="absolute inset-0 rounded-xl overflow-hidden border border-zinc-300 dark:border-neutral-600 shadow-md bg-white dark:bg-neutral-800">
+                                    <div className="w-full h-full pointer-events-none"
+                                        style={{ transform: 'scale(0.267)', transformOrigin: 'top left', width: '375%', height: '375%' }}>
+                                        <TemplateThumbnail templateName="v2-classic-pro" />
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="text-center">
+                                <p className="text-[15px] font-bold text-zinc-800 dark:text-zinc-100 leading-snug">
+                                    Select a CV to preview
+                                </p>
+                                <p className="text-[12px] text-zinc-400 dark:text-zinc-500 mt-1.5 max-w-[200px] leading-relaxed mx-auto">
+                                    Click any card on the left to see a full preview here
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* Bottom CTA */}
+                        {onNewCV && (
+                            <button
+                                onClick={onNewCV}
+                                className="w-full mt-4 flex items-center justify-center gap-2 py-2.5 rounded-xl border-2 border-dashed border-zinc-200 dark:border-neutral-700 hover:border-[#C9A84C]/60 hover:bg-[#C9A84C]/[0.03] text-zinc-400 dark:text-zinc-500 hover:text-[#1B2B4B] dark:hover:text-[#C9A84C] text-[12px] font-semibold transition-all"
+                            >
+                                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
+                                    <path d="M12 5v14M5 12h14"/>
+                                </svg>
+                                Generate a new CV
+                            </button>
+                        )}
+                    </div>
+                )}
+            </div>
 
             {/* ── Mobile: full-screen overlay ── */}
             {previewCV && (
