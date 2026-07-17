@@ -2549,216 +2549,66 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
               </span>
             </div>
           )}
+          {/* ── Clean preview card header ─────────────────────────────── */}
           <div className="flex items-center justify-between mb-4 gap-2">
-            <div>
-              <h3 className="text-base font-bold text-zinc-800 dark:text-zinc-100">CV Preview</h3>
-              <p className="text-[10px] text-zinc-400 dark:text-zinc-500 mt-0.5">Template · Edit · Download</p>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <Button variant="secondary" onClick={() => setIsEditing(!isEditing)} size="sm">
-                <Edit className="h-4 w-4 mr-2" />
-                {isEditing ? 'Finish Editing' : 'Edit CV'}
-              </Button>
-              <Button variant="secondary" onClick={() => { setCvScore(null); handleGenerateCV(); }} disabled={isLoading || isEditing || !apiKeySet} size="sm">
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Regenerate
-              </Button>
-              {onRestoreProfileBullets && (
-                <Button
-                  variant="secondary"
-                  onClick={() => {
-                    if (window.confirm('Reset all experience bullets and summary back to your raw profile text?\n\nThis will remove any AI-polished content. You can regenerate afterwards.')) {
-                      onRestoreProfileBullets();
-                    }
-                  }}
-                  disabled={isLoading || isEditing}
-                  size="sm"
-                  title="Reset all bullets and summary back to your raw profile text — useful before starting a fresh AI generation for a new job"
-                  className="bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-700 hover:bg-amber-100 dark:hover:bg-amber-900/40"
-                >
-                  <RefreshCw className="h-4 w-4 mr-2" />
-                  Reset to Profile
-                </Button>
-              )}
-              <Button
-                variant="secondary"
-                onClick={() => { forceFreshRef.current = true; setCvScore(null); handleGenerateCV(); }}
-                disabled={isLoading || isEditing || !apiKeySet}
-                size="sm"
-                title="Skip the smart audit and run a full fresh generation from scratch"
-              >
-                <RefreshCw className="h-4 w-4 mr-2 text-amber-500" />
-                Force Fresh
-              </Button>
-              <Button variant="secondary" onClick={() => onSaveCV(currentCV, cvPurpose)} disabled={isEditing} size="sm">
-                <Save className="h-4 w-4 mr-2" />
-                Save
-              </Button>
-              <Button variant="secondary" onClick={handleGenerateCoverLetter} disabled={isGeneratingCoverLetter || isEditing || !apiKeySet} size="sm">
-                <FileText className="h-4 w-4 mr-2" />
-                {isGeneratingCoverLetter ? "Generating..." : "Cover Letter"}
-              </Button>
-              {jobDescription.trim() && apiKeySet && (
-                <>
-                  <Button
-                    variant="secondary"
-                    onClick={handleScoreCV}
-                    disabled={isScoringCV || isEditing}
-                    size="sm"
-                    className="bg-violet-50 dark:bg-violet-900/20 text-violet-700 dark:text-violet-300 border-violet-300 dark:border-violet-700 hover:bg-violet-100 dark:hover:bg-violet-900/40"
-                  >
-                    {isScoringCV ? (
-                      <><svg className="animate-spin h-4 w-4 mr-2" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>Scoring…</>
-                    ) : (
-                      <>⚡ Score CV</>
-                    )}
-                  </Button>
-                  {scoreError && (
-                    <span className="text-xs text-rose-600 dark:text-rose-400 font-medium">{scoreError}</span>
-                  )}
-                </>
-              )}
-              <Button onClick={handleDownload} disabled={isEditing || !!downloadStatus} size="sm">
-                {downloadStatus ? (
-                  <>
-                    <svg className="animate-spin h-4 w-4 mr-2" viewBox="0 0 24 24" fill="none">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                    </svg>
-                    Downloading…
-                  </>
-                ) : (
-                  <>
-                    <Download className="h-4 w-4 mr-2" />
-                    Download PDF
-                  </>
-                )}
-              </Button>
-              {qualityReport && (
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => setShowQualityPanel(true)}
-                  disabled={isEditing}
-                  title={
-                    qualityReport.totalIssues === 0
-                      ? `Perfect score across ${qualityReport.totalBullets} bullet(s) — open to view the audit.`
-                      : `${qualityReport.totalIssues} issue(s) detected across ${qualityReport.totalBullets} bullet(s) — open to fix with AI.`
-                  }
-                  className={
-                    qualityReport.totalIssues === 0
-                      ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700 hover:bg-emerald-100 dark:hover:bg-emerald-900/40'
-                      : qualityReport.score >= 80
-                        ? 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-700 hover:bg-amber-100 dark:hover:bg-amber-900/40'
-                        : 'bg-rose-50 dark:bg-rose-900/20 text-rose-700 dark:text-rose-300 border-rose-300 dark:border-rose-700 hover:bg-rose-100 dark:hover:bg-rose-900/40'
-                  }
-                >
-                  <CheckCircle className="h-4 w-4 mr-2" />
-                  Quality {qualityReport.score}/100
-                  {qualityReport.totalIssues > 0 && (
-                    <span className="ml-2 px-1.5 py-0.5 text-[10px] font-bold rounded-full bg-current/10">
-                      {qualityReport.totalIssues}
-                    </span>
-                  )}
-                  {purifyLeaks.filter(l => l.fixedBy === 'synonym_sub').length > 0 && (
-                    <span className="ml-1.5 px-1.5 py-0.5 text-[10px] font-semibold rounded-full bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300">
-                      {purifyLeaks.filter(l => l.fixedBy === 'synonym_sub').length} auto-fixed
-                    </span>
-                  )}
-                </Button>
-              )}
-              {lastEngine && (
-                <span
-                  title={`Generated by ${lastEngine}. Run window.__providerStatus() in DevTools for the full health snapshot.`}
-                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-violet-50 dark:bg-violet-900/20 text-violet-700 dark:text-violet-300 border border-violet-200 dark:border-violet-800 self-center"
-                >
-                  <Sparkles className="h-3 w-3" />
-                  Engine: {lastEngine}
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="text-base font-bold text-zinc-800 dark:text-zinc-100">CV Preview</h3>
+                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${purposeBadgeBg} ${purposeBadgeText}`}>
+                  {purposeLabel}
                 </span>
-              )}
-              <Button
-                variant="secondary"
-                onClick={() => setShowShareModal(true)}
-                disabled={isEditing}
-                size="sm"
-                className="relative bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700 hover:bg-emerald-100 dark:hover:bg-emerald-900/40"
-              >
-                <ShareIcon className="h-4 w-4 mr-2" />Share Link
-                {shareViewCount !== null && shareViewCount > 0 && (
-                  <span className="ml-1.5 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-emerald-600 text-white text-[9px] font-bold leading-none">
-                    {shareViewCount > 99 ? '99+' : shareViewCount}
-                  </span>
+              </div>
+              <p className="text-[10px] text-zinc-400 dark:text-zinc-500 mt-0.5">
+                {templateDisplayNames[template]}
+                {qualityReport && (
+                  <> · <span className={qualityReport.totalIssues === 0 ? 'text-emerald-600 dark:text-emerald-400' : qualityReport.score >= 80 ? 'text-amber-600 dark:text-amber-400' : 'text-rose-600 dark:text-rose-400'}>
+                    Quality {qualityReport.score}/100
+                  </span></>
                 )}
-              </Button>
-              {/* Quick copy of published public profile link */}
-              {workerUser?.id && (() => {
-                let savedSlug: string | null = null;
-                try { savedSlug = localStorage.getItem(`publicProfile:slug:${workerUser.id}`); } catch { /* ignore */ }
-                if (!savedSlug) return null;
-                const profileLink = buildProfileUrl(savedSlug);
-                return (
-                  <Button
-                    variant="secondary"
-                    onClick={async () => {
-                      try { await navigator.clipboard.writeText(profileLink); } catch { /* ignore */ }
-                      setProfileLinkCopied(true);
-                      setTimeout(() => setProfileLinkCopied(false), 2500);
-                    }}
-                    disabled={isEditing}
-                    size="sm"
-                    title={profileLink}
-                    className="bg-sky-50 dark:bg-sky-900/20 text-sky-700 dark:text-sky-300 border-sky-300 dark:border-sky-700 hover:bg-sky-100 dark:hover:bg-sky-900/40"
-                  >
-                    {profileLinkCopied ? (
-                      <><svg className="h-4 w-4 mr-1.5 text-green-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}><polyline points="20 6 9 17 4 12"/></svg>Copied!</>
-                    ) : (
-                      <><svg className="h-4 w-4 mr-1.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>Copy Profile Link</>
-                    )}
-                  </Button>
-                );
-              })()}
-              <Button
-                variant="secondary"
-                onClick={() => setShowAIPanel(true)}
-                disabled={isEditing || !apiKeySet}
-                size="sm"
-                className="bg-violet-50 dark:bg-violet-900/20 text-violet-700 dark:text-violet-300 border-violet-300 dark:border-violet-700 hover:bg-violet-100 dark:hover:bg-violet-900/40"
+              </p>
+            </div>
+            <div className="flex items-center gap-1.5 flex-shrink-0">
+              {/* Edit toggle */}
+              <button
+                onClick={() => setIsEditing(!isEditing)}
+                title={isEditing ? 'Finish editing' : 'Edit CV directly'}
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
+                  isEditing
+                    ? 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-700'
+                    : 'bg-zinc-50 dark:bg-neutral-700 text-zinc-600 dark:text-zinc-300 border-zinc-200 dark:border-neutral-600 hover:border-zinc-300 dark:hover:border-neutral-500'
+                }`}
               >
-                <Sparkles className="h-4 w-4 mr-2" />CV Coach
-              </Button>
-              {onApplyViaEmail && cvPurpose === 'job' && (
-                <Button
-                  onClick={() => onApplyViaEmail(jobDescription, currentCV!)}
-                  disabled={isEditing || !jobDescription.trim()}
-                  size="sm"
-                  variant="secondary"
-                  className="bg-sky-50 dark:bg-sky-900/20 text-sky-700 dark:text-sky-300 border-sky-300 dark:border-sky-700 hover:bg-sky-100 dark:hover:bg-sky-900/40"
-                >
-                  ✉️ Apply via Email
-                </Button>
-              )}
-              {onGoToInterviewPrep && cvPurpose === 'job' && jobDescription.trim() && (
-                <Button
-                  onClick={() => onGoToInterviewPrep(jobDescription)}
-                  disabled={isEditing}
-                  size="sm"
-                  variant="secondary"
-                  className="bg-violet-50 dark:bg-violet-900/20 text-violet-700 dark:text-violet-300 border-violet-300 dark:border-violet-700 hover:bg-violet-100 dark:hover:bg-violet-900/40"
-                >
-                  🎤 Interview Prep
-                </Button>
-              )}
-              {openToolkitAtQualityAudit && currentCV && (
-                <Button
-                  onClick={openToolkitAtQualityAudit}
-                  disabled={isEditing}
-                  size="sm"
-                  variant="secondary"
-                  className="bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700 hover:bg-emerald-100 dark:hover:bg-emerald-900/40"
-                >
-                  🔬 Check Quality
-                </Button>
-              )}
+                <Edit className="h-3.5 w-3.5" />
+                {isEditing ? 'Done' : 'Edit'}
+              </button>
+              {/* Regenerate */}
+              <button
+                onClick={() => { setCvScore(null); handleGenerateCV(); }}
+                disabled={isLoading || isEditing || !apiKeySet}
+                title="Regenerate CV"
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold border bg-zinc-50 dark:bg-neutral-700 text-zinc-600 dark:text-zinc-300 border-zinc-200 dark:border-neutral-600 hover:border-zinc-300 dark:hover:border-neutral-500 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <RefreshCw className="h-3.5 w-3.5" />
+                Redo
+              </button>
+              {/* Download — primary gold CTA */}
+              <button
+                onClick={handleDownload}
+                disabled={isEditing || !!downloadStatus}
+                title="Download PDF"
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold text-white transition-all hover:opacity-90 active:scale-[0.97] disabled:opacity-40 disabled:cursor-not-allowed"
+                style={{ background: '#C9A84C' }}
+              >
+                {downloadStatus ? (
+                  <svg className="animate-spin h-3.5 w-3.5" viewBox="0 0 24 24" fill="none">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                  </svg>
+                ) : (
+                  <Download className="h-3.5 w-3.5" />
+                )}
+                {downloadStatus ? '…' : 'PDF'}
+              </button>
             </div>
           </div>
 
@@ -2922,22 +2772,6 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
               </div>
             );
           })()}
-
-          {/* Purpose/Mode badge + CV Doctor button on preview */}
-          <div className="flex items-center justify-between gap-2 mb-4">
-            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${purposeBadgeBg} ${purposeBadgeText}`}>
-              {purposeLabel}
-            </span>
-            {currentCV && (
-              <button
-                onClick={() => setShowDoctorPanel(true)}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-violet-100 hover:bg-violet-200 dark:bg-violet-900/40 dark:hover:bg-violet-800/60 text-violet-700 dark:text-violet-300 border border-violet-200 dark:border-violet-700 transition-colors"
-                title="Career review: bullet inspector, smart insights & what changed"
-              >
-                <span>⚕</span> CV Doctor
-              </button>
-            )}
-          </div>
 
           <TemplateGallery
             selectedTemplate={template}
@@ -3334,6 +3168,238 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
               <GenerationTracePanel trace={currentCV._trace} onPinField={onPinField} onUnpinField={onUnpinField} />
             )}
           </div>
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════════════
+          STRUCTURED ACTION CARDS — shown once a CV has been generated.
+          Replaces the old flat button soup that used to live in the preview
+          card header. Organised into: Quick Actions grid, Tools & Analysis,
+          and secondary text-link actions.
+      ══════════════════════════════════════════════════════════════════ */}
+      {currentCV && (
+        <div className="space-y-3">
+
+          {/* ── Quick Actions 2×2 + CV Doctor ────────────────────────── */}
+          <div className="bg-white dark:bg-neutral-800/50 p-4 rounded-2xl shadow-sm border border-zinc-200 dark:border-neutral-800">
+            <p className="text-[10px] font-black uppercase tracking-[0.12em] text-zinc-400 dark:text-zinc-500 mb-3">Quick Actions</p>
+            <div className="grid grid-cols-2 gap-2">
+
+              {/* Save */}
+              <button
+                onClick={() => onSaveCV(currentCV, cvPurpose)}
+                disabled={isEditing}
+                className="flex items-center gap-2 p-2.5 rounded-xl border border-zinc-200 dark:border-neutral-700 bg-zinc-50 dark:bg-neutral-800 hover:border-[#C9A84C]/50 hover:bg-amber-50/40 dark:hover:bg-amber-900/10 transition-colors text-left disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <div className="w-7 h-7 rounded-lg flex items-center justify-center bg-zinc-100 dark:bg-neutral-700 flex-shrink-0">
+                  <Save className="h-3.5 w-3.5 text-zinc-600 dark:text-zinc-400" />
+                </div>
+                <p className="text-xs font-semibold text-zinc-700 dark:text-zinc-200">Save</p>
+              </button>
+
+              {/* Share Link */}
+              <button
+                onClick={() => setShowShareModal(true)}
+                disabled={isEditing}
+                className="relative flex items-center gap-2 p-2.5 rounded-xl border border-zinc-200 dark:border-neutral-700 bg-zinc-50 dark:bg-neutral-800 hover:border-emerald-300 dark:hover:border-emerald-700 hover:bg-emerald-50/50 dark:hover:bg-emerald-900/10 transition-colors text-left disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <div className="w-7 h-7 rounded-lg flex items-center justify-center bg-emerald-100 dark:bg-emerald-900/40 flex-shrink-0">
+                  <ShareIcon className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold text-zinc-700 dark:text-zinc-200">Share Link</p>
+                  {shareViewCount !== null && shareViewCount > 0 && (
+                    <p className="text-[10px] text-emerald-600 dark:text-emerald-400">{shareViewCount} view{shareViewCount !== 1 ? 's' : ''}</p>
+                  )}
+                </div>
+              </button>
+
+              {/* CV Coach */}
+              <button
+                onClick={() => setShowAIPanel(true)}
+                disabled={isEditing || !apiKeySet}
+                className="flex items-center gap-2 p-2.5 rounded-xl border border-zinc-200 dark:border-neutral-700 bg-zinc-50 dark:bg-neutral-800 hover:border-violet-300 dark:hover:border-violet-700 hover:bg-violet-50/50 dark:hover:bg-violet-900/10 transition-colors text-left disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <div className="w-7 h-7 rounded-lg flex items-center justify-center bg-violet-100 dark:bg-violet-900/40 flex-shrink-0">
+                  <Sparkles className="h-3.5 w-3.5 text-violet-600 dark:text-violet-400" />
+                </div>
+                <p className="text-xs font-semibold text-zinc-700 dark:text-zinc-200">CV Coach</p>
+              </button>
+
+              {/* Cover Letter */}
+              <button
+                onClick={handleGenerateCoverLetter}
+                disabled={isGeneratingCoverLetter || isEditing || !apiKeySet}
+                className="flex items-center gap-2 p-2.5 rounded-xl border border-zinc-200 dark:border-neutral-700 bg-zinc-50 dark:bg-neutral-800 hover:border-sky-300 dark:hover:border-sky-700 hover:bg-sky-50/50 dark:hover:bg-sky-900/10 transition-colors text-left disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <div className="w-7 h-7 rounded-lg flex items-center justify-center bg-sky-100 dark:bg-sky-900/40 flex-shrink-0">
+                  <FileText className="h-3.5 w-3.5 text-sky-600 dark:text-sky-400" />
+                </div>
+                <p className="text-xs font-semibold text-zinc-700 dark:text-zinc-200">
+                  {isGeneratingCoverLetter ? 'Writing…' : 'Cover Letter'}
+                </p>
+              </button>
+
+              {/* CV Doctor — full-width */}
+              <button
+                onClick={() => setShowDoctorPanel(true)}
+                className="col-span-2 flex items-center gap-2 p-2.5 rounded-xl border border-zinc-200 dark:border-neutral-700 bg-zinc-50 dark:bg-neutral-800 hover:border-violet-300 dark:hover:border-violet-700 hover:bg-violet-50/50 dark:hover:bg-violet-900/10 transition-colors text-left"
+              >
+                <div className="w-7 h-7 rounded-lg flex items-center justify-center bg-violet-100 dark:bg-violet-900/40 flex-shrink-0 text-sm leading-none">
+                  ⚕
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-zinc-700 dark:text-zinc-200">CV Doctor</p>
+                  <p className="text-[10px] text-zinc-400 dark:text-zinc-500">Bullet inspector, smart insights &amp; change history</p>
+                </div>
+              </button>
+            </div>
+          </div>
+
+          {/* ── Tools & Analysis ─────────────────────────────────────── */}
+          {(qualityReport || (jobDescription.trim() && apiKeySet) || onApplyViaEmail || onGoToInterviewPrep || openToolkitAtQualityAudit) && (
+            <div className="bg-white dark:bg-neutral-800/50 p-4 rounded-2xl shadow-sm border border-zinc-200 dark:border-neutral-800">
+              <p className="text-[10px] font-black uppercase tracking-[0.12em] text-zinc-400 dark:text-zinc-500 mb-3">Tools &amp; Analysis</p>
+              <div className="flex flex-wrap gap-2">
+                {/* Quality audit */}
+                {qualityReport && (
+                  <button
+                    onClick={() => setShowQualityPanel(true)}
+                    disabled={isEditing}
+                    title={qualityReport.totalIssues === 0 ? `Perfect score — open to view the audit` : `${qualityReport.totalIssues} issue(s) detected`}
+                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-colors disabled:opacity-40 ${
+                      qualityReport.totalIssues === 0
+                        ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700 hover:bg-emerald-100'
+                        : qualityReport.score >= 80
+                          ? 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-700 hover:bg-amber-100'
+                          : 'bg-rose-50 dark:bg-rose-900/20 text-rose-700 dark:text-rose-300 border-rose-300 dark:border-rose-700 hover:bg-rose-100'
+                    }`}
+                  >
+                    <CheckCircle className="h-3.5 w-3.5" />
+                    Quality {qualityReport.score}/100
+                    {qualityReport.totalIssues > 0 && (
+                      <span className="ml-1 px-1.5 py-0.5 text-[9px] font-bold rounded-full bg-current/10">
+                        {qualityReport.totalIssues}
+                      </span>
+                    )}
+                    {purifyLeaks.filter(l => l.fixedBy === 'synonym_sub').length > 0 && (
+                      <span className="ml-1 px-1.5 py-0.5 text-[9px] font-semibold rounded-full bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400">
+                        {purifyLeaks.filter(l => l.fixedBy === 'synonym_sub').length} fixed
+                      </span>
+                    )}
+                  </button>
+                )}
+                {/* Score vs JD */}
+                {jobDescription.trim() && apiKeySet && (
+                  <>
+                    <button
+                      onClick={handleScoreCV}
+                      disabled={isScoringCV || isEditing}
+                      className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold border bg-violet-50 dark:bg-violet-900/20 text-violet-700 dark:text-violet-300 border-violet-300 dark:border-violet-700 hover:bg-violet-100 transition-colors disabled:opacity-40"
+                    >
+                      {isScoringCV ? (
+                        <svg className="animate-spin h-3.5 w-3.5" viewBox="0 0 24 24" fill="none">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                        </svg>
+                      ) : <span>⚡</span>}
+                      {isScoringCV ? 'Scoring…' : 'Score CV'}
+                    </button>
+                    {scoreError && (
+                      <span className="text-xs text-rose-600 dark:text-rose-400 font-medium self-center">{scoreError}</span>
+                    )}
+                  </>
+                )}
+                {/* HR Detector / Check Quality */}
+                {openToolkitAtQualityAudit && (
+                  <button
+                    onClick={openToolkitAtQualityAudit}
+                    disabled={isEditing}
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold border bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700 hover:bg-emerald-100 transition-colors disabled:opacity-40"
+                  >
+                    🔬 Check Quality
+                  </button>
+                )}
+                {/* Apply via Email */}
+                {onApplyViaEmail && cvPurpose === 'job' && (
+                  <button
+                    onClick={() => onApplyViaEmail(jobDescription, currentCV!)}
+                    disabled={isEditing || !jobDescription.trim()}
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold border bg-sky-50 dark:bg-sky-900/20 text-sky-700 dark:text-sky-300 border-sky-300 dark:border-sky-700 hover:bg-sky-100 transition-colors disabled:opacity-40"
+                  >
+                    ✉️ Apply via Email
+                  </button>
+                )}
+                {/* Interview Prep */}
+                {onGoToInterviewPrep && cvPurpose === 'job' && jobDescription.trim() && (
+                  <button
+                    onClick={() => onGoToInterviewPrep(jobDescription)}
+                    disabled={isEditing}
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold border bg-violet-50 dark:bg-violet-900/20 text-violet-700 dark:text-violet-300 border-violet-300 dark:border-violet-700 hover:bg-violet-100 transition-colors disabled:opacity-40"
+                  >
+                    🎤 Interview Prep
+                  </button>
+                )}
+                {/* AI engine badge */}
+                {lastEngine && (
+                  <span
+                    title={`Generated by ${lastEngine}. Run window.__providerStatus() in DevTools for the full health snapshot.`}
+                    className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-medium bg-violet-50 dark:bg-violet-900/20 text-violet-500 dark:text-violet-400 border border-violet-200 dark:border-violet-800 self-center"
+                  >
+                    <Sparkles className="h-2.5 w-2.5" />
+                    {lastEngine}
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* ── Secondary text-link actions ──────────────────────────── */}
+          <div className="flex items-center gap-4 px-1 flex-wrap">
+            {onRestoreProfileBullets && (
+              <button
+                onClick={() => {
+                  if (window.confirm('Reset all experience bullets and summary back to your raw profile text?\n\nThis will remove any AI-polished content. You can regenerate afterwards.')) {
+                    onRestoreProfileBullets();
+                  }
+                }}
+                disabled={isLoading || isEditing}
+                title="Reset all bullets and summary to raw profile text — useful before a fresh generation for a new job"
+                className="text-xs text-zinc-400 hover:text-amber-600 dark:hover:text-amber-400 transition-colors disabled:opacity-40"
+              >
+                ↺ Reset to Profile
+              </button>
+            )}
+            <button
+              onClick={() => { forceFreshRef.current = true; setCvScore(null); handleGenerateCV(); }}
+              disabled={isLoading || isEditing || !apiKeySet}
+              title="Skip the smart audit and run a full fresh generation from scratch"
+              className="text-xs text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-400 transition-colors disabled:opacity-40"
+            >
+              ⚡ Force Fresh
+            </button>
+            {workerUser?.id && (() => {
+              let savedSlug: string | null = null;
+              try { savedSlug = localStorage.getItem(`publicProfile:slug:${workerUser.id}`); } catch { /* ignore */ }
+              if (!savedSlug) return null;
+              const profileLink = buildProfileUrl(savedSlug);
+              return (
+                <button
+                  onClick={async () => {
+                    try { await navigator.clipboard.writeText(profileLink); } catch { /* ignore */ }
+                    setProfileLinkCopied(true);
+                    setTimeout(() => setProfileLinkCopied(false), 2500);
+                  }}
+                  disabled={isEditing}
+                  title={profileLink}
+                  className="text-xs text-zinc-400 hover:text-sky-600 dark:hover:text-sky-400 transition-colors disabled:opacity-40"
+                >
+                  {profileLinkCopied ? '✓ Profile Link Copied' : '🔗 Copy Profile Link'}
+                </button>
+              );
+            })()}
+          </div>
+
         </div>
       )}
 
