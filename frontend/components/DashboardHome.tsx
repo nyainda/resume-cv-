@@ -531,7 +531,7 @@ const DashboardHome: React.FC<Props> = ({
         <div className="flex-1 min-w-0 space-y-4">
 
           {/* ── ROW 1: Profile Status | Your Top CV | Profile Slots ───────── */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
 
             {/* Profile Status */}
             <Card className="p-4">
@@ -694,7 +694,7 @@ const DashboardHome: React.FC<Props> = ({
           {/* ── QUICK ACTIONS BAR ─────────────────────────────────────────── */}
           <Card className="p-4">
             {/* 7 items: 4-per-row on mobile (2 rows), single row on sm+ */}
-            <div className="grid grid-cols-4 sm:grid-cols-7 gap-2">
+            <div className="grid grid-cols-4 md:grid-cols-7 gap-2">
               {QUICK_ACTIONS.map(a => {
                 const Icon = QA_ICONS[a.key];
                 return (
@@ -716,7 +716,7 @@ const DashboardHome: React.FC<Props> = ({
           </Card>
 
           {/* ── ROW 2: Recent Activity | Templates & Themes | Score My CV ─── */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
 
             {/* Recent Activity */}
             <Card className="p-4">
