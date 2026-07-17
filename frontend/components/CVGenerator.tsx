@@ -50,7 +50,6 @@ import { DownloadGateModal, shouldGateDownload, incrementDownloadCount } from '.
 import { useAuth } from '../auth/AuthContext';
 import WizardStepBar from './WizardStepBar';
 import ProfileSlidePanel from './ProfileSlidePanel';
-import CVGeneratorRightPanel from './CVGeneratorRightPanel';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const CV_TIPS = [
@@ -3564,24 +3563,6 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
       )}
 
         </div>{/* ── end RIGHT column ─────────────────────────────────── */}
-
-        {/* ── THIRD column: AI panel — xl+ only ────────────────────────────
-            Shows the score gauge, quick actions, export CTA and pro tip in a
-            compact sidebar so the center preview stays uncluttered.        */}
-        <div className="hidden xl:flex flex-col w-[216px] flex-shrink-0 sticky top-[72px] max-h-[calc(100vh-88px)] overflow-y-auto gap-3">
-          <CVGeneratorRightPanel
-            cvScore={cvScore}
-            currentCV={currentCV}
-            onDownload={handleDownload}
-            onAutoOptimize={handleAutoOptimize}
-            onOpenDoctor={() => setShowDoctorPanel(true)}
-            onToggleEdit={() => setIsEditing(e => !e)}
-            isEditing={isEditing}
-            isOptimizing={isOptimizing}
-            downloadStatus={downloadStatus}
-          />
-        </div>
-
       </div>{/* ── end 2-column layout ──────────────────────────────────── */}
 
       {coverLetterError && <p className="text-red-500 text-sm mt-2 p-4 bg-red-50 dark:bg-red-900/20 rounded-lg">{coverLetterError}</p>}
