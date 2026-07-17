@@ -297,6 +297,7 @@ const AppViewRouter: React.FC<AppViewRouterProps> = ({
                   }}
                   onDelete={onDeleteCV}
                   userProfile={userProfile!}
+                  onNewCV={() => setCurrentView('generator')}
                 />
               )}
 
