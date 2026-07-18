@@ -98,7 +98,7 @@ const PLANS: Array<{
             '3 CV generations',
             '1 profile slot',
             'All 35+ templates',
-            'Workers AI — no key needed',
+            'AI engine runs automatically',
             'CV checker & sharing links',
         ],
         dimmed: [
@@ -116,13 +116,14 @@ const PLANS: Array<{
         id: 'byok',
         icon: '🔑',
         name: 'BYOK',
-        tagline: 'Bring your Gemini or Claude key.',
+        tagline: 'Use your Gemini, Claude, or Groq key.',
         price: '$0',
         priceNote: '+ your API key',
         bullets: [
             'Unlimited generations',
             '3 profile slots',
             'All 3 generation modes',
+            'Gemini · Claude · Groq — your choice',
             'ATS gap pinning',
             'Interview Prep · Email Apply',
             'Scholarship Essay Writer',
@@ -185,6 +186,7 @@ export const OnboardingWizard: React.FC<Props> = ({ onComplete }) => {
     const [importError, setImportError]     = useState<string | null>(null);
     const [geminiKey, setGeminiKey]         = useState('');
     const [claudeKey, setClaudeKey]         = useState('');
+    const [groqKey, setGroqKey]             = useState('');
     const [finishing, setFinishing]         = useState(false);
     const [dragOver, setDragOver]           = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -264,7 +266,7 @@ export const OnboardingWizard: React.FC<Props> = ({ onComplete }) => {
         } else if (plan === 'byok') {
             // Stored plan stays 'free'; BYOK is detected at runtime via hasByokKeys().
             setTier('free');
-            setSelectedProvider(claudeKey.trim() ? 'claude' : 'gemini');
+            setSelectedProvider(claudeKey.trim() ? 'claude' : groqKey.trim() ? 'groq' : 'gemini');
         } else {
             // Pure free — Workers AI handles it server-side, no key needed.
             setTier('free');
@@ -276,10 +278,11 @@ export const OnboardingWizard: React.FC<Props> = ({ onComplete }) => {
             aiProvider: plan === 'premium'
                 ? 'workers-ai'
                 : plan === 'byok'
-                    ? (claudeKey.trim() ? 'claude' : 'gemini')
+                    ? (claudeKey.trim() ? 'claude' : groqKey.trim() ? 'groq' : 'gemini')
                     : 'workers-ai',
             apiKey:        plan === 'byok' ? (geminiKey.trim() || null) : null,
             claudeApiKey:  plan === 'byok' ? (claudeKey.trim() || null) : null,
+            groqApiKey:    plan === 'byok' ? (groqKey.trim() || null) : null,
             msClientId:    null,
         };
 
@@ -292,7 +295,7 @@ export const OnboardingWizard: React.FC<Props> = ({ onComplete }) => {
             importedProfile:    importedProfile    ?? undefined,
             apiSettings,
         });
-    }, [plan, geminiKey, claudeKey, importedProfile, pendingDocxFile, pendingImportFile, pendingImportType, onComplete]);
+    }, [plan, geminiKey, claudeKey, groqKey, importedProfile, pendingDocxFile, pendingImportFile, pendingImportType, onComplete]);
 
     // ── Plan selection ─────────────────────────────────────────────────────────
 
@@ -591,6 +594,29 @@ export const OnboardingWizard: React.FC<Props> = ({ onComplete }) => {
                                     placeholder="sk-ant-…"
                                     value={claudeKey}
                                     onChange={(e) => setClaudeKey(e.target.value)}
+                                    className="w-full text-sm px-3 py-2 sm:py-2.5 rounded-lg border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-neutral-800 text-zinc-800 dark:text-zinc-200 placeholder-zinc-400 focus:outline-none focus:ring-2"
+                                    style={{ '--tw-ring-color': '#1B2B4B' } as React.CSSProperties}
+                                />
+                            </div>
+
+                            {/* Groq — optional */}
+                            <div className="rounded-xl border border-zinc-200 dark:border-zinc-700 p-2.5 sm:p-4 space-y-2 sm:space-y-2.5">
+                                <div className="flex items-center justify-between gap-2">
+                                    <div className="min-w-0">
+                                        <p className="text-xs font-black text-zinc-800 dark:text-zinc-200">⚡ Groq</p>
+                                        <p className="text-[10px] text-zinc-400 font-medium">Optional — ultra-fast, free tier available</p>
+                                    </div>
+                                    <a href="https://console.groq.com/keys" target="_blank" rel="noreferrer"
+                                       className="text-[11px] font-bold hover:underline shrink-0" style={{ color: '#1B2B4B' }}
+                                       onClick={(e) => e.stopPropagation()}>
+                                        Get key →
+                                    </a>
+                                </div>
+                                <input
+                                    type="password"
+                                    placeholder="gsk_…"
+                                    value={groqKey}
+                                    onChange={(e) => setGroqKey(e.target.value)}
                                     className="w-full text-sm px-3 py-2 sm:py-2.5 rounded-lg border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-neutral-800 text-zinc-800 dark:text-zinc-200 placeholder-zinc-400 focus:outline-none focus:ring-2"
                                     style={{ '--tw-ring-color': '#1B2B4B' } as React.CSSProperties}
                                 />

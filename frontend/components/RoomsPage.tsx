@@ -350,15 +350,20 @@ export default function RoomsPage({ profiles, activeSlot, userProfile, onSwitch,
                     </div>
                   </div>
 
-                  {/* Switch CTA (inactive rooms only) */}
+                  {/* Enter Room CTA (inactive rooms only) */}
                   {!isActive && (
                     <div className="mt-4 pt-3.5 border-t border-zinc-100 dark:border-neutral-700">
                       <button
-                        onClick={() => onSwitch(slot)}
-                        className="w-full py-2 rounded-xl text-xs font-bold transition-colors border"
-                        style={{ color: c.hex, borderColor: c.hex + '40', background: c.hex + '08' }}
+                        onClick={(e) => { e.stopPropagation(); onSwitch(slot); }}
+                        className="w-full py-2.5 rounded-xl text-xs font-bold transition-all hover:opacity-90 active:scale-[0.98] flex items-center justify-center gap-1.5 shadow-sm"
+                        style={{ background: c.hex, color: '#ffffff' }}
                       >
-                        Switch to this room →
+                        <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/>
+                          <polyline points="10 17 15 12 10 7"/>
+                          <line x1="15" y1="12" x2="3" y2="12"/>
+                        </svg>
+                        Enter Room
                       </button>
                     </div>
                   )}
