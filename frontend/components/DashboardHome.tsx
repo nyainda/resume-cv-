@@ -1,5 +1,6 @@
 import React, { useMemo, useEffect, useState } from 'react';
-import type { UserProfileSlot, SavedCV, SavedCoverLetter, TrackedApplication, CVData, UserProfile } from '../types';
+import type { UserProfileSlot, SavedCV, SavedCoverLetter, TrackedApplication, CVData, UserProfile, TemplateName } from '../types';
+import RealTemplateThumbnail from './TemplateThumbnail';
 import type { WorkerUser } from '../services/authService';
 import { getEffectiveTier } from '../services/accountTierService';
 import { scoreCVCompleteness } from '../utils/cvCompleteness';
@@ -160,28 +161,6 @@ const StorageSyncCard: React.FC<{ savedCVCount: number }> = ({ savedCVCount }) =
   );
 };
 
-/** Template thumbnail (styled placeholder) */
-const TemplateThumbnail: React.FC<{
-  name: string; bg: string; accent: string; onClick: () => void;
-}> = ({ name, bg, accent, onClick }) => (
-  <button
-    onClick={onClick}
-    className="group relative rounded-xl overflow-hidden border border-zinc-100 dark:border-zinc-700 hover:border-[#C9A84C]/50 transition-all hover:shadow-md text-left"
-  >
-    <div className="h-[72px] flex flex-col gap-1 px-2.5 pt-2.5" style={{ background: bg }}>
-      <div className="w-10 h-1.5 rounded-full opacity-80" style={{ background: accent }} />
-      <div className="w-7 h-1 rounded-full opacity-40" style={{ background: accent }} />
-      <div className="flex gap-1 mt-1">
-        <div className="w-12 h-1 rounded-full opacity-50" style={{ background: accent }} />
-        <div className="w-8 h-1 rounded-full opacity-30" style={{ background: accent }} />
-      </div>
-      <div className="w-14 h-1 rounded-full opacity-30" style={{ background: accent }} />
-    </div>
-    <div className="px-2 py-1.5 bg-white dark:bg-neutral-800 border-t border-zinc-100 dark:border-neutral-700">
-      <p className="text-[10px] font-semibold text-zinc-600 dark:text-zinc-300 truncate">{name}</p>
-    </div>
-  </button>
-);
 
 /* ── Quick action icon definitions ─────────────────────────────────────────── */
 const QA_ICONS: Record<string, React.FC<{ className?: string }>> = {
@@ -232,11 +211,11 @@ const QUICK_ACTIONS = [
   { key: 'more',      label: 'More Tools',    view: 'linkedin' },
 ];
 
-const TEMPLATE_PREVIEWS = [
-  { name: 'SWE Impact',        bg: NAVY,    accent: GOLD },
-  { name: 'Clean Professional',bg: '#F8F7F4', accent: NAVY },
-  { name: 'Noir Professional', bg: '#1a1a1a',  accent: '#e5e5e5' },
-  { name: 'Harvard Classic',   bg: '#7b1a1a',  accent: '#f5e6e6' },
+const CURATED_TEMPLATES: { id: TemplateName; label: string }[] = [
+  { id: 'timeline',     label: 'Timeline Impact' },
+  { id: 'professional', label: 'Professional' },
+  { id: 'swe-elite',    label: 'SWE Elite' },
+  { id: 'elegant',      label: 'Elegant' },
 ];
 
 /* ── Tiny sparkline ─────────────────────────────────────────────────────────── */
@@ -355,6 +334,12 @@ const DashboardHome: React.FC<Props> = ({
     const cvForScoring = currentCV ?? profileToCV(userProfile);
     return scoreCVCompleteness(cvForScoring, userProfile).percent;
   }, [currentCV, userProfile]);
+
+  // CV data used to populate template thumbnails on the dashboard
+  const cvForTemplates = useMemo(
+    () => (userProfile ? profileToCV(userProfile) : null),
+    [userProfile],
+  );
 
   // ── Derived display values ────────────────────────────────────────────────
   const firstName = userProfile?.personalInfo?.name?.split(' ')[0];
@@ -655,16 +640,13 @@ const DashboardHome: React.FC<Props> = ({
               {recentCVs[0] ? (
                 <div>
                   <div className="flex items-start gap-3 mb-3">
-                    {/* Mini CV thumbnail */}
-                    <div className="w-11 h-14 rounded-lg flex flex-col gap-0.5 px-1.5 pt-1.5 flex-shrink-0 shadow-sm"
-                      style={{ background: NAVY }}>
-                      <div className="w-full h-0.5 rounded-full bg-[#C9A84C]/60" />
-                      <div className="w-3/4 h-0.5 rounded-full bg-white/20" />
-                      <div className="mt-1 space-y-0.5">
-                        <div className="w-full h-px bg-white/15 rounded-full" />
-                        <div className="w-4/5 h-px bg-white/10 rounded-full" />
-                        <div className="w-full h-px bg-white/10 rounded-full" />
-                      </div>
+                    {/* Real CV thumbnail — scaled-down live preview */}
+                    <div className="w-[72px] flex-shrink-0 overflow-hidden rounded-lg shadow-sm border border-zinc-100 dark:border-neutral-700">
+                      <RealTemplateThumbnail
+                        templateName={recentCVs[0].template ?? 'timeline'}
+                        cvData={recentCVs[0].data ?? cvForTemplates ?? undefined}
+                        personalInfo={userProfile?.personalInfo}
+                      />
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-xs font-bold text-zinc-800 dark:text-zinc-100 truncate leading-tight">
@@ -838,14 +820,21 @@ const DashboardHome: React.FC<Props> = ({
                 Templates &amp; Themes
               </CardTitle>
               <div className="grid grid-cols-2 gap-2 mb-3">
-                {TEMPLATE_PREVIEWS.map(t => (
-                  <TemplateThumbnail
-                    key={t.name}
-                    name={t.name}
-                    bg={t.bg}
-                    accent={t.accent}
+                {CURATED_TEMPLATES.map(t => (
+                  <button
+                    key={t.id}
                     onClick={() => onNavigate('generator')}
-                  />
+                    className="group rounded-xl overflow-hidden border border-zinc-100 dark:border-zinc-700 hover:border-[#C9A84C]/50 transition-all hover:shadow-md text-left"
+                  >
+                    <RealTemplateThumbnail
+                      templateName={t.id}
+                      cvData={cvForTemplates ?? undefined}
+                      personalInfo={userProfile?.personalInfo}
+                    />
+                    <div className="px-2 py-1.5 bg-white dark:bg-neutral-800 border-t border-zinc-100 dark:border-neutral-700">
+                      <p className="text-[10px] font-semibold text-zinc-600 dark:text-zinc-300 truncate">{t.label}</p>
+                    </div>
+                  </button>
                 ))}
               </div>
               <button
