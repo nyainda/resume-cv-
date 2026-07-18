@@ -795,8 +795,10 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0', borderBottom: `1px solid ${T.border}` }}>
           <span style={{ color: T.text3, fontSize: 12 }}>Account ID</span>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ color: T.text1, fontSize: 12, fontWeight: 600, fontFamily: 'monospace' }}>
-              {user?.id ? `#${user.id}` : '—'}
+            <span style={{ color: T.text1, fontSize: 12, fontWeight: 600, fontFamily: 'monospace', letterSpacing: '0.08em' }}>
+              {user?.id
+                ? String(user.id).padStart(8, '0').replace(/^(.{4})(.{4})$/, '$1-$2')
+                : '—'}
             </span>
             {user?.id && (
               <button

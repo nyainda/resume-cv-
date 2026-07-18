@@ -241,8 +241,10 @@ export default function AccountPage({ workerUser, profiles, onSignOut, onDeleteA
                         <div className="px-5 py-4 flex items-center justify-between gap-4">
                             <span className="text-sm text-zinc-500 dark:text-zinc-400 font-medium flex-shrink-0">Account ID</span>
                             <div className="flex items-center gap-2">
-                                <span className="text-xs font-mono font-semibold text-zinc-700 dark:text-zinc-300">
-                                    {workerUser?.id ? `#${workerUser.id}` : '—'}
+                                <span className="text-xs font-mono font-semibold text-zinc-700 dark:text-zinc-300 tracking-wider">
+                                    {workerUser?.id
+                                        ? String(workerUser.id).padStart(8, '0').replace(/^(.{4})(.{4})$/, '$1-$2')
+                                        : '—'}
                                 </span>
                                 {workerUser?.id && (
                                     <button
