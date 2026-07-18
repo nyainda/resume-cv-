@@ -10,6 +10,7 @@
 
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { CVData, UserProfile, SavedCoverLetter, TemplateName, UserProfileSlot } from '../types';
+import PublishedProfilesHub from './PublishedProfilesHub';
 import type { WorkerUser } from '../services/authService';
 import { loadSessionFallback } from '../services/authService';
 import LZString from 'lz-string';
@@ -41,6 +42,8 @@ interface ShareProfilePageProps {
   onGoToGenerator: () => void;
   /** Active profile slot — used to scope published slug storage per room. */
   activeSlot?: UserProfileSlot | null;
+  /** All profile slots — used to render the Published Profiles Hub. */
+  profiles?: UserProfileSlot[];
 }
 
 // ── Small reusable pieces ──────────────────────────────────────────────────
@@ -184,6 +187,7 @@ const ShareProfilePage: React.FC<ShareProfilePageProps> = ({
   onShareLinkAdded,
   onGoToGenerator,
   activeSlot,
+  profiles = [],
 }) => {
   const personalInfo = userProfile?.personalInfo;
   const template: TemplateName = (cvData?.template as TemplateName) ?? 'professional';
@@ -811,6 +815,17 @@ const ShareProfilePage: React.FC<ShareProfilePageProps> = ({
          ══════════════════════════════════════════════════════════════════ */}
       {activeTab === 'publish' && (
         <div className="space-y-5">
+
+          {/* All-rooms overview — always visible at the top of the publish tab */}
+          {profiles.length > 0 && (
+            <PublishedProfilesHub
+              profiles={profiles}
+              user={user}
+              activeSlot={activeSlot}
+              onNavigate={() => {/* already on share-profile */}}
+              compact
+            />
+          )}
 
           {/* Main two-col layout */}
           <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">

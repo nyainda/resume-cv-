@@ -462,6 +462,7 @@ const AppViewRouter: React.FC<AppViewRouterProps> = ({
                   isAuthenticated={isAuthenticated}
                   savedCoverLetters={savedCoverLetters}
                   activeSlot={activeSlot}
+                  profiles={profiles}
                   onShareLinkAdded={onShareLinkAdded}
                   onGoToGenerator={() => setCurrentView('generator')}
                 />
