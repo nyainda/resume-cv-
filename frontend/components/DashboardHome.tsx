@@ -37,6 +37,7 @@ interface Props {
   user?: WorkerUser | null;
   onNavigate: (view: string) => void;
   onEditProfile: () => void;
+  onSwitchProfile?: (slot: UserProfileSlot) => void;
 }
 
 /* ── Tiny inline components ────────────────────────────────────────────────── */
@@ -256,6 +257,7 @@ const DashboardHome: React.FC<Props> = ({
   user,
   onNavigate,
   onEditProfile,
+  onSwitchProfile,
 }) => {
   // ── Tier / identity ───────────────────────────────────────────────────────
   const effectiveTier = getEffectiveTier();
@@ -802,32 +804,41 @@ const DashboardHome: React.FC<Props> = ({
                 Profile Slots
               </CardTitle>
               <CardBody className="space-y-1.5">
-                {profiles.slice(0, 3).map(p => (
-                  <div
-                    key={p.id}
-                    className={`flex items-center gap-2 px-2.5 py-2 rounded-xl border transition-colors ${
-                      p.id === activeSlot?.id
-                        ? 'border-[#C9A84C]/40 bg-[#C9A84C]/5 dark:bg-[#C9A84C]/8'
-                        : 'border-zinc-100 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-800/30'
-                    }`}
-                  >
+                {profiles.slice(0, 3).map(p => {
+                  const isActive = p.id === activeSlot?.id;
+                  return (
                     <div
-                      className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black flex-shrink-0"
-                      style={{ background: p.id === activeSlot?.id ? GOLD : NAVY, color: p.id === activeSlot?.id ? NAVY : 'white' }}
+                      key={p.id}
+                      onClick={() => !isActive && onSwitchProfile?.(p)}
+                      title={isActive ? 'Active profile' : `Switch to ${p.name || 'Profile'}`}
+                      className={`flex items-center gap-2 px-2.5 py-2 rounded-xl border transition-all ${
+                        isActive
+                          ? 'border-[#C9A84C]/40 bg-[#C9A84C]/5 dark:bg-[#C9A84C]/8'
+                          : 'border-zinc-100 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-800/30 cursor-pointer hover:border-[#C9A84C]/30 hover:bg-[#C9A84C]/4 dark:hover:bg-[#C9A84C]/6'
+                      }`}
                     >
-                      {(p.name || 'P').charAt(0).toUpperCase()}
-                    </div>
-                    <span className="text-[11px] font-semibold flex-1 truncate text-zinc-700 dark:text-zinc-200">
-                      {p.name || 'Profile'}
-                    </span>
-                    {p.id === activeSlot?.id && (
-                      <span className="text-[8px] font-black px-1.5 py-0.5 rounded-full flex-shrink-0"
-                        style={{ background: `${GOLD}20`, color: GOLD }}>
-                        Primary
+                      <div
+                        className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black flex-shrink-0"
+                        style={{ background: isActive ? GOLD : NAVY, color: isActive ? NAVY : 'white' }}
+                      >
+                        {(p.name || 'P').charAt(0).toUpperCase()}
+                      </div>
+                      <span className="text-[11px] font-semibold flex-1 truncate text-zinc-700 dark:text-zinc-200">
+                        {p.name || 'Profile'}
                       </span>
-                    )}
-                  </div>
-                ))}
+                      {isActive ? (
+                        <span className="text-[8px] font-black px-1.5 py-0.5 rounded-full flex-shrink-0"
+                          style={{ background: `${GOLD}20`, color: GOLD }}>
+                          Primary
+                        </span>
+                      ) : (
+                        <span className="text-[8px] font-medium px-1.5 py-0.5 rounded-full flex-shrink-0 opacity-0 group-hover:opacity-100 text-zinc-400">
+                          Switch
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
               </CardBody>
               <CardFooter>
                 <button

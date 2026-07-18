@@ -304,6 +304,7 @@ const AppViewRouter: React.FC<AppViewRouterProps> = ({
                   user={user}
                   onNavigate={(view) => setCurrentView(view as any)}
                   onEditProfile={() => setIsEditingProfile(true)}
+                  onSwitchProfile={onSwitchProfile}
                 />
               )}
 
