@@ -905,6 +905,9 @@ const AppInner: React.FC = () => {
         onDeleteCV={handleDeleteCV}
         onLoadCV={handleLoadCV}
         onSwitchProfile={handleSwitchProfile}
+        onCreateProfile={handleCreateProfile}
+        onDeleteProfile={handleDeleteProfile}
+        onRenameProfile={handleRenameProfile}
         onDeleteAccount={handleDeleteAccount}
         onClearAllData={handleClearAllData}
         signOut={signOut}

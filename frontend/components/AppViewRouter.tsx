@@ -22,6 +22,7 @@ const CareerPivotPage      = lazy(() => import('./CareerPivotPage'));
 const AdminLeaksPage       = lazy(() => import('./AdminLeaksPage'));
 const AdminCVEnginePage    = lazy(() => import('./AdminCVEnginePage'));
 const StorageMapPage       = lazy(() => import('./StorageMapPage'));
+const RoomsPage            = lazy(() => import('./RoomsPage'));
 const AccountPage          = lazy(() => import('./AccountPage'));
 const SettingsPage         = lazy(() => import('./SettingsPage'));
 const ShareProfilePage     = lazy(() => import('./ShareProfilePage'));
@@ -86,6 +87,9 @@ interface AppViewRouterProps {
   onDeleteCV: (id: string) => void;
   onLoadCV: (cv: CVData) => void;
   onSwitchProfile: (slot: UserProfileSlot) => void;
+  onCreateProfile: (name: string, color: import('../types').ProfileColor, cloneFrom?: UserProfile) => void;
+  onDeleteProfile: (id: string) => Promise<void>;
+  onRenameProfile: (id: string, name: string, color: import('../types').ProfileColor) => void;
   onDeleteAccount: () => Promise<void>;
   onClearAllData: () => Promise<void>;
   signOut: () => Promise<void>;
@@ -147,6 +151,9 @@ const AppViewRouter: React.FC<AppViewRouterProps> = ({
   onDeleteCV,
   onLoadCV,
   onSwitchProfile,
+  onCreateProfile,
+  onDeleteProfile,
+  onRenameProfile,
   onDeleteAccount,
   onClearAllData,
   signOut,
@@ -273,6 +280,18 @@ const AppViewRouter: React.FC<AppViewRouterProps> = ({
                   userProfile={userProfile!}
                   apiKeySet={apiKeySet}
                   openSettings={() => setIsSettingsOpen(true)}
+                />
+              )}
+
+              {currentView === 'rooms' && (
+                <RoomsPage
+                  profiles={profiles}
+                  activeSlot={activeSlot}
+                  userProfile={userProfile}
+                  onSwitch={(slot) => { onSwitchProfile(slot); }}
+                  onCreate={onCreateProfile}
+                  onDelete={onDeleteProfile}
+                  onRename={onRenameProfile}
                 />
               )}
 
