@@ -696,7 +696,7 @@ const DashboardHome: React.FC<Props> = ({
             <Card className="p-4">
               <CardTitle
                 action={
-                  <button onClick={onEditProfile} className="text-[10px] text-[#1B2B4B] dark:text-[#C9A84C] font-semibold hover:underline">
+                  <button onClick={() => onNavigate('rooms')} className="text-[10px] text-[#1B2B4B] dark:text-[#C9A84C] font-semibold hover:underline">
                     Manage →
                   </button>
                 }
@@ -731,7 +731,7 @@ const DashboardHome: React.FC<Props> = ({
                   </div>
                 ))}
                 <button
-                  onClick={onEditProfile}
+                  onClick={() => onNavigate('rooms')}
                   className="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl border border-dashed border-zinc-200 dark:border-zinc-700 text-[11px] font-semibold text-zinc-400 dark:text-zinc-500 hover:border-[#C9A84C]/40 hover:text-[#C9A84C] transition-colors mt-1"
                 >
                   <span className="text-base leading-none">+</span> Create New Profile
