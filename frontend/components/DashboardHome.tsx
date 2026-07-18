@@ -824,13 +824,16 @@ const DashboardHome: React.FC<Props> = ({
                   <button
                     key={t.id}
                     onClick={() => onNavigate('generator')}
-                    className="group rounded-xl overflow-hidden border border-zinc-100 dark:border-zinc-700 hover:border-[#C9A84C]/50 transition-all hover:shadow-md text-left"
+                    className="group rounded-xl overflow-hidden border border-zinc-100 dark:border-zinc-700 hover:border-[#C9A84C]/50 transition-all hover:shadow-md text-left flex flex-col"
                   >
-                    <RealTemplateThumbnail
-                      templateName={t.id}
-                      cvData={cvForTemplates ?? undefined}
-                      personalInfo={userProfile?.personalInfo}
-                    />
+                    {/* Clip to top ~55% of the A4 page so only the header + first section show */}
+                    <div className="w-full overflow-hidden" style={{ aspectRatio: '1/0.78' }}>
+                      <RealTemplateThumbnail
+                        templateName={t.id}
+                        cvData={cvForTemplates ?? undefined}
+                        personalInfo={userProfile?.personalInfo}
+                      />
+                    </div>
                     <div className="px-2 py-1.5 bg-white dark:bg-neutral-800 border-t border-zinc-100 dark:border-neutral-700">
                       <p className="text-[10px] font-semibold text-zinc-600 dark:text-zinc-300 truncate">{t.label}</p>
                     </div>
