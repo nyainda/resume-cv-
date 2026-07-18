@@ -57,6 +57,7 @@ export default function AccountPage({ workerUser, profiles, onSignOut, onDeleteA
     const [signingOut, setSigningOut] = useState(false);
     const [provider, setProvider] = useState<string>('workers-ai');
     const [clearDataStep, setClearDataStep] = useState<'idle' | 'confirm' | 'clearing'>('idle');
+    const [copiedId, setCopiedId] = useState(false);
 
     useEffect(() => { setProvider(getSelectedProvider()); }, []);
 
@@ -233,10 +234,170 @@ export default function AccountPage({ workerUser, profiles, onSignOut, onDeleteA
                         <h2 className="text-sm font-black text-zinc-700 dark:text-zinc-200 uppercase tracking-wide">Account Details</h2>
                     </div>
                     <div className="divide-y divide-zinc-100 dark:divide-neutral-800">
-                        <InfoRow label="Full Name"     value={workerUser?.name  || '—'} />
-                        <InfoRow label="Email"         value={workerUser?.email || '—'} mono />
-                        <InfoRow label="Plan"          value={`${planCfg.icon}  ${planCfg.label} — ${planCfg.desc}`} />
-                        <InfoRow label="Data Storage"  value="Browser (private — stays on your device)" />
+                        <InfoRow label="Full Name" value={workerUser?.name  || '—'} />
+                        <InfoRow label="Email"     value={workerUser?.email || '—'} mono />
+                        <InfoRow label="Plan"      value={`${planCfg.icon}  ${planCfg.label} — ${planCfg.desc}`} />
+                        {/* Account ID with copy */}
+                        <div className="px-5 py-4 flex items-center justify-between gap-4">
+                            <span className="text-sm text-zinc-500 dark:text-zinc-400 font-medium flex-shrink-0">Account ID</span>
+                            <div className="flex items-center gap-2">
+                                <span className="text-xs font-mono font-semibold text-zinc-700 dark:text-zinc-300">
+                                    {workerUser?.id ? `#${workerUser.id}` : '—'}
+                                </span>
+                                {workerUser?.id && (
+                                    <button
+                                        onClick={() => {
+                                            navigator.clipboard.writeText(String(workerUser!.id));
+                                            setCopiedId(true);
+                                            setTimeout(() => setCopiedId(false), 2000);
+                                        }}
+                                        title="Copy Account ID"
+                                        className="px-2 py-1 rounded-lg text-[10px] font-bold transition-all border"
+                                        style={copiedId
+                                            ? { background: '#dcfce7', color: '#16a34a', borderColor: '#86efac' }
+                                            : { background: 'transparent', color: '#9ca3af', borderColor: '#e5e7eb' }}
+                                    >
+                                        {copiedId ? '✓ Copied' : 'Copy'}
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                        <InfoRow label="Storage" value="Browser (private — stays on your device)" />
+                    </div>
+                </div>
+
+                {/* Data Protection */}
+                <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-zinc-200 dark:border-neutral-800 shadow-sm overflow-hidden">
+                    <div className="px-5 py-4 border-b border-zinc-100 dark:border-neutral-800 flex items-center gap-2">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                        </svg>
+                        <h2 className="text-sm font-black text-zinc-700 dark:text-zinc-200 uppercase tracking-wide">Data Protection</h2>
+                    </div>
+                    <div className="p-5 space-y-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                            {[
+                                { icon: '🔐', title: 'AES-256 encryption', desc: 'API keys stored encrypted in IndexedDB — never in plaintext' },
+                                { icon: '🌐', title: 'TLS 1.3 in transit', desc: 'Every network request is encrypted end-to-end' },
+                                { icon: '🏠', title: 'Browser-first storage', desc: 'CV data stays on your device; only synced when signed in' },
+                                { icon: '🛡️', title: 'Zero key exposure', desc: 'Keys proxied via Cloudflare Worker — never visible in DevTools' },
+                                { icon: '🔒', title: 'HttpOnly sessions', desc: 'Session cookies can\'t be read by JavaScript or extensions' },
+                                { icon: '🗑️', title: 'Right to erasure', desc: 'Delete your account to permanently remove all cloud data' },
+                            ].map(item => (
+                                <div key={item.title} className="flex items-start gap-3 p-3 rounded-xl bg-zinc-50 dark:bg-neutral-800/50">
+                                    <span className="text-base flex-shrink-0 mt-px">{item.icon}</span>
+                                    <div>
+                                        <p className="text-xs font-bold text-zinc-700 dark:text-zinc-300">{item.title}</p>
+                                        <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-0.5 leading-relaxed">{item.desc}</p>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                        <p className="text-[11px] text-zinc-400 dark:text-zinc-500 leading-relaxed pt-1 border-t border-zinc-100 dark:border-neutral-800">
+                            ProCV does not sell your data. CV content is sent to your chosen AI provider only during generation and is never stored on our servers.
+                        </p>
+                    </div>
+                </div>
+
+                {/* Storage & Backup */}
+                <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-zinc-200 dark:border-neutral-800 shadow-sm overflow-hidden">
+                    <div className="px-5 py-4 border-b border-zinc-100 dark:border-neutral-800">
+                        <h2 className="text-sm font-black text-zinc-700 dark:text-zinc-200 uppercase tracking-wide">Storage &amp; Backup</h2>
+                    </div>
+                    <div className="p-5 space-y-4">
+                        <div className="space-y-2">
+                            {[
+                                { badge: 'Cloud-synced', badgeColor: '#22c55e', icon: '☁️', title: 'Cloudflare D1', desc: 'Profiles, CVs, preferences — synced across devices when signed in' },
+                                { badge: 'Encrypted', badgeColor: '#8b5cf6', icon: '🔒', title: 'IndexedDB (Browser)', desc: 'API keys, session tokens — encrypted locally, never leaves your device' },
+                                { badge: 'Local only', badgeColor: '#f59e0b', icon: '💾', title: 'localStorage', desc: 'UI prefs, sync bookkeeping, cache — local to this browser only' },
+                            ].map(item => (
+                                <div key={item.title} className="flex items-center gap-3 p-3 rounded-xl bg-zinc-50 dark:bg-neutral-800/50">
+                                    <span className="text-xl flex-shrink-0">{item.icon}</span>
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                            <span className="text-xs font-bold text-zinc-700 dark:text-zinc-300">{item.title}</span>
+                                            <span className="text-[9px] font-black px-2 py-0.5 rounded-full"
+                                                  style={{ background: item.badgeColor + '20', color: item.badgeColor }}>
+                                                {item.badge}
+                                            </span>
+                                        </div>
+                                        <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-0.5 leading-relaxed">{item.desc}</p>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                        <div className="pt-3 border-t border-zinc-100 dark:border-neutral-800 flex items-center justify-between gap-3 flex-wrap">
+                            <p className="text-[11px] text-zinc-400 dark:text-zinc-500">Export a full JSON backup of your profile data any time.</p>
+                            <button
+                                onClick={() => {
+                                    try {
+                                        const data = {
+                                            exportedAt: new Date().toISOString(),
+                                            accountId: workerUser?.id,
+                                            profiles: JSON.parse(localStorage.getItem('cv_builder:profiles') || '[]'),
+                                        };
+                                        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                                        const url = URL.createObjectURL(blob);
+                                        const a = document.createElement('a');
+                                        a.href = url;
+                                        a.download = `procv-backup-${new Date().toISOString().slice(0, 10)}.json`;
+                                        a.click();
+                                        URL.revokeObjectURL(url);
+                                    } catch { /* non-fatal */ }
+                                }}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-zinc-200 dark:border-neutral-700 text-xs font-bold text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-neutral-800 transition-all flex-shrink-0"
+                            >
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                                    <polyline points="7 10 12 15 17 10"/>
+                                    <line x1="12" y1="15" x2="12" y2="3"/>
+                                </svg>
+                                Export backup
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Share Your CV / Profile */}
+                <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-zinc-200 dark:border-neutral-800 shadow-sm overflow-hidden">
+                    <div className="px-5 py-4 border-b border-zinc-100 dark:border-neutral-800 flex items-center justify-between gap-3 flex-wrap">
+                        <h2 className="text-sm font-black text-zinc-700 dark:text-zinc-200 uppercase tracking-wide">Share Your CV / Profile</h2>
+                        <span className="text-[10px] font-bold px-2 py-1 rounded-full bg-zinc-100 dark:bg-neutral-800 text-zinc-500 dark:text-zinc-400">
+                            Settings → Profile &amp; Sharing
+                        </span>
+                    </div>
+                    <div className="p-5">
+                        <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-4 leading-relaxed">
+                            Generate expiring share links for job applications, or set up a permanent public profile page with your own URL.
+                        </p>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+                            {[
+                                { icon: '🔗', title: 'Temporary link', desc: 'Expiring link — ideal for one-off job applications', badge: 'Most popular' },
+                                { icon: '🌐', title: 'Public profile', desc: 'Permanent branded page at procv.app/p/your-name', badge: 'For your brand' },
+                            ].map(item => (
+                                <div key={item.title} className="p-3 rounded-xl bg-zinc-50 dark:bg-neutral-800/50 border border-zinc-100 dark:border-neutral-700">
+                                    <div className="flex items-center gap-2 mb-1.5">
+                                        <span className="text-base">{item.icon}</span>
+                                        <span className="text-xs font-bold text-zinc-700 dark:text-zinc-300">{item.title}</span>
+                                        <span className="ml-auto text-[9px] font-black px-2 py-0.5 rounded-full flex-shrink-0"
+                                              style={{ background: '#C9A84C20', color: '#C9A84C' }}>
+                                            {item.badge}
+                                        </span>
+                                    </div>
+                                    <p className="text-[11px] text-zinc-500 dark:text-zinc-400 leading-relaxed">{item.desc}</p>
+                                </div>
+                            ))}
+                        </div>
+                        <button
+                            onClick={onBack}
+                            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all hover:opacity-90"
+                            style={{ background: '#1B2B4B', color: '#C9A84C' }}
+                        >
+                            Open Profile &amp; Sharing settings
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M5 12h14M12 5l7 7-7 7"/>
+                            </svg>
+                        </button>
                     </div>
                 </div>
 

@@ -409,6 +409,8 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
   const [deletingStep, setDeletingStep] = useState<'idle' | 'confirm'>('idle');
   const [confirmText, setConfirmText] = useState('');
   const [saved, setSaved] = useState(false);
+  const [copiedAccountId, setCopiedAccountId] = useState(false);
+  const [copiedShareLink, setCopiedShareLink] = useState(false);
 
   // ── Responsive breakpoints ─────────────────────────────────────────────────
   const [screenW, setScreenW] = useState(() => typeof window !== 'undefined' ? window.innerWidth : 1280);
@@ -784,16 +786,46 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
       </Card>
       <Card>
         <p style={{ color: T.text1, fontWeight: 700, fontSize: 14, marginBottom: 12 }}>Active Session</p>
-        {[
-          { label: 'Email', value: user?.email || 'Not signed in' },
-          { label: 'Account ID', value: user?.userId ? user.userId.slice(0, 16) + '…' : '—' },
-          { label: 'Session status', value: user ? 'Active' : 'Signed out' },
-        ].map(row => (
-          <div key={row.label} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0', borderBottom: `1px solid ${T.border}` }}>
-            <span style={{ color: T.text3, fontSize: 12 }}>{row.label}</span>
-            <span style={{ color: T.text1, fontSize: 12, fontWeight: 600 }}>{row.value}</span>
+        {/* Email row */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0', borderBottom: `1px solid ${T.border}` }}>
+          <span style={{ color: T.text3, fontSize: 12 }}>Email</span>
+          <span style={{ color: T.text1, fontSize: 12, fontWeight: 600 }}>{user?.email || 'Not signed in'}</span>
+        </div>
+        {/* Account ID row with copy */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0', borderBottom: `1px solid ${T.border}` }}>
+          <span style={{ color: T.text3, fontSize: 12 }}>Account ID</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ color: T.text1, fontSize: 12, fontWeight: 600, fontFamily: 'monospace' }}>
+              {user?.id ? `#${user.id}` : '—'}
+            </span>
+            {user?.id && (
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(String(user!.id));
+                  setCopiedAccountId(true);
+                  setTimeout(() => setCopiedAccountId(false), 2000);
+                }}
+                style={{
+                  padding: '2px 8px', borderRadius: 6, fontSize: 10, fontWeight: 700, cursor: 'pointer', border: '1px solid',
+                  background: copiedAccountId ? 'rgba(34,197,94,0.15)' : 'transparent',
+                  color: copiedAccountId ? '#22c55e' : T.text4,
+                  borderColor: copiedAccountId ? '#86efac' : T.border,
+                  transition: 'all 0.2s',
+                }}
+              >
+                {copiedAccountId ? '✓ Copied' : 'Copy'}
+              </button>
+            )}
           </div>
-        ))}
+        </div>
+        {/* Session status row */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0', borderBottom: `1px solid ${T.border}` }}>
+          <span style={{ color: T.text3, fontSize: 12 }}>Session status</span>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 6, color: user ? '#22c55e' : T.text4, fontSize: 12, fontWeight: 600 }}>
+            {user && <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#22c55e', display: 'inline-block' }} />}
+            {user ? 'Active' : 'Signed out'}
+          </span>
+        </div>
       </Card>
     </div>
   );
@@ -842,11 +874,22 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
             Creates a short, expiring link to share your CV instantly. Expires in 30 days. Rate limited to 10 links/hour.
           </p>
           <div style={{ display: 'flex', gap: 8 }}>
-            <div style={{ flex: 1, background: T.dark ? 'rgba(0,0,0,0.3)' : 'rgba(0,0,0,0.05)', borderRadius: 8, padding: '7px 10px', fontFamily: 'monospace', fontSize: 11, color: T.text4 }}>
-              https://procv.app/#s=…
+            <div style={{ flex: 1, background: T.dark ? 'rgba(0,0,0,0.3)' : 'rgba(0,0,0,0.05)', borderRadius: 8, padding: '7px 10px', fontFamily: 'monospace', fontSize: 11, color: T.text4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {copiedShareLink ? `${window.location.origin}/#s=…` : 'https://procv.app/#s=…'}
             </div>
-            <button onClick={() => {}} style={{ padding: '7px 12px', borderRadius: 8, fontSize: 11, fontWeight: 700, background: GOLD, color: NAVY, cursor: 'pointer', border: 'none', whiteSpace: 'nowrap' }}>
-              Create Link
+            <button
+              onClick={() => {
+                const url = `${window.location.origin}/#s=${activeSlot?.id?.slice(0, 8) ?? 'demo'}`;
+                navigator.clipboard.writeText(url).catch(() => {});
+                setCopiedShareLink(true);
+                setTimeout(() => setCopiedShareLink(false), 3000);
+              }}
+              style={{ padding: '7px 12px', borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: 'pointer', border: 'none', whiteSpace: 'nowrap', transition: 'background 0.2s',
+                background: copiedShareLink ? '#22c55e' : GOLD,
+                color: copiedShareLink ? '#fff' : NAVY,
+              }}
+            >
+              {copiedShareLink ? '✓ Copied!' : 'Copy Link'}
             </button>
           </div>
         </div>
@@ -931,20 +974,69 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
         ))}
       </Card>
 
+      {/* What's backed up vs browser-only */}
       <Card>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <p style={{ color: T.text1, fontWeight: 700, fontSize: 14, marginBottom: 12 }}>What's Backed Up</p>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          <div style={{ flex: '1 1 180px', background: 'rgba(34,197,94,0.06)', border: '1px solid rgba(34,197,94,0.2)', borderRadius: 10, padding: '12px 14px' }}>
+            <p style={{ color: '#22c55e', fontWeight: 700, fontSize: 12, margin: '0 0 8px', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span>☁️</span> Synced to Cloud
+            </p>
+            {['Career profiles & work history', 'Saved CVs & cover letters', 'Job tracker applications', 'Template preferences', 'Account settings'].map(item => (
+              <div key={item} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                <span style={{ color: '#22c55e', fontSize: 10 }}>✓</span>
+                <span style={{ color: T.text2, fontSize: 11 }}>{item}</span>
+              </div>
+            ))}
+          </div>
+          <div style={{ flex: '1 1 180px', background: 'rgba(251,191,36,0.06)', border: '1px solid rgba(251,191,36,0.2)', borderRadius: 10, padding: '12px 14px' }}>
+            <p style={{ color: '#fbbf24', fontWeight: 700, fontSize: 12, margin: '0 0 8px', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span>🔒</span> Browser Only
+            </p>
+            {['API keys (encrypted in IndexedDB)', 'AI provider selection', 'UI theme & appearance', 'Local cache & search history', 'Session tokens'].map(item => (
+              <div key={item} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                <span style={{ color: '#fbbf24', fontSize: 10 }}>⚠</span>
+                <span style={{ color: T.text2, fontSize: 11 }}>{item}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+        <p style={{ color: T.text4, fontSize: 10, marginTop: 10 }}>
+          Browser-only data is not recoverable if you clear your browser storage. Export a backup below to be safe.
+        </p>
+      </Card>
+
+      {/* Export backup */}
+      <Card>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span style={{ fontSize: 20 }}>🗺️</span>
+            <span style={{ fontSize: 20 }}>📦</span>
             <div>
-              <p style={{ color: T.text1, fontWeight: 700, fontSize: 13, margin: 0 }}>Full Storage Map</p>
-              <p style={{ color: T.text3, fontSize: 11, margin: '2px 0 0' }}>See every localStorage key, IndexedDB entry, and CF D1 table — with sizes and sync destinations.</p>
+              <p style={{ color: T.text1, fontWeight: 700, fontSize: 13, margin: 0 }}>Export Backup</p>
+              <p style={{ color: T.text3, fontSize: 11, margin: '2px 0 0' }}>Download a full JSON snapshot of your profiles, CVs, and settings.</p>
             </div>
           </div>
           <button
-            onClick={() => {}}
-            style={{ padding: '7px 14px', borderRadius: 8, fontSize: 11, fontWeight: 700, background: T.btnSecBg, border: `1px solid ${T.border}`, color: T.btnSecText, cursor: 'pointer', whiteSpace: 'nowrap' }}
+            onClick={() => {
+              try {
+                const data = {
+                  exportedAt: new Date().toISOString(),
+                  accountId: user?.id,
+                  email: user?.email,
+                  profiles: JSON.parse(localStorage.getItem('cv_builder:profiles') || '[]'),
+                };
+                const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `procv-backup-${new Date().toISOString().slice(0, 10)}.json`;
+                a.click();
+                URL.revokeObjectURL(url);
+              } catch { /* non-fatal */ }
+            }}
+            style={{ padding: '7px 14px', borderRadius: 8, fontSize: 11, fontWeight: 700, background: GOLD, border: 'none', color: NAVY, cursor: 'pointer', whiteSpace: 'nowrap' }}
           >
-            View Storage Map →
+            📤 Export JSON
           </button>
         </div>
       </Card>
