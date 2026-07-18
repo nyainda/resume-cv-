@@ -13,8 +13,10 @@ import {
   LinkedInNavIcon,
   ShareNavIcon,
   RoomsNavIcon,
+  HomeNavIcon,
+  CVGenNavIcon,
 } from '../components/nav/NavIcons';
-import { FileText, Target, List, BookOpen } from '../components/icons';
+import { Target, List, BookOpen } from '../components/icons';
 import { isPureFreeTier, getEffectiveTier } from '../services/accountTierService';
 import { hasCompletedOnboarding } from '../components/OnboardingWizard';
 
@@ -179,9 +181,9 @@ export function useAppNavigation({
   }, []);
 
   const primaryNav = [
-    { id: 'dashboard', label: 'Home',          icon: FileText },
+    { id: 'dashboard', label: 'Home',          icon: HomeNavIcon },
     { id: 'rooms',     label: 'Rooms',         icon: RoomsNavIcon },
-    { id: 'generator', label: 'CV Generator',  icon: FileText },
+    { id: 'generator', label: 'CV Generator',  icon: CVGenNavIcon },
     { id: 'score',     label: 'Score My CV',   icon: ScoreNavIcon },
     { id: 'interview', label: 'Interview Prep', icon: InterviewNavIcon },
     { id: 'tracker',   label: 'Job Tracker',   icon: Target },
