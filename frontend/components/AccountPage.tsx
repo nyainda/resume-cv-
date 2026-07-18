@@ -193,7 +193,8 @@ export default function AccountPage({ workerUser, profiles, onSignOut, onDeleteA
                     ))}
                 </div>
 
-                {/* Active AI Provider */}
+                {/* Active AI Provider — only shown for BYOK users with a configured key-based provider */}
+                {plan === 'byok' && provider !== 'workers-ai' && (
                 <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-zinc-200 dark:border-neutral-800 shadow-sm overflow-hidden">
                     <div className="px-5 py-4 border-b border-zinc-100 dark:border-neutral-800 flex items-center justify-between">
                         <h2 className="text-sm font-black text-zinc-700 dark:text-zinc-200 uppercase tracking-wide">Active AI Provider</h2>
@@ -224,6 +225,7 @@ export default function AccountPage({ workerUser, profiles, onSignOut, onDeleteA
                         </p>
                     </div>
                 </div>
+                )}
 
                 {/* Account details */}
                 <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-zinc-200 dark:border-neutral-800 shadow-sm overflow-hidden">

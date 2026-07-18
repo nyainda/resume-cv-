@@ -540,31 +540,36 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
     <div>
       <SectionHeader title="AI Providers" subtitle="Choose and manage your AI providers and API keys." badge="How it works" />
 
-      <div style={{ display: 'flex', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
-        <ProviderOverviewCard
-          icon="☁️" name="Workers AI" badge="Active" model="Llama 70B + DeepSeek R1"
-          badgeColor="rgba(34,197,94,0.15)|#22c55e"
-          description="Powered by Cloudflare · Low latency · High privacy · Best speed · ~280ms"
-          isActive={selectedProvider === 'workers-ai'}
-          onConfigure={() => setActiveSection('ai-providers')}
-        />
-        <ProviderOverviewCard
-          icon="✨" name="Gemini" badge="Vision Import Available"
-          model="Gemini 2.5 Flash · by Google"
-          badgeColor="rgba(59,130,246,0.15)|#60a5fa"
-          description="High accuracy · 1M context · OCR + AI · Google infra"
-          isActive={selectedProvider === 'gemini'}
-          onConfigure={() => setActiveSection('ai-providers')}
-        />
-        <ProviderOverviewCard
-          icon="🧠" name="Claude" badge="BYOK"
-          model="Claude 3.5 Sonnet · by Anthropic"
-          badgeColor="rgba(139,92,246,0.15)|#a78bfa"
-          description="Advanced reasoning · 3.6 Sonnet · Strong safety · Constitutional · High quality"
-          isActive={selectedProvider === 'claude'}
-          onConfigure={() => setActiveSection('ai-providers')}
-        />
-      </div>
+      {/* Provider overview cards — Workers AI runs silently for free/premium; not shown here.
+          BYOK users see which of their own keys is active. */}
+      {isByok && (
+        <div style={{ display: 'flex', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
+          <ProviderOverviewCard
+            icon="🧠" name="Claude" badge="BYOK"
+            model="Claude 3.5 Sonnet · by Anthropic"
+            badgeColor="rgba(139,92,246,0.15)|#a78bfa"
+            description="Advanced reasoning · 200K context · Constitutional AI safety"
+            isActive={selectedProvider === 'claude'}
+            onConfigure={() => setActiveSection('ai-providers')}
+          />
+          <ProviderOverviewCard
+            icon="✨" name="Gemini" badge="BYOK"
+            model="Gemini 2.5 Flash · by Google"
+            badgeColor="rgba(59,130,246,0.15)|#60a5fa"
+            description="High accuracy · 1M context · OCR + AI · Vision import"
+            isActive={selectedProvider === 'gemini'}
+            onConfigure={() => setActiveSection('ai-providers')}
+          />
+          <ProviderOverviewCard
+            icon="⚡" name="Groq" badge="BYOK"
+            model="Llama 3.3 70B · Ultra-fast"
+            badgeColor="rgba(251,191,36,0.15)|#fbbf24"
+            description="Ultra-fast inference · Multiple top models · Free tier included"
+            isActive={selectedProvider === 'groq'}
+            onConfigure={() => setActiveSection('ai-providers')}
+          />
+        </div>
+      )}
 
       {/* API Key Vault */}
       <Card>
@@ -682,12 +687,12 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
             <span style={{ fontSize: 20 }}>✨</span>
             <div>
-              <p style={{ color: T.text1, fontWeight: 700, fontSize: 13, margin: 0 }}>Free Tier — Workers AI</p>
-              <p style={{ color: T.text3, fontSize: 11, margin: '2px 0 0' }}>Powered by Cloudflare Workers AI automatically. No key needed.</p>
+              <p style={{ color: T.text1, fontWeight: 700, fontSize: 13, margin: 0 }}>AI Engine — Active</p>
+              <p style={{ color: T.text3, fontSize: 11, margin: '2px 0 0' }}>Runs automatically in the background. No setup needed.</p>
             </div>
           </div>
           <p style={{ color: T.text2, fontSize: 12, lineHeight: 1.6, margin: '0 0 12px' }}>
-            You get unlimited CV generation powered by Llama 70B + DeepSeek R1 at no cost.
+            CV generation, analysis, and cover letters are all powered automatically at no cost.
             Bring your own API key (BYOK) to use Claude, Gemini, or Groq with your own quota.
           </p>
           <button onClick={onUpgrade} style={{ padding: '7px 16px', borderRadius: 8, fontSize: 12, fontWeight: 700, background: GOLD, color: NAVY, cursor: 'pointer', border: 'none' }}>
