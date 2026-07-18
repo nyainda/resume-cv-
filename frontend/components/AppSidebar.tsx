@@ -328,6 +328,75 @@ const SidebarInner: React.FC<SidebarInnerProps> = ({
 
       </nav>
 
+      {/* ── Profile / Rooms switcher ──────────────────────────────── */}
+      {profiles.length > 0 && (() => {
+        const SLOT_COLORS: Record<string, string> = {
+          indigo: '#1B2B4B', violet: '#7c3aed', emerald: '#10b981',
+          amber: '#f59e0b', rose: '#f43f5e', sky: '#0ea5e9',
+        };
+        const hex = SLOT_COLORS[activeSlot?.color ?? 'indigo'] ?? '#1B2B4B';
+        const initial = (activeSlot?.profile?.personalInfo?.name || activeSlot?.name || 'P').charAt(0).toUpperCase();
+        return (
+          <div className="relative mx-2 mb-2 flex-shrink-0" ref={profileManagerRef}>
+            <button
+              onClick={() => setShowProfileManager(v => !v)}
+              title="Switch profile / manage rooms"
+              className={`w-full flex items-center gap-2 md:justify-center xl:justify-start px-2 xl:px-3 py-2 rounded-xl border transition-all ${
+                showProfileManager
+                  ? 'border-[#C9A84C]/50 bg-[#C9A84C]/10'
+                  : dark
+                    ? 'border-white/10 bg-white/5 hover:bg-white/10'
+                    : 'border-zinc-200 bg-zinc-50 hover:bg-zinc-100'
+              }`}
+            >
+              {/* Colour avatar */}
+              <div
+                className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] text-white font-extrabold flex-shrink-0"
+                style={{ background: hex }}
+              >
+                {initial}
+              </div>
+              {/* Name + room count — xl wide mode only */}
+              <div className="hidden xl:flex flex-col items-start leading-none min-w-0 flex-1">
+                <span className={`text-[11px] font-bold truncate max-w-full ${dark ? 'text-white' : 'text-[#1B2B4B]'}`}>
+                  {activeSlot?.name ?? 'Profile'}
+                </span>
+                <span className={`text-[9px] mt-0.5 ${dark ? 'text-white/40' : 'text-zinc-400'}`}>
+                  {profiles.length} room{profiles.length !== 1 ? 's' : ''}
+                </span>
+              </div>
+              {/* Users icon */}
+              <svg className={`h-3.5 w-3.5 hidden xl:block flex-shrink-0 ${dark ? 'text-white/30' : 'text-zinc-400'}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+              </svg>
+            </button>
+
+            {/* Panel — pops out to the right of the sidebar */}
+            {showProfileManager && (
+              <div
+                className="absolute bottom-0 left-full ml-3 w-[390px] rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.22)] border p-4 z-50 flex flex-col max-h-[80vh]"
+                style={dark
+                  ? { background: '#1c1c1c', borderColor: 'rgba(255,255,255,0.1)' }
+                  : { background: '#fff', borderColor: 'rgba(0,0,0,0.09)' }
+                }
+              >
+                <ProfileManager
+                  profiles={profiles}
+                  activeProfileId={activeSlot?.id ?? null}
+                  onSwitch={s => { onSwitchProfile(s); setShowProfileManager(false); }}
+                  onCreate={onCreateProfile}
+                  onDelete={onDeleteProfile}
+                  onRename={onRenameProfile}
+                  currentProfile={userProfile}
+                  onClose={() => setShowProfileManager(false)}
+                />
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
       {/* ── Go Premium banner ─────────────────────────────────────── */}
       {!isPremium && (
         <div

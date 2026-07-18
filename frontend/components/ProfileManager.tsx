@@ -390,7 +390,7 @@ export const ProfileManager: React.FC<ProfileManagerProps> = ({
                                     {/* Rename */}
                                     <button
                                         onClick={e => openEdit(slot, e)}
-                                        className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-neutral-700 transition-colors opacity-60 sm:opacity-40 group-hover:opacity-100"
+                                        className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-neutral-700 transition-colors"
                                         title="Rename / recolor"
                                     >
                                         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -401,7 +401,7 @@ export const ProfileManager: React.FC<ProfileManagerProps> = ({
                                     {/* Duplicate */}
                                     <button
                                         onClick={e => handleDuplicate(slot, e)}
-                                        className={`p-1.5 rounded-lg transition-colors opacity-60 sm:opacity-40 group-hover:opacity-100 ${
+                                        className={`p-1.5 rounded-lg transition-colors ${
                                             duplicatedId === slot.id
                                                 ? 'text-emerald-500 bg-emerald-50 dark:bg-emerald-900/20'
                                                 : 'text-zinc-400 hover:text-[#1B2B4B] dark:hover:text-[#C9A84C] hover:bg-zinc-100 dark:hover:bg-neutral-700'
@@ -438,7 +438,7 @@ export const ProfileManager: React.FC<ProfileManagerProps> = ({
                                         ) : (
                                             <button
                                                 onClick={() => setConfirmDeleteId(slot.id)}
-                                                className="p-1.5 rounded-lg text-zinc-400 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors opacity-60 sm:opacity-40 group-hover:opacity-100"
+                                                className="p-1.5 rounded-lg text-zinc-400 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
                                                 title="Delete"
                                             >
                                                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
