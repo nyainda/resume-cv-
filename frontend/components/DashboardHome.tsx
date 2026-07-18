@@ -586,44 +586,100 @@ const DashboardHome: React.FC<Props> = ({
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
 
             {/* Profile Status */}
-            <Card className="p-4">
-              <CardTitle
-                action={
-                  <button onClick={onEditProfile} className="text-[10px] text-[#1B2B4B] dark:text-[#C9A84C] font-semibold hover:underline">
-                    View Profile →
-                  </button>
-                }
-              >
-                Your Profile Status
-              </CardTitle>
-              <div className="flex items-start gap-3">
-                {/* Circular progress */}
-                <div className="relative flex-shrink-0 w-[72px] h-[72px]">
-                  <Gauge value={profileComplete} />
-                  <div className="absolute inset-0 flex items-end justify-center pb-1">
-                    <span className="text-[8px] font-semibold text-zinc-400">Complete</span>
-                  </div>
+            <Card className="p-4 flex flex-col gap-3">
+              {/* Header row */}
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[11px] font-extrabold uppercase tracking-widest text-zinc-400 dark:text-zinc-500">Your Profile</span>
+                <button
+                  onClick={onEditProfile}
+                  className="flex items-center gap-1 text-[10.5px] font-bold px-2.5 py-1 rounded-lg border border-[#1B2B4B]/20 dark:border-[#C9A84C]/20 text-[#1B2B4B] dark:text-[#C9A84C] hover:bg-[#1B2B4B]/5 dark:hover:bg-[#C9A84C]/8 transition-colors"
+                >
+                  <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                  </svg>
+                  Edit Profile
+                </button>
+              </div>
+
+              {/* Score + bar */}
+              <div className="flex items-center gap-3">
+                {/* Big score badge */}
+                <div
+                  className="w-14 h-14 rounded-2xl flex flex-col items-center justify-center flex-shrink-0 shadow-sm"
+                  style={{ background: profileComplete >= 80 ? '#16a34a' : profileComplete >= 50 ? GOLD : '#1B2B4B' }}
+                >
+                  <span className="text-lg font-black text-white leading-none">{profileComplete}</span>
+                  <span className="text-[7px] font-bold text-white/70 tracking-wide uppercase">Score</span>
                 </div>
-                {/* Checklist */}
-                <div className="flex-1 space-y-1.5 pt-0.5">
-                  {profileSections.map(s => (
-                    <div key={s.label} className="flex items-center gap-2">
-                      {s.done ? (
-                        <svg className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round">
-                          <circle cx="12" cy="12" r="10"/><polyline points="9 12 11 14 15 10"/>
-                        </svg>
-                      ) : (
-                        <svg className="w-3.5 h-3.5 text-zinc-300 dark:text-zinc-600 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-                          <circle cx="12" cy="12" r="10"/>
-                        </svg>
-                      )}
-                      <span className={`text-[10.5px] leading-tight ${s.done ? 'text-zinc-600 dark:text-zinc-300' : 'text-zinc-400 dark:text-zinc-500'}`}>
-                        {s.label}
-                      </span>
-                    </div>
-                  ))}
+                <div className="flex-1 min-w-0">
+                  <div className="flex justify-between items-baseline mb-1">
+                    <span className="text-[11px] font-bold text-zinc-700 dark:text-zinc-200">
+                      {profileComplete >= 80 ? 'Profile complete!' : profileComplete >= 50 ? 'Looking good' : 'Getting started'}
+                    </span>
+                    <span className="text-[10px] text-zinc-400">{profileComplete}%</span>
+                  </div>
+                  {/* Progress bar */}
+                  <div className="w-full h-2 rounded-full bg-zinc-100 dark:bg-zinc-800 overflow-hidden">
+                    <div
+                      className="h-full rounded-full transition-all duration-700"
+                      style={{
+                        width: `${profileComplete}%`,
+                        background: profileComplete >= 80 ? '#16a34a' : profileComplete >= 50 ? GOLD : NAVY,
+                      }}
+                    />
+                  </div>
+                  <p className="text-[9.5px] text-zinc-400 dark:text-zinc-500 mt-1">
+                    {profileSections.filter(s => s.done).length}/{profileSections.length} sections complete
+                  </p>
                 </div>
               </div>
+
+              {/* Section checklist */}
+              <div className="space-y-1">
+                {profileSections.map(s => (
+                  <div
+                    key={s.label}
+                    className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg transition-colors ${
+                      s.done
+                        ? 'bg-emerald-50 dark:bg-emerald-900/15'
+                        : 'bg-amber-50 dark:bg-amber-900/10 cursor-pointer hover:bg-amber-100 dark:hover:bg-amber-900/20'
+                    }`}
+                    onClick={s.done ? undefined : onEditProfile}
+                  >
+                    {s.done ? (
+                      <svg className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round">
+                        <polyline points="20 6 9 17 4 12"/>
+                      </svg>
+                    ) : (
+                      <svg className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round">
+                        <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/>
+                      </svg>
+                    )}
+                    <span className={`text-[10px] font-semibold flex-1 leading-tight ${
+                      s.done ? 'text-emerald-700 dark:text-emerald-400' : 'text-amber-700 dark:text-amber-400'
+                    }`}>
+                      {s.label}
+                    </span>
+                    {!s.done && (
+                      <svg className="w-3 h-3 text-amber-400 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round">
+                        <polyline points="9 18 15 12 9 6"/>
+                      </svg>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {/* CTA if incomplete */}
+              {profileComplete < 100 && (
+                <button
+                  onClick={onEditProfile}
+                  className="w-full py-2 rounded-xl text-[11px] font-bold text-white transition-opacity hover:opacity-90 active:scale-[.98]"
+                  style={{ background: NAVY }}
+                >
+                  Complete Your Profile →
+                </button>
+              )}
             </Card>
 
             {/* Your Top CV */}
