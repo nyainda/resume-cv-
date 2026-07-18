@@ -80,6 +80,35 @@ export async function handlePublicProfileGet(
     }, request, env);
 }
 
+/**
+ * GET /api/cv/public-profile/me  (Authorization: Bearer <token>)
+ *
+ * Returns the authenticated user's own published profile metadata —
+ * specifically the slug and slot_id — without needing to know the slug first.
+ * Used by the frontend on login/mount to restore per-slot localStorage state
+ * across devices and sessions.
+ */
+export async function handlePublicProfileGetMe(
+    request: Request, env: Env,
+): Promise<Response> {
+    const session = await verifySession(sessionTokenFromRequest(request), env);
+    if (!session) return json({ error: 'unauthorized' }, request, env, 401);
+
+    const row = await env.CV_DB.prepare(
+        `SELECT slug, slot_id, updated_at FROM public_profiles WHERE user_id = ?`
+    ).bind(session.userId).first<{ slug: string | null; slot_id: string | null; updated_at: number }>();
+
+    if (!row || !row.slug) return json({ published: false }, request, env);
+
+    return json({
+        published: true,
+        slug: row.slug,
+        slot_id: row.slot_id ?? null,
+        updated_at: row.updated_at,
+        user_id: session.userId,
+    }, request, env);
+}
+
 /** POST /api/cv/public-profile  (Authorization: Bearer <token>) */
 export async function handlePublicProfilePost(
     request: Request, env: Env,
@@ -94,6 +123,9 @@ export async function handlePublicProfilePost(
         return json({ error: 'payload_too_large' }, request, env, 413);
     }
 
+    // slot_id is optional — the column may be NULL for old records
+    const slotId = typeof body?.slot_id === 'string' ? body.slot_id.trim() : null;
+
     const now = Math.floor(Date.now() / 1000);
 
     // Fetch existing slug so we can reuse it on updates (keep the URL stable).
@@ -103,13 +135,14 @@ export async function handlePublicProfilePost(
     const slug = existing?.slug ?? randomSlug();
 
     await env.CV_DB.prepare(`
-        INSERT INTO public_profiles (user_id, payload, updated_at, view_count, slug)
-        VALUES (?, ?, ?, 0, ?)
+        INSERT INTO public_profiles (user_id, payload, updated_at, view_count, slug, slot_id)
+        VALUES (?, ?, ?, 0, ?, ?)
         ON CONFLICT(user_id) DO UPDATE SET
             payload    = excluded.payload,
             updated_at = excluded.updated_at,
-            slug       = COALESCE(public_profiles.slug, excluded.slug)
-    `).bind(session.userId, payload, now, slug).run();
+            slug       = COALESCE(public_profiles.slug, excluded.slug),
+            slot_id    = excluded.slot_id
+    `).bind(session.userId, payload, now, slug, slotId).run();
 
     return json({ ok: true, user_id: session.userId, slug }, request, env);
 }

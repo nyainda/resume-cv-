@@ -38,12 +38,37 @@ export function buildProfileUrlById(userId: number): string {
 }
 
 /**
+ * Fetch the authenticated user's own published profile metadata.
+ * Used on login/mount to restore per-slot localStorage state across devices.
+ * Returns { slug, slot_id } if published, or null if not published / error.
+ */
+export async function fetchMyPublicProfile(
+    sessionToken: string,
+): Promise<{ slug: string; slot_id: string | null } | null> {
+    try {
+        if (!ENGINE_BASE) return null;
+        const res = await fetchWithTimeout(`${ENGINE_BASE}/api/cv/public-profile/me`, {
+            headers: sessionToken ? { 'Authorization': `Bearer ${sessionToken}` } : {},
+            credentials: 'include',
+        });
+        if (res.status === 401) { notifySessionExpired(); return null; }
+        if (!res.ok) return null;
+        const data = await res.json() as { published?: boolean; slug?: string; slot_id?: string | null };
+        if (!data.published || !data.slug) return null;
+        return { slug: data.slug, slot_id: data.slot_id ?? null };
+    } catch {
+        return null;
+    }
+}
+
+/**
  * Publish (or update) the authenticated user's public profile.
  * Returns the random slug on success (used to build the share URL), or null on failure.
  */
 export async function publishPublicProfile(
     payload: SharedCVPayload,
     sessionToken: string,
+    slotId?: string | null,
 ): Promise<string | null> {
     try {
         if (!ENGINE_BASE) return null;
@@ -55,7 +80,7 @@ export async function publishPublicProfile(
                 ...(sessionToken ? { 'Authorization': `Bearer ${sessionToken}` } : {}),
             },
             credentials: 'include',
-            body: JSON.stringify({ payload: compressed }),
+            body: JSON.stringify({ payload: compressed, slot_id: slotId ?? null }),
         });
         if (res.status === 401) { notifySessionExpired(); return null; }
         if (!res.ok) return null;

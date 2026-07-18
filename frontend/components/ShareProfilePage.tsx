@@ -20,7 +20,7 @@ import {
   type StoredShareLink, type ShareStats,
 } from '../services/shareService';
 import {
-  publishPublicProfile, unpublishPublicProfile, buildProfileUrl,
+  fetchMyPublicProfile, publishPublicProfile, unpublishPublicProfile, buildProfileUrl,
   setCustomProfileSlug, validateSlug, checkSlugAvailability,
 } from '../services/publicProfileService';
 import { encodeSharePayload, type SharedCVPayload } from './ShareCVModal';
@@ -283,6 +283,47 @@ const ShareProfilePage: React.FC<ShareProfilePageProps> = ({
     ? buildProfileUrl(profileSlug)
     : (user?.id ? buildProfileUrl(String(user.id)) : '');
 
+  // ── Restore publish state from D1 on mount ────────────────────────────────
+  // localStorage is device-local, so after a logout/login or a different device
+  // the slug key will be empty even though the profile is still live in D1.
+  // This effect fetches the user's own published profile metadata from the
+  // authenticated /api/cv/public-profile/me endpoint and writes the slug back
+  // into the correct per-slot localStorage key so the UI reflects reality.
+  useEffect(() => {
+    if (!isAuthenticated || !user?.id) return;
+    // Only restore if we don't already have a slug for this slot
+    const alreadyHaveSlug = !!(profileSlug);
+    if (alreadyHaveSlug) return;
+
+    let cancelled = false;
+    (async () => {
+      const result = await fetchMyPublicProfile(loadSessionFallback());
+      if (cancelled || !result) return;
+
+      const { slug, slot_id } = result;
+
+      // Determine which localStorage key to write to:
+      // 1. If D1 has a slot_id that matches any of our profiles, use that slot
+      // 2. Otherwise fall back to the current active slot
+      const targetSlotId = slot_id ?? slotId;
+      const targetKey = user?.id ? `publicProfile:slug:${user.id}:${targetSlotId}` : null;
+
+      if (targetKey) {
+        try { localStorage.setItem(targetKey, slug); } catch { /**/ }
+      }
+
+      // If the restored slug belongs to the current slot, update component state
+      if (targetSlotId === slotId) {
+        setProfileSlug(slug);
+        setSlugInput(slug);
+        setProfilePublished(true);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated, user?.id]);
+
   useEffect(() => {
     if (!slugEditing || slugInput.length < 3) { setSlugAvailability('idle'); return; }
     const clientErr = validateSlug(slugInput);
@@ -353,7 +394,8 @@ const ShareProfilePage: React.FC<ShareProfilePageProps> = ({
       sharedAt: new Date().toISOString(),
       procvBranding: needsWatermark(),
     };
-    const slug = await publishPublicProfile(payload, loadSessionFallback());
+    // Pass slotId so D1 records which room published this profile
+    const slug = await publishPublicProfile(payload, loadSessionFallback(), slotId !== 'default' ? slotId : null);
     setProfilePublishing(false);
     if (slug) {
       setProfileSlug(slug); setSlugInput(slug); setProfilePublished(true);
@@ -362,7 +404,7 @@ const ShareProfilePage: React.FC<ShareProfilePageProps> = ({
     } else {
       setProfileError('Could not publish — please try again.');
     }
-  }, [user?.id, cvData, personalInfo, template, profileSlugKey]);
+  }, [user?.id, cvData, personalInfo, template, profileSlugKey, slotId]);
 
   const handleUnpublish = useCallback(async () => {
     setUnpublishing(true);

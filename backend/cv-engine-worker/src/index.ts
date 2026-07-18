@@ -80,7 +80,8 @@ import {
 } from './handlers/auth';
 
 import {
-    handlePublicProfileGet, handlePublicProfilePost, handlePublicProfileDelete,
+    handlePublicProfileGet, handlePublicProfileGetMe,
+    handlePublicProfilePost, handlePublicProfileDelete,
     handlePublicProfileSlugPatch, handlePublicProfileSlugCheck,
 } from './handlers/publicProfile';
 
@@ -294,9 +295,10 @@ async function _dispatch(request: Request, env: Env, ctx: ExecutionContext, url:
     if (p === '/api/auth/account'             && m === 'DELETE') return handleAuthDeleteAccount(request, env);
 
     // ── Public profile pages ──────────────────────────────────────────────────
-    if (p === '/api/cv/public-profile' && m === 'GET')    return handlePublicProfileGet(request, env, url);
-    if (p === '/api/cv/public-profile' && m === 'POST')   return handlePublicProfilePost(request, env);
-    if (p === '/api/cv/public-profile' && m === 'DELETE') return handlePublicProfileDelete(request, env);
+    if (p === '/api/cv/public-profile/me'  && m === 'GET')    return handlePublicProfileGetMe(request, env);
+    if (p === '/api/cv/public-profile'     && m === 'GET')    return handlePublicProfileGet(request, env, url);
+    if (p === '/api/cv/public-profile'     && m === 'POST')   return handlePublicProfilePost(request, env);
+    if (p === '/api/cv/public-profile'     && m === 'DELETE') return handlePublicProfileDelete(request, env);
     // Custom slug — check before the bare /public-profile routes so the path match is unambiguous
     if (p === '/api/cv/public-profile/slug'        && m === 'PATCH') return handlePublicProfileSlugPatch(request, env);
     if (p === '/api/cv/public-profile/slug/check'  && m === 'GET')   return handlePublicProfileSlugCheck(request, env, url);

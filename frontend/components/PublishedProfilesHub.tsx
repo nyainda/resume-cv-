@@ -1,7 +1,8 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import type { UserProfileSlot } from '../types';
 import type { WorkerUser } from '../services/authService';
-import { buildProfileUrl } from '../services/publicProfileService';
+import { loadSessionFallback } from '../services/authService';
+import { buildProfileUrl, fetchMyPublicProfile } from '../services/publicProfileService';
 
 const NAVY = '#1B2B4B';
 const GOLD = '#C9A84C';
@@ -28,9 +29,37 @@ export default function PublishedProfilesHub({
   compact = false,
 }: PublishedProfilesHubProps) {
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  // Bumped after a D1 restore so useMemo re-reads localStorage
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  // ── Restore from D1 on mount ─────────────────────────────────────────────
+  // localStorage is cleared on logout / unavailable on other devices.
+  // On mount we ask the authenticated /me endpoint for the live slug and
+  // write it back into the correct per-slot key so the hub reflects reality.
+  useEffect(() => {
+    if (!user?.id) return;
+    let cancelled = false;
+    (async () => {
+      const result = await fetchMyPublicProfile(loadSessionFallback());
+      if (cancelled || !result) return;
+      const { slug, slot_id } = result;
+      const targetSlotId = slot_id ?? activeSlot?.id ?? 'default';
+      const key = `publicProfile:slug:${user.id}:${targetSlotId}`;
+      try {
+        const existing = localStorage.getItem(key);
+        if (existing !== slug) {
+          localStorage.setItem(key, slug);
+          setRefreshKey(k => k + 1); // trigger useMemo re-read
+        }
+      } catch { /**/ }
+    })();
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
 
   // Read per-slot published slugs from localStorage
   const slotStatuses = useMemo(() => {
+    void refreshKey; // reactive dependency
     return profiles.map(p => {
       let slug: string | null = null;
       if (user?.id) {
@@ -39,7 +68,7 @@ export default function PublishedProfilesHub({
       const url = slug ? buildProfileUrl(slug) : null;
       return { slot: p, slug, url };
     });
-  }, [profiles, user?.id]);
+  }, [profiles, user?.id, refreshKey]);
 
   const publishedCount = slotStatuses.filter(s => s.slug).length;
 
