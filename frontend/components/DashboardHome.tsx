@@ -683,21 +683,21 @@ const DashboardHome: React.FC<Props> = ({
             </Card>
 
             {/* Your Top CV */}
-            <Card className="p-4">
-              <CardTitle
-                action={
-                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400">
-                    Latest
-                  </span>
-                }
-              >
-                Your Top CV
-              </CardTitle>
+            <Card className="p-4 flex flex-col gap-3">
+              {/* Header */}
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[11px] font-extrabold uppercase tracking-widest text-zinc-400 dark:text-zinc-500">Your Top CV</span>
+                <button onClick={() => onNavigate('history')} className="text-[10px] text-[#1B2B4B] dark:text-[#C9A84C] font-semibold hover:underline">
+                  View all →
+                </button>
+              </div>
+
               {recentCVs[0] ? (
-                <div>
-                  <div className="flex items-start gap-3 mb-3">
-                    {/* Real CV thumbnail — scaled-down live preview */}
-                    <div className="w-[72px] flex-shrink-0 overflow-hidden rounded-lg shadow-sm border border-zinc-100 dark:border-neutral-700">
+                <>
+                  {/* Primary CV row */}
+                  <div className="flex items-start gap-3">
+                    {/* Thumbnail — clipped to top portion */}
+                    <div className="w-[60px] flex-shrink-0 overflow-hidden rounded-lg shadow-sm border border-zinc-100 dark:border-neutral-700" style={{ aspectRatio: '1/0.78' }}>
                       <RealTemplateThumbnail
                         templateName={recentCVs[0].template ?? 'timeline'}
                         cvData={recentCVs[0].data ?? cvForTemplates ?? undefined}
@@ -705,26 +705,27 @@ const DashboardHome: React.FC<Props> = ({
                       />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs font-bold text-zinc-800 dark:text-zinc-100 truncate leading-tight">
+                      <p className="text-[11px] font-bold text-zinc-800 dark:text-zinc-100 leading-snug line-clamp-2">
                         {recentCVs[0].name || 'My CV'}
                       </p>
-                      <p className="text-[10px] text-zinc-400 mt-0.5">
-                        {navTimeAgo(recentCVs[0].createdAt)}
-                      </p>
-                      <div className="flex items-center gap-2 mt-1.5">
+                      <p className="text-[10px] text-zinc-400 mt-0.5">{navTimeAgo(recentCVs[0].createdAt)}</p>
+                      {/* Tags */}
+                      <div className="flex items-center flex-wrap gap-1 mt-1.5">
                         {activeSlot?.lastAtsScore != null && (
                           <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-[#C9A84C]/10 text-[#C9A84C]">
-                            Score: {activeSlot.lastAtsScore}/100
+                            ATS {activeSlot.lastAtsScore}/100
                           </span>
                         )}
                         {recentCVs[0].template && (
-                          <span className="text-[9px] text-zinc-400 truncate">
-                            {recentCVs[0].template}
+                          <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 capitalize truncate max-w-[80px]">
+                            {recentCVs[0].template.replace(/-/g, ' ')}
                           </span>
                         )}
                       </div>
                     </div>
                   </div>
+
+                  {/* Action buttons */}
                   <div className="flex gap-2">
                     <button onClick={() => onNavigate('generator')}
                       className="flex-1 py-1.5 rounded-xl text-[10.5px] font-bold bg-[#1B2B4B] dark:bg-[#C9A84C] text-white dark:text-[#1B2B4B] hover:opacity-90 transition-opacity">
@@ -735,13 +736,44 @@ const DashboardHome: React.FC<Props> = ({
                       Preview
                     </button>
                   </div>
-                </div>
+
+                  {/* Other recent CVs */}
+                  {recentCVs.length > 1 && (
+                    <div className="border-t border-zinc-100 dark:border-zinc-800 pt-2 space-y-1">
+                      <p className="text-[9px] font-bold uppercase tracking-widest text-zinc-300 dark:text-zinc-600 mb-1.5">Also saved</p>
+                      {recentCVs.slice(1, 4).map(cv => (
+                        <button
+                          key={cv.id}
+                          onClick={() => onNavigate('history')}
+                          className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors text-left group"
+                        >
+                          <div className="w-1.5 h-1.5 rounded-full bg-zinc-300 dark:bg-zinc-600 group-hover:bg-[#C9A84C] transition-colors flex-shrink-0" />
+                          <span className="flex-1 text-[10px] text-zinc-600 dark:text-zinc-400 truncate font-medium">{cv.name || 'My CV'}</span>
+                          <span className="text-[9px] text-zinc-400 dark:text-zinc-600 flex-shrink-0">{navTimeAgo(cv.createdAt)}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Nudge if only one CV */}
+                  {recentCVs.length === 1 && (
+                    <button
+                      onClick={() => onNavigate('generator')}
+                      className="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl border border-dashed border-zinc-200 dark:border-zinc-700 text-[10.5px] font-semibold text-zinc-400 hover:border-[#C9A84C]/40 hover:text-[#C9A84C] transition-colors"
+                    >
+                      <span className="text-base leading-none">+</span> Generate another CV
+                    </button>
+                  )}
+                </>
               ) : (
-                <div className="flex flex-col items-center py-4 text-center gap-2">
-                  <div className="w-10 h-10 rounded-2xl bg-[#1B2B4B]/8 dark:bg-[#C9A84C]/10 flex items-center justify-center text-xl">📄</div>
-                  <p className="text-xs text-zinc-500 dark:text-zinc-400">No CV generated yet</p>
+                <div className="flex-1 flex flex-col items-center justify-center py-6 text-center gap-3">
+                  <div className="w-12 h-12 rounded-2xl bg-[#1B2B4B]/8 dark:bg-[#C9A84C]/10 flex items-center justify-center text-2xl">📄</div>
+                  <div>
+                    <p className="text-xs font-bold text-zinc-600 dark:text-zinc-300">No CV yet</p>
+                    <p className="text-[10px] text-zinc-400 dark:text-zinc-500 mt-0.5">Generate your first professional CV</p>
+                  </div>
                   <button onClick={() => onNavigate('generator')}
-                    className="px-3 py-1.5 rounded-xl text-xs font-bold bg-[#1B2B4B] text-white hover:opacity-90 transition-opacity">
+                    className="px-4 py-2 rounded-xl text-xs font-bold bg-[#1B2B4B] text-white hover:opacity-90 transition-opacity">
                     Generate Now →
                   </button>
                 </div>
