@@ -87,6 +87,7 @@ interface AppViewRouterProps {
   onDeleteCV: (id: string) => void;
   onLoadCV: (cv: CVData) => void;
   onSwitchProfile: (slot: UserProfileSlot) => void;
+  onShareLinkAdded?: (link: { id: string; created_at: number; expires_at: number }) => void;
   onCreateProfile: (name: string, color: import('../types').ProfileColor, cloneFrom?: UserProfile) => void;
   onDeleteProfile: (id: string) => Promise<void>;
   onRenameProfile: (id: string, name: string, color: import('../types').ProfileColor) => void;
@@ -151,6 +152,7 @@ const AppViewRouter: React.FC<AppViewRouterProps> = ({
   onDeleteCV,
   onLoadCV,
   onSwitchProfile,
+  onShareLinkAdded,
   onCreateProfile,
   onDeleteProfile,
   onRenameProfile,
@@ -459,6 +461,8 @@ const AppViewRouter: React.FC<AppViewRouterProps> = ({
                   user={user}
                   isAuthenticated={isAuthenticated}
                   savedCoverLetters={savedCoverLetters}
+                  activeSlot={activeSlot}
+                  onShareLinkAdded={onShareLinkAdded}
                   onGoToGenerator={() => setCurrentView('generator')}
                 />
               )}

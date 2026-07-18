@@ -9,7 +9,7 @@
  */
 
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { CVData, UserProfile, SavedCoverLetter, TemplateName } from '../types';
+import { CVData, UserProfile, SavedCoverLetter, TemplateName, UserProfileSlot } from '../types';
 import type { WorkerUser } from '../services/authService';
 import { loadSessionFallback } from '../services/authService';
 import LZString from 'lz-string';
@@ -39,6 +39,8 @@ interface ShareProfilePageProps {
   savedCoverLetters: SavedCoverLetter[];
   onShareLinkAdded?: (link: { id: string; created_at: number; expires_at: number }) => void;
   onGoToGenerator: () => void;
+  /** Active profile slot — used to scope published slug storage per room. */
+  activeSlot?: UserProfileSlot | null;
 }
 
 // ── Small reusable pieces ──────────────────────────────────────────────────
@@ -181,9 +183,11 @@ const ShareProfilePage: React.FC<ShareProfilePageProps> = ({
   savedCoverLetters,
   onShareLinkAdded,
   onGoToGenerator,
+  activeSlot,
 }) => {
   const personalInfo = userProfile?.personalInfo;
   const template: TemplateName = (cvData?.template as TemplateName) ?? 'professional';
+  const slotId = activeSlot?.id ?? 'default';
 
   const latestCoverLetter = savedCoverLetters[0]?.content ?? null;
   const hasCoverLetter = !!(latestCoverLetter && latestCoverLetter.trim().length > 0);
@@ -191,7 +195,7 @@ const ShareProfilePage: React.FC<ShareProfilePageProps> = ({
   // ── Active tab ────────────────────────────────────────────────────────
   const [activeTab, setActiveTab] = useState<'share' | 'publish'>('publish');
 
-  // ── Share link state ──────────────────────────────────────────────────
+  // ── Share link state — scoped to this slot ────────────────────────────
   const [linkGenerated, setLinkGenerated] = useState(false);
   const [shareUrl, setShareUrl] = useState('');
   const [isShortLink, setIsShortLink] = useState(false);
@@ -208,8 +212,15 @@ const ShareProfilePage: React.FC<ShareProfilePageProps> = ({
   const [linkStats, setLinkStats] = useState<Map<string, ShareStats>>(new Map());
   const [loadingStats, setLoadingStats] = useState(false);
 
+  // Slot-scoped share links: prefer links stored on the slot object, fall back to global localStorage
   useEffect(() => {
-    const links = getStoredShareLinks();
+    const slotLinks: StoredShareLink[] = (activeSlot?.sharedLinks ?? []) as StoredShareLink[];
+    const globalLinks = getStoredShareLinks();
+    const slotIds = new Set(slotLinks.map(l => l.id));
+    // Only include global links that aren't already in the slot (avoids cross-contamination)
+    const links = slotLinks.length > 0
+      ? slotLinks
+      : globalLinks.filter(l => !slotIds.has(l.id));
     setStoredLinks(links);
     if (links.length > 0) {
       const latest = links[0];
@@ -231,11 +242,27 @@ const ShareProfilePage: React.FC<ShareProfilePageProps> = ({
     }
   }, []);
 
-  // ── Public profile state ──────────────────────────────────────────────
-  const profileSlugKey = user?.id ? `publicProfile:slug:${user.id}` : null;
+  // ── Public profile state — scoped per slot ────────────────────────────
+  // Key format: publicProfile:slug:<userId>:<slotId>
+  // Migrates the legacy per-user key on first load so existing publishes are preserved.
+  const profileSlugKey = user?.id ? `publicProfile:slug:${user.id}:${slotId}` : null;
+  const legacySlugKey  = user?.id ? `publicProfile:slug:${user.id}` : null;
+
   const [profileSlug, setProfileSlug] = useState<string | null>(() => {
     if (!profileSlugKey) return null;
-    try { return localStorage.getItem(profileSlugKey); } catch { return null; }
+    try {
+      const perSlot = localStorage.getItem(profileSlugKey);
+      if (perSlot) return perSlot;
+      // Migrate legacy key once (only for 'default' slot to avoid assigning it to every new slot)
+      if (slotId === 'default' && legacySlugKey) {
+        const legacy = localStorage.getItem(legacySlugKey);
+        if (legacy) {
+          localStorage.setItem(profileSlugKey, legacy);
+          return legacy;
+        }
+      }
+      return null;
+    } catch { return null; }
   });
   const [profilePublished, setProfilePublished] = useState(!!profileSlug);
   const [profilePublishing, setProfilePublishing] = useState(false);
