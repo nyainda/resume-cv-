@@ -84,12 +84,22 @@ const Card: React.FC<{ children: React.ReactNode; className?: string; onClick?: 
   </div>
 );
 
-/** Section heading inside a card */
+/** Section heading inside a card — always pinned at top */
 const CardTitle: React.FC<{ children: React.ReactNode; action?: React.ReactNode }> = ({ children, action }) => (
-  <div className="flex items-center justify-between mb-3">
+  <div className="flex items-center justify-between mb-3 flex-shrink-0">
     <h2 className="text-[10px] font-black uppercase tracking-widest text-zinc-400 dark:text-zinc-500">{children}</h2>
     {action}
   </div>
+);
+
+/** Scrollable body region between CardTitle and CardFooter */
+const CardBody: React.FC<{ children: React.ReactNode; className?: string }> = ({ children, className = '' }) => (
+  <div className={`flex-1 min-h-0 overflow-y-auto ${className}`}>{children}</div>
+);
+
+/** Pinned footer region at the bottom of a fixed-height card */
+const CardFooter: React.FC<{ children: React.ReactNode; className?: string }> = ({ children, className = '' }) => (
+  <div className={`flex-shrink-0 pt-2 ${className}`}>{children}</div>
 );
 
 /** Thin green/amber dot */
@@ -781,7 +791,7 @@ const DashboardHome: React.FC<Props> = ({
             </Card>
 
             {/* Profile Slots */}
-            <Card className="p-4">
+            <Card className="p-4 flex flex-col h-80">
               <CardTitle
                 action={
                   <button onClick={() => onNavigate('rooms')} className="text-[10px] text-[#1B2B4B] dark:text-[#C9A84C] font-semibold hover:underline">
@@ -791,7 +801,7 @@ const DashboardHome: React.FC<Props> = ({
               >
                 Profile Slots
               </CardTitle>
-              <div className="space-y-1.5">
+              <CardBody className="space-y-1.5">
                 {profiles.slice(0, 3).map(p => (
                   <div
                     key={p.id}
@@ -818,13 +828,15 @@ const DashboardHome: React.FC<Props> = ({
                     )}
                   </div>
                 ))}
+              </CardBody>
+              <CardFooter>
                 <button
                   onClick={() => onNavigate('rooms')}
-                  className="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl border border-dashed border-zinc-200 dark:border-zinc-700 text-[11px] font-semibold text-zinc-400 dark:text-zinc-500 hover:border-[#C9A84C]/40 hover:text-[#C9A84C] transition-colors mt-1"
+                  className="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl border border-dashed border-zinc-200 dark:border-zinc-700 text-[11px] font-semibold text-zinc-400 dark:text-zinc-500 hover:border-[#C9A84C]/40 hover:text-[#C9A84C] transition-colors"
                 >
                   <span className="text-base leading-none">+</span> Create New Profile
                 </button>
-              </div>
+              </CardFooter>
             </Card>
           </div>
 
@@ -856,7 +868,7 @@ const DashboardHome: React.FC<Props> = ({
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
 
             {/* Recent Activity */}
-            <Card className="p-4">
+            <Card className="p-4 flex flex-col h-80">
               <CardTitle
                 action={
                   <button onClick={() => onNavigate(trackedApps.length ? 'tracker' : 'history')}
@@ -867,6 +879,7 @@ const DashboardHome: React.FC<Props> = ({
               >
                 Recent Activity
               </CardTitle>
+              <CardBody>
               {activityItems.length === 0 ? (
                 <div className="flex flex-col items-center py-5 text-center gap-2">
                   <p className="text-xs text-zinc-400 dark:text-zinc-500">No activity yet</p>
@@ -894,10 +907,11 @@ const DashboardHome: React.FC<Props> = ({
                   ))}
                 </div>
               )}
+              </CardBody>
             </Card>
 
             {/* Templates & Themes */}
-            <Card className="p-4">
+            <Card className="p-4 flex flex-col h-80">
               <CardTitle
                 action={
                   <button onClick={() => onNavigate('generator')} className="text-[10px] text-[#1B2B4B] dark:text-[#C9A84C] font-semibold hover:underline">
@@ -907,37 +921,41 @@ const DashboardHome: React.FC<Props> = ({
               >
                 Templates &amp; Themes
               </CardTitle>
-              <div className="grid grid-cols-2 gap-2 mb-3">
-                {CURATED_TEMPLATES.map(t => (
-                  <button
-                    key={t.id}
-                    onClick={() => onNavigate('generator')}
-                    className="group rounded-xl overflow-hidden border border-zinc-100 dark:border-zinc-700 hover:border-[#C9A84C]/50 transition-all hover:shadow-md text-left flex flex-col"
-                  >
-                    {/* Clip to top ~55% of the A4 page so only the header + first section show */}
-                    <div className="w-full overflow-hidden" style={{ aspectRatio: '1/0.78' }}>
-                      <RealTemplateThumbnail
-                        templateName={t.id}
-                        cvData={cvForTemplates ?? undefined}
-                        personalInfo={userProfile?.personalInfo}
-                      />
-                    </div>
-                    <div className="px-2 py-1.5 bg-white dark:bg-neutral-800 border-t border-zinc-100 dark:border-neutral-700">
-                      <p className="text-[10px] font-semibold text-zinc-600 dark:text-zinc-300 truncate">{t.label}</p>
-                    </div>
-                  </button>
-                ))}
-              </div>
-              <button
-                onClick={() => onNavigate('generator')}
-                className="w-full py-2 rounded-xl border border-zinc-100 dark:border-zinc-800 text-[10.5px] font-semibold text-zinc-500 dark:text-zinc-400 hover:border-[#C9A84C]/30 hover:text-[#1B2B4B] dark:hover:text-[#C9A84C] transition-colors"
-              >
-                34+ professional templates — ATS-optimised · Beautiful
-              </button>
+              <CardBody>
+                <div className="grid grid-cols-2 gap-2">
+                  {CURATED_TEMPLATES.map(t => (
+                    <button
+                      key={t.id}
+                      onClick={() => onNavigate('generator')}
+                      className="group rounded-xl overflow-hidden border border-zinc-100 dark:border-zinc-700 hover:border-[#C9A84C]/50 transition-all hover:shadow-md text-left flex flex-col"
+                    >
+                      {/* Clip to top ~55% of the A4 page so only the header + first section show */}
+                      <div className="w-full overflow-hidden" style={{ aspectRatio: '1/0.78' }}>
+                        <RealTemplateThumbnail
+                          templateName={t.id}
+                          cvData={cvForTemplates ?? undefined}
+                          personalInfo={userProfile?.personalInfo}
+                        />
+                      </div>
+                      <div className="px-2 py-1.5 bg-white dark:bg-neutral-800 border-t border-zinc-100 dark:border-neutral-700">
+                        <p className="text-[10px] font-semibold text-zinc-600 dark:text-zinc-300 truncate">{t.label}</p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </CardBody>
+              <CardFooter>
+                <button
+                  onClick={() => onNavigate('generator')}
+                  className="w-full py-2 rounded-xl border border-zinc-100 dark:border-zinc-800 text-[10.5px] font-semibold text-zinc-500 dark:text-zinc-400 hover:border-[#C9A84C]/30 hover:text-[#1B2B4B] dark:hover:text-[#C9A84C] transition-colors"
+                >
+                  34+ professional templates — ATS-optimised · Beautiful
+                </button>
+              </CardFooter>
             </Card>
 
             {/* Score My CV */}
-            <Card className="p-4">
+            <Card className="p-4 flex flex-col h-80">
               <CardTitle
                 action={
                   <button onClick={() => onNavigate('score')} className="text-[10px] text-[#1B2B4B] dark:text-[#C9A84C] font-semibold hover:underline">
@@ -947,6 +965,7 @@ const DashboardHome: React.FC<Props> = ({
               >
                 Score My CV
               </CardTitle>
+              <CardBody>
               {audit || activeSlot?.lastAtsScore ? (
                 <>
                   <div className="flex items-center gap-3 mb-4">
@@ -984,12 +1003,15 @@ const DashboardHome: React.FC<Props> = ({
                   <p className="text-[10px] text-zinc-400 dark:text-zinc-500">Generate a CV first to see your ATS score</p>
                 </div>
               )}
-              <button
-                onClick={() => onNavigate('score')}
-                className="w-full py-2 rounded-xl text-[11px] font-bold transition-opacity hover:opacity-90 active:scale-95 bg-[#1B2B4B] dark:bg-[#C9A84C] text-white dark:text-[#1B2B4B]"
-              >
-                Run Full Analysis →
-              </button>
+              </CardBody>
+              <CardFooter>
+                <button
+                  onClick={() => onNavigate('score')}
+                  className="w-full py-2 rounded-xl text-[11px] font-bold transition-opacity hover:opacity-90 active:scale-95 bg-[#1B2B4B] dark:bg-[#C9A84C] text-white dark:text-[#1B2B4B]"
+                >
+                  Run Full Analysis →
+                </button>
+              </CardFooter>
             </Card>
           </div>
 
@@ -997,7 +1019,7 @@ const DashboardHome: React.FC<Props> = ({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
 
             {/* Analytics Overview */}
-            <Card className="p-4">
+            <Card className="p-4 flex flex-col h-80">
               <CardTitle
                 action={
                   <button onClick={() => onNavigate('analytics')}
@@ -1008,28 +1030,30 @@ const DashboardHome: React.FC<Props> = ({
               >
                 Analytics Overview
               </CardTitle>
-              <div className="grid grid-cols-2 gap-2">
-                {kpiTiles.map(k => (
-                  <button
-                    key={k.label}
-                    onClick={() => onNavigate(k.view)}
-                    className="flex flex-col gap-1.5 p-3 rounded-xl bg-zinc-50 dark:bg-zinc-800/50 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors text-left group"
-                  >
-                    <span className="text-xl font-bold text-zinc-800 dark:text-zinc-100 leading-none">{k.value}</span>
-                    <div className="flex items-center gap-1">
-                      {k.change > 0 && (
-                        <span className="text-[8px] font-bold text-emerald-600 dark:text-emerald-400">↑ {k.change}%</span>
-                      )}
-                      <span className="text-[9px] text-zinc-400 dark:text-zinc-500 leading-tight">{k.label}</span>
-                    </div>
-                    <Sparkline values={k.spark} />
-                  </button>
-                ))}
-              </div>
+              <CardBody>
+                <div className="grid grid-cols-2 gap-2">
+                  {kpiTiles.map(k => (
+                    <button
+                      key={k.label}
+                      onClick={() => onNavigate(k.view)}
+                      className="flex flex-col gap-1.5 p-3 rounded-xl bg-zinc-50 dark:bg-zinc-800/50 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors text-left group"
+                    >
+                      <span className="text-xl font-bold text-zinc-800 dark:text-zinc-100 leading-none">{k.value}</span>
+                      <div className="flex items-center gap-1">
+                        {k.change > 0 && (
+                          <span className="text-[8px] font-bold text-emerald-600 dark:text-emerald-400">↑ {k.change}%</span>
+                        )}
+                        <span className="text-[9px] text-zinc-400 dark:text-zinc-500 leading-tight">{k.label}</span>
+                      </div>
+                      <Sparkline values={k.spark} />
+                    </button>
+                  ))}
+                </div>
+              </CardBody>
             </Card>
 
             {/* HR Detector (Quality Audit) */}
-            <Card className="p-4">
+            <Card className="p-4 flex flex-col h-80">
               <CardTitle
                 action={
                   <span className="text-[9px] text-zinc-400 dark:text-zinc-500">Latest Scan</span>
@@ -1037,6 +1061,7 @@ const DashboardHome: React.FC<Props> = ({
               >
                 HR Detector (Quality Audit)
               </CardTitle>
+              <CardBody>
               {audit ? (
                 <>
                   <div className="flex items-center gap-3 mb-3">
@@ -1061,7 +1086,7 @@ const DashboardHome: React.FC<Props> = ({
                       </p>
                     </div>
                   </div>
-                  <div className="space-y-1.5 mb-3">
+                  <div className="space-y-1.5">
                     {hrChecklist.map(item => (
                       <div key={item.label} className="flex items-center gap-2">
                         <StatusDot ok={item.ok} />
@@ -1075,12 +1100,6 @@ const DashboardHome: React.FC<Props> = ({
                       </div>
                     ))}
                   </div>
-                  <button
-                    onClick={() => onNavigate('toolkit')}
-                    className="w-full py-1.5 rounded-xl border border-zinc-200 dark:border-zinc-700 text-[10.5px] font-semibold text-zinc-500 dark:text-zinc-400 hover:border-[#1B2B4B]/25 dark:hover:border-[#C9A84C]/25 hover:text-[#1B2B4B] dark:hover:text-[#C9A84C] transition-colors"
-                  >
-                    Run New Scan →
-                  </button>
                 </>
               ) : (
                 <div className="flex flex-col items-center py-5 text-center gap-2">
@@ -1094,6 +1113,17 @@ const DashboardHome: React.FC<Props> = ({
                     Set Up Profile →
                   </button>
                 </div>
+              )}
+              </CardBody>
+              {audit && (
+                <CardFooter>
+                  <button
+                    onClick={() => onNavigate('toolkit')}
+                    className="w-full py-1.5 rounded-xl border border-zinc-200 dark:border-zinc-700 text-[10.5px] font-semibold text-zinc-500 dark:text-zinc-400 hover:border-[#1B2B4B]/25 dark:hover:border-[#C9A84C]/25 hover:text-[#1B2B4B] dark:hover:text-[#C9A84C] transition-colors"
+                  >
+                    Run New Scan →
+                  </button>
+                </CardFooter>
               )}
             </Card>
           </div>
