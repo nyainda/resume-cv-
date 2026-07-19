@@ -591,17 +591,32 @@ export default function BuildCompletePanel({
         onClick={onClose}
       />
 
-      {/* Slide-over panel */}
-      <div className="fixed inset-y-0 right-0 z-50 flex flex-col w-full max-w-md bg-background border-l border-border shadow-2xl animate-slide-in-right">
+      {/*
+        ── Panel shell ──────────────────────────────────────────────────────
+        Mobile  (<sm): bottom sheet — slides up, rounded top corners, 85 vh
+        Desktop (≥sm): right drawer — slides in from right, max-w-md
+      */}
+      <div className={[
+        'fixed z-50 flex flex-col bg-background shadow-2xl',
+        // mobile: full-width bottom sheet
+        'inset-x-0 bottom-0 rounded-t-2xl border-t border-border h-[85dvh]',
+        'animate-slide-in-bottom',
+        // desktop override: right drawer
+        'sm:inset-y-0 sm:inset-x-auto sm:right-0 sm:bottom-auto sm:top-0',
+        'sm:rounded-none sm:border-t-0 sm:border-l sm:border-border',
+        'sm:w-full sm:max-w-md sm:h-full',
+        'sm:animate-slide-in-right',
+      ].join(' ')}>
+
+        {/* Mobile drag-handle pill */}
+        <div className="flex justify-center pt-2.5 pb-0.5 sm:hidden">
+          <div className="w-10 h-1 rounded-full bg-border" />
+        </div>
 
         {/* ── Header ── */}
-        <div className="flex items-start justify-between px-5 py-4 border-b border-border bg-background">
+        <div className="flex items-start justify-between px-5 py-3.5 border-b border-border bg-background">
           <div className="flex items-start gap-3">
-            <div className={`mt-0.5 w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
-              isAllClear
-                ? 'bg-[#2D6A4F]/15 text-[#2D6A4F]'
-                : 'bg-[#2D6A4F]/15 text-[#2D6A4F]'
-            }`}>
+            <div className="mt-0.5 w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 bg-[#2D6A4F]/15 text-[#2D6A4F]">
               <CheckCircle className="w-4.5 h-4.5" />
             </div>
             <div>
@@ -624,20 +639,29 @@ export default function BuildCompletePanel({
           </button>
         </div>
 
-        {/* ── Tabs ── */}
-        <div className="flex items-center border-b border-border px-4 bg-background">
+        {/* ── Tabs ──
+            Mobile: icon-only buttons that fill the row equally (flex-1).
+            Desktop (≥sm): icon + label, left-aligned.
+        */}
+        <div className="flex items-center border-b border-border bg-background overflow-x-auto no-scrollbar">
           {tabs.map(tab => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`relative flex items-center gap-1.5 px-3 py-2.5 text-xs font-medium transition-colors whitespace-nowrap ${
+              className={[
+                'relative flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium transition-colors whitespace-nowrap',
+                // mobile: equal-width columns, icon only
+                'flex-1 px-2',
+                // desktop: auto width with padding, show label
+                'sm:flex-none sm:px-4',
                 activeTab === tab.id
                   ? 'text-foreground border-b-2 border-[#C9A84C] -mb-px'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
+                  : 'text-muted-foreground hover:text-foreground',
+              ].join(' ')}
+              title={tab.label}
             >
               {tab.icon}
-              {tab.label}
+              <span className="hidden sm:inline">{tab.label}</span>
               {tab.badge !== undefined && tab.badge > 0 && (
                 <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-[#C9A84C] text-[#1B2B4B] text-[9px] font-bold leading-none">
                   {tab.badge}
