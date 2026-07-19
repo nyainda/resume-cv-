@@ -546,7 +546,7 @@ export default function BuildCompletePanel({
   const tabs: Tab[] = [
     {
       id: 'repaired',
-      label: 'Repaired',
+      label: 'Fixed',
       icon: <Wrench className="w-3.5 h-3.5" />,
     },
     {
@@ -661,7 +661,7 @@ export default function BuildCompletePanel({
               title={tab.label}
             >
               {tab.icon}
-              <span className="hidden sm:inline">{tab.label}</span>
+              <span>{tab.label}</span>
               {tab.badge !== undefined && tab.badge > 0 && (
                 <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-[#C9A84C] text-[#1B2B4B] text-[9px] font-bold leading-none">
                   {tab.badge}
