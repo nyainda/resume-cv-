@@ -15,6 +15,7 @@ import {
   RoomsNavIcon,
   HomeNavIcon,
   CVGenNavIcon,
+  BuildNavIcon,
 } from '../components/nav/NavIcons';
 import { Target, List, BookOpen } from '../components/icons';
 import { isPureFreeTier, getEffectiveTier } from '../services/accountTierService';
@@ -25,6 +26,7 @@ export type AppView =
   | 'dashboard'
   | 'rooms'
   | 'generator'
+  | 'build'
   | 'linkedin'
   | 'interview'
   | 'essays'
@@ -45,7 +47,7 @@ export type AppView =
 
 const VIEW_KEY = 'procv:lastView';
 const RESTORABLE_VIEWS = [
-  'dashboard', 'rooms', 'generator', 'linkedin', 'interview', 'essays',
+  'dashboard', 'rooms', 'generator', 'build', 'linkedin', 'interview', 'essays',
   'history', 'tracker', 'toolkit', 'email', 'negotiation',
   'analytics', 'score', 'pivot',
 ] as const;
@@ -184,6 +186,7 @@ export function useAppNavigation({
     { id: 'dashboard', label: 'Home',          icon: HomeNavIcon },
     { id: 'rooms',     label: 'Rooms',         icon: RoomsNavIcon },
     { id: 'generator', label: 'CV Generator',  icon: CVGenNavIcon },
+    { id: 'build',     label: 'Build Report',  icon: BuildNavIcon },
     { id: 'score',     label: 'Score My CV',   icon: ScoreNavIcon },
     { id: 'interview', label: 'Interview Prep', icon: InterviewNavIcon },
     { id: 'tracker',   label: 'Job Tracker',   icon: Target },

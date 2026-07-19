@@ -716,6 +716,7 @@ const AppSidebar: React.FC<AppSidebarProps> = (props) => {
             : item.label === 'Interview Prep' ? 'Interview'
             : item.label === 'Job Tracker' ? 'Tracker'
             : item.label === 'Score My CV' ? 'Score'
+            : item.label === 'Build Report' ? 'Build'
             : item.label;
           return (
             <button

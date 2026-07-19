@@ -2,6 +2,7 @@
 import React, { lazy, Suspense } from 'react';
 import { CVData, UserProfile, UserProfileSlot, SavedCV, SavedCoverLetter, TrackedApplication, STARStory } from '../types';
 import type { WorkerUser } from '../services/authService';
+import type { CVBuildReport, ReviewItem, ManualFlag } from '../types/buildReport';
 import { PremiumGateWrapper } from './premium/PremiumGateWrapper';
 
 // ── Lazy views — each gets its own JS chunk, loaded on first navigation ────────
@@ -26,6 +27,7 @@ const RoomsPage            = lazy(() => import('./RoomsPage'));
 const AccountPage          = lazy(() => import('./AccountPage'));
 const SettingsPage         = lazy(() => import('./SettingsPage'));
 const ShareProfilePage     = lazy(() => import('./ShareProfilePage'));
+const BuildReportPage      = lazy(() => import('./BuildReportPage'));
 
 // ── Shared fallback spinner ────────────────────────────────────────────────────
 const ViewFallback: React.FC = () => (
@@ -69,6 +71,9 @@ interface AppViewRouterProps {
   setToolkitSuggestions: (v: string | null) => void;
   toolkitForceTab: string | undefined;
   setToolkitForceTab: (v: string | undefined) => void;
+  // Build report — persisted at App level so the page survives navigation
+  buildReport: CVBuildReport | null;
+  onBuildReportReady: (report: CVBuildReport, cv: CVData) => void;
   // handlers
   onSaveCV: (cvData: CVData, purpose: 'job' | 'academic' | 'general') => void;
   onAutoTrack: (details: { roleTitle: string; company: string; savedCvName: string }) => void;
@@ -135,6 +140,8 @@ const AppViewRouter: React.FC<AppViewRouterProps> = ({
   setToolkitSuggestions,
   toolkitForceTab,
   setToolkitForceTab,
+  buildReport,
+  onBuildReportReady,
   onSaveCV,
   onAutoTrack,
   onApplyViaEmail,
@@ -251,6 +258,25 @@ const AppViewRouter: React.FC<AppViewRouterProps> = ({
                   }}
                   activeSlot={activeSlot}
                   darkMode={darkMode}
+                  onBuildReportReady={onBuildReportReady}
+                />
+              )}
+
+              {currentView === 'build' && (
+                <BuildReportPage
+                  report={buildReport}
+                  cv={currentCV}
+                  onGoToGenerator={() => setCurrentView('generator')}
+                  onApplySuggestion={(item, updatedCV) => {
+                    setCurrentCV(updatedCV);
+                    if (isAuthenticated && activeSlot) {
+                      enqueueSlotSync({ ...activeSlot, currentCV: updatedCV }).catch(() => {});
+                    }
+                  }}
+                  onSkipSuggestion={() => {}}
+                  onFlagAction={(flag: ManualFlag) => {
+                    if (flag.ctaAction === 'edit_profile') setIsSettingsOpen(true);
+                  }}
                 />
               )}
 

@@ -48,7 +48,7 @@ interface Tab {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function CircularScore({ score }: { score: number }) {
+export function CircularScore({ score }: { score: number }) {
   const r = 38;
   const circ = 2 * Math.PI * r;
   const filled = (score / 100) * circ;
@@ -89,7 +89,7 @@ const CATEGORY_LABELS: Record<string, string> = {
 
 // ─── Repaired Tab ─────────────────────────────────────────────────────────────
 
-function RepairedTab({ report }: { report: CVBuildReport }) {
+export function RepairedTab({ report }: { report: CVBuildReport }) {
   const grouped = report.events.reduce<Record<string, typeof report.events>>((acc, ev) => {
     const key = ev.category;
     if (!acc[key]) acc[key] = [];
@@ -144,7 +144,7 @@ function RepairedTab({ report }: { report: CVBuildReport }) {
 
 // ─── Review Tab ───────────────────────────────────────────────────────────────
 
-function ReviewTab({
+export function ReviewTab({
   items,
   cv,
   onApply,
@@ -304,7 +304,7 @@ function ReviewTab({
 
 // ─── ATS Tab ──────────────────────────────────────────────────────────────────
 
-function ATSTab({ report }: { report: CVBuildReport }) {
+export function ATSTab({ report }: { report: CVBuildReport }) {
   const ats = report.atsReport;
 
   if (!ats || !ats.hasJd) {
@@ -400,7 +400,7 @@ function ATSTab({ report }: { report: CVBuildReport }) {
 
 // ─── Skills Tab ───────────────────────────────────────────────────────────────
 
-function SkillsTab({ report }: { report: CVBuildReport }) {
+export function SkillsTab({ report }: { report: CVBuildReport }) {
   const skills = report.reconciledSkills;
 
   if (!skills) {
@@ -487,7 +487,7 @@ function SkillsTab({ report }: { report: CVBuildReport }) {
 
 // ─── Manual Flags ─────────────────────────────────────────────────────────────
 
-function ManualFlagsSection({
+export function ManualFlagsSection({
   flags,
   onAction,
 }: {

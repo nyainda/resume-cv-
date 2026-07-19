@@ -51,6 +51,7 @@ import { isCVEngineConfigured, workerExtractDoc } from "./services/cvEngineClien
 // groqService loaded on-demand (see handleOnboardingComplete)
 import { useBootEffects } from "./hooks/useBootEffects";
 import { useAppNavigation } from "./hooks/useAppNavigation";
+import type { CVBuildReport } from "./types/buildReport";
 import { useJsonImport } from "./hooks/useJsonImport";
 import { useProfileManager } from "./hooks/useProfileManager";
 import { useCVManager } from "./hooks/useCVManager";
@@ -225,6 +226,12 @@ const AppInner: React.FC = () => {
       return true;
     }
   });
+
+  // ── Build Report — lifted from CVGenerator so the standalone page persists ──
+  const [lastBuildReport, setLastBuildReport] = useState<CVBuildReport | null>(null);
+  const handleBuildReportReady = useCallback((report: CVBuildReport, _cv: CVData) => {
+    setLastBuildReport(report);
+  }, []);
 
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -919,6 +926,8 @@ const AppInner: React.FC = () => {
         currentApiSettings={apiSettings}
         onSaveApiSettings={handleApiSettingsSave}
         onOpenOnboarding={() => setShowOnboarding(true)}
+        buildReport={lastBuildReport}
+        onBuildReportReady={handleBuildReportReady}
       />
 
         </div>{/* end content column */}

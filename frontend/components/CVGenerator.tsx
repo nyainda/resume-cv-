@@ -177,6 +177,9 @@ interface CVGeneratorProps {
   activeSlot?: UserProfileSlot | null;
   /** Mirror of App-level dark mode so the generator can style non-Tailwind elements */
   darkMode?: boolean;
+  /** Called after runAutoRepair completes — lifts the report to App level so the
+   *  standalone Build Report page can display it even after navigating away. */
+  onBuildReportReady?: (report: CVBuildReport, cv: CVData) => void;
 }
 
 const fileToBase64 = (file: File): Promise<{ base64: string, mimeType: string }> => {
@@ -259,7 +262,7 @@ const purposeConfig: Record<CVPurpose, { label: string; icon: React.FC<any>; col
 };
 
 const CVGenerator: React.FC<CVGeneratorProps> = ({
-  userProfile, currentCV, setCurrentCV, onSaveCV, onAutoSaveCV, onAutoTrack, apiKeySet, openSettings,
+  userProfile, currentCV, setCurrentCV, onSaveCV, onAutoSaveCV, onAutoTrack, apiKeySet, openSettings, onBuildReportReady,
   onApplyViaEmail, savedCVs = [], toolkitSuggestions, onDismissToolkitSuggestions,
   onSaveStories, onGoToInterviewPrep, onRestoreProfileBullets, importedFromJson,
   profileId, initialJobDescription, initialTargetCompany, initialTargetJobTitle,
@@ -1323,6 +1326,8 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
         generatedData = repairResult.cv;
         setBuildReport(repairResult.report);
         setShowBuildPanel(true);
+        // Lift to App level so the standalone Build Report page persists
+        onBuildReportReady?.(repairResult.report, repairResult.cv);
       } catch (err) {
         console.warn('[CVGenerator] runAutoRepair failed silently:', err);
         setBuildReport(null);
