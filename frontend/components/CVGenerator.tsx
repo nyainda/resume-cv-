@@ -35,6 +35,9 @@ import { fetchShareStats, getStoredShareLinks } from '../services/shareService';
 import AIImprovementPanel from './AIImprovementPanel';
 import QualityIssuesPanel from './QualityIssuesPanel';
 import { scoreAtsCoverage } from '../services/cvAtsKeywords';
+import BuildCompletePanel from './BuildCompletePanel';
+import { runAutoRepair } from '../services/autoRepairEngine';
+import type { CVBuildReport } from '../types/buildReport';
 import { recordFieldHistory } from '../services/cvPromptHelpers';
 import { profileToCV } from '../utils/profileToCV';
 import { Textarea } from './ui/Textarea';
@@ -936,6 +939,8 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
   const [showAIPanel, setShowAIPanel] = useState(false);
   const [showQualityPanel, setShowQualityPanel] = useState(false);
   const [showImportReport, setShowImportReport] = useState(false);
+  const [showBuildPanel, setShowBuildPanel] = useState(false);
+  const [buildReport, setBuildReport] = useState<CVBuildReport | null>(null);
   const [isFixingIssues, setIsFixingIssues] = useState(false);
   const [fixSummary, setFixSummary] = useState<{ total: number; remote: number } | null>(null);
   const [jdTier1Keywords, setJdTier1Keywords] = useLocalStorage<string[]>(`p:${profileId}:keywords`, initialJdKeywords ?? []);
@@ -1304,6 +1309,23 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
           console.log(`[CVGenerator] Per-role variance enforcement: ${fixes.join(' | ')}`);
           generatedData = varied;
         }
+      }
+
+      // ── Autonomous Repair Engine ──────────────────────────────────────────
+      // Run silently after generation. The repaired CV replaces generatedData
+      // so the user always sees the clean version. The report drives the panel.
+      try {
+        const repairResult = await runAutoRepair(
+          generatedData,
+          userProfile,
+          jobDescription || undefined,
+        );
+        generatedData = repairResult.cv;
+        setBuildReport(repairResult.report);
+        setShowBuildPanel(true);
+      } catch (err) {
+        console.warn('[CVGenerator] runAutoRepair failed silently:', err);
+        setBuildReport(null);
       }
 
       setCurrentCV(generatedData);
@@ -3630,6 +3652,39 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
           apiKeySet={apiKeySet}
           onCVUpdate={(newCV) => { setCurrentCV(newCV); syncCurrentCVToD1(newCV); }}
           onClose={() => setShowAIPanel(false)}
+        />
+      )}
+
+      {/* ── Build Complete Panel — auto-opens after every generation ── */}
+      {showBuildPanel && buildReport && currentCV && (
+        <BuildCompletePanel
+          open={showBuildPanel}
+          report={buildReport}
+          cv={currentCV}
+          jobDescription={jobDescription || undefined}
+          onClose={() => setShowBuildPanel(false)}
+          onApplySuggestion={(item, updatedCV) => {
+            setCurrentCV(updatedCV);
+            syncCurrentCVToD1(updatedCV);
+            // Update report to mark item applied
+            setBuildReport(prev => prev ? {
+              ...prev,
+              reviewItems: prev.reviewItems.map(i => i.id === item.id ? item : i),
+            } : prev);
+          }}
+          onSkipSuggestion={(id) => {
+            setBuildReport(prev => prev ? {
+              ...prev,
+              reviewItems: prev.reviewItems.map(i => i.id === id ? { ...i, skipped: true } : i),
+            } : prev);
+          }}
+          onFlagAction={(flag) => {
+            // Navigate to the appropriate edit surface
+            if (flag.ctaAction === 'edit_profile') {
+              setShowBuildPanel(false);
+              openSettings?.();
+            }
+          }}
         />
       )}
 
