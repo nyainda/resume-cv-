@@ -1,9 +1,5 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useRef } from 'react';
 import { UserProfile } from '../types';
-import { Button } from './ui/Button';
-import { Label } from './ui/Label';
-import { Textarea } from './ui/Textarea';
-import { Sparkles, Download, ClipboardCopy, Edit, BookOpen, FileText, AlertTriangle, CheckCircle } from './icons';
 import {
     generateScholarshipEssay,
     detectScholarshipName,
@@ -11,123 +7,211 @@ import {
 } from '../services/geminiService';
 import { downloadCoverLetterAsPDF } from '../services/pdfService';
 
+// ─── Essay types ──────────────────────────────────────────────────────────────
+
 interface EssayType {
     id: string;
     label: string;
-    emoji: string;
-    description: string;
+    icon: string;
+    subtitle: string;
     tips: string[];
-    wordCount: string;
+    wordCountRange: string;
     defaultWords: number;
     promptHint: string;
 }
 
-const essayTypes: EssayType[] = [
+const ESSAY_TYPES: EssayType[] = [
     {
         id: 'personal-statement',
         label: 'Personal Statement',
-        emoji: '📝',
-        description: 'Why you deserve this scholarship — your story, motivations, and goals.',
+        icon: '📝',
+        subtitle: 'Tell your story and highlight your unique journey',
         tips: [
-            'Open with a specific moment, not a general statement about your passion',
-            'Connect real past experiences directly to this scholarship\'s mission',
-            'Show self-awareness and growth — not just achievements',
+            'Focus on your unique experiences and goals',
+            'Show how your background shaped your journey',
+            'Connect your story to your future impact',
         ],
-        wordCount: '500–800 words',
+        wordCountRange: '500–800 words',
         defaultWords: 650,
         promptHint: 'Write about your background, motivations, academic journey, and why you are a strong candidate for this scholarship.',
     },
     {
         id: 'research-proposal',
         label: 'Research Proposal',
-        emoji: '🔬',
-        description: 'For PhD, postdoc, or research grants — your research question and methodology.',
+        icon: '🔬',
+        subtitle: 'Outline your research idea and methodology',
         tips: [
-            'State the research gap clearly in the first paragraph',
-            'Explain WHY your methodology is the right one for this question',
-            'Be specific about expected outputs and who benefits',
+            'State your research gap clearly in the opening',
+            'Justify your methodology choice specifically',
+            'Quantify expected outputs and name who benefits',
         ],
-        wordCount: '800–1500 words',
+        wordCountRange: '800–1500 words',
         defaultWords: 1000,
         promptHint: 'Write a compelling research proposal describing the research question, literature gap, methodology, expected results, timeline, and broader impact.',
     },
     {
         id: 'statement-of-purpose',
         label: 'Statement of Purpose',
-        emoji: '🎯',
-        description: 'For graduate school applications — why this program, why you, future goals.',
+        icon: '🎯',
+        subtitle: 'Explain your goals and future plans',
         tips: [
-            'Name specific faculty, labs, or courses — not just the university brand',
-            'Show a clear line from past experience → this program → future goal',
-            'Avoid listing achievements; show how they shaped your thinking',
+            'Name specific faculty, labs, or courses — not just the brand',
+            'Draw a clear line: past → this program → future goal',
+            'Show how experiences shaped your thinking',
         ],
-        wordCount: '600–1000 words',
+        wordCountRange: '600–1000 words',
         defaultWords: 750,
         promptHint: 'Write a statement of purpose explaining your academic background, specific reasons for choosing this program, research interests, and career goals.',
     },
     {
         id: 'leadership-essay',
         label: 'Leadership Essay',
-        emoji: '🏅',
-        description: 'For Chevening, Commonwealth, and leadership scholarships.',
+        icon: '🏅',
+        subtitle: 'Showcase your leadership experiences',
         tips: [
-            'Pick ONE story with a clear before/after — not a list of roles',
-            'Use "I" not "we" — show YOUR specific initiative and decisions',
+            'Pick ONE story with a clear before/after — not a list',
+            'Use "I" not "we" — show your specific initiative',
             'Quantify the outcome wherever possible',
         ],
-        wordCount: '500–700 words',
+        wordCountRange: '500–700 words',
         defaultWords: 600,
         promptHint: 'Write a leadership essay describing a specific situation where you demonstrated leadership, the concrete actions you took, and the measurable outcomes.',
     },
     {
         id: 'diversity-inclusion',
         label: 'Diversity & Inclusion',
-        emoji: '🌍',
-        description: 'For Commonwealth, government, and development-focused scholarships.',
+        icon: '🌍',
+        subtitle: 'Discuss your perspective and impact',
         tips: [
-            'Be specific about your background — vague diversity claims are weak',
-            'Connect your lived experience to a concrete perspective you bring to the field',
-            'Show what you have already done — not just what you plan to do',
+            'Be specific about your background — vague claims are weak',
+            'Connect lived experience to your perspective in the field',
+            'Show what you have already done, not just plans',
         ],
-        wordCount: '400–600 words',
+        wordCountRange: '400–600 words',
         defaultWords: 500,
         promptHint: 'Write a diversity statement describing your background, the unique perspective it gives you, and how you advance equity or inclusion in your field.',
     },
     {
         id: 'why-scholarship',
-        label: '"Why This Scholarship"',
-        emoji: '🏛️',
-        description: 'Specific essay on why this particular scholarship fits your goals.',
+        label: '"Why This Scholarship" Essay',
+        icon: '🏛️',
+        subtitle: 'Explain why you\'re the right fit',
         tips: [
-            'Research the scholarship\'s alumni and values before writing',
-            'Name specific values, programmes, or alumni networks — not just the prestige',
-            'Show what you will GIVE to the network, not just what you will gain',
+            'Research alumni and values before writing',
+            'Name specific values/programs — not prestige alone',
+            'Show what you will GIVE to the network',
         ],
-        wordCount: '400–600 words',
+        wordCountRange: '400–600 words',
         defaultWords: 500,
         promptHint: 'Write an essay explaining why you are applying for this specific scholarship, demonstrating deep knowledge of its values, mission, and what you will contribute.',
     },
     {
         id: 'academic-cover-letter',
         label: 'Academic Cover Letter',
-        emoji: '📄',
-        description: 'Formal cover letter for scholarship or programme applications.',
+        icon: '📄',
+        subtitle: 'Write a professional introduction',
         tips: [
-            'Address specific selection criteria point by point',
-            'Reference the scholarship/institution by full name',
-            'Keep it concise and professional — less than 500 words',
+            'Address selection criteria point by point',
+            'Reference the institution by full name',
+            'Keep it concise — under 500 words',
         ],
-        wordCount: '300–500 words',
+        wordCountRange: '300–500 words',
         defaultWords: 400,
         promptHint: 'Write a professional academic cover letter introducing yourself, your top qualifications, and your specific interest in this opportunity.',
     },
 ];
 
-// Known scholarship names for the badge
 const KNOWN_SCHOLARSHIPS = [
-    'Chevening', 'Commonwealth', 'Fulbright', 'Gates Cambridge',
-    'Rhodes', 'DAAD', 'Erasmus+',
+    'Chevening', 'Commonwealth', 'Fulbright',
+    'Gates Cambridge', 'Rhodes', 'DAAD', 'Erasmus+',
 ];
+
+const WORD_COUNT_OPTIONS = [
+    { value: '300', label: '300 words' },
+    { value: '400', label: '400 words' },
+    { value: '500', label: '500 words' },
+    { value: '600', label: '600 words' },
+    { value: '650', label: '650 words' },
+    { value: '750', label: '750 words' },
+    { value: '800', label: '800 words' },
+    { value: '1000', label: '1000 words' },
+    { value: '1500', label: '1500 words' },
+];
+
+const TIP_COLORS = [
+    'bg-blue-500',
+    'bg-purple-500',
+    'bg-emerald-500',
+];
+
+// ─── Icons ─────────────────────────────────────────────────────────────────────
+
+const EditIcon = () => (
+    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+    </svg>
+);
+const CopyIcon = () => (
+    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+    </svg>
+);
+const DownloadIcon = () => (
+    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+    </svg>
+);
+const RedoIcon = () => (
+    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+    </svg>
+);
+const SparkleIcon = () => (
+    <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
+        <path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z" />
+    </svg>
+);
+const WarnIcon = () => (
+    <svg className="h-4 w-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+    </svg>
+);
+const CheckIcon = () => (
+    <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+    </svg>
+);
+const DocIcon = () => (
+    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+    </svg>
+);
+const PlusIcon = () => (
+    <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+    </svg>
+);
+
+// ─── Helpers ───────────────────────────────────────────────────────────────────
+
+function countWords(text: string) {
+    return text ? text.split(/\s+/).filter(Boolean).length : 0;
+}
+
+function scanForbidden(text: string): string[] {
+    const lower = text.toLowerCase();
+    return SCHOLARSHIP_FORBIDDEN_PHRASES.filter(p => lower.includes(p));
+}
+
+function timeAgo(date: Date | null): string {
+    if (!date) return '';
+    const secs = Math.floor((Date.now() - date.getTime()) / 1000);
+    if (secs < 60) return 'Just now';
+    if (secs < 3600) return `${Math.floor(secs / 60)}m ago`;
+    return `${Math.floor(secs / 3600)}h ago`;
+}
+
+// ─── Component ─────────────────────────────────────────────────────────────────
 
 interface ScholarshipEssayWriterProps {
     userProfile: UserProfile;
@@ -135,407 +219,497 @@ interface ScholarshipEssayWriterProps {
     openSettings: () => void;
 }
 
-const ScholarshipEssayWriter: React.FC<ScholarshipEssayWriterProps> = ({ userProfile, apiKeySet, openSettings }) => {
-    const [selectedType, setSelectedType] = useState<EssayType>(essayTypes[0]);
-    const [scholarshipDescription, setScholarshipDescription] = useState('');
-    const [additionalContext, setAdditionalContext] = useState('');
-    const [desiredWordCount, setDesiredWordCount] = useState('650');
-    const [generatedEssay, setGeneratedEssay] = useState('');
+const ScholarshipEssayWriter: React.FC<ScholarshipEssayWriterProps> = ({
+    userProfile,
+    apiKeySet,
+    openSettings,
+}) => {
+    const [selectedType, setSelectedType] = useState<EssayType>(ESSAY_TYPES[0]);
+    const [scholarshipDesc, setScholarshipDesc] = useState('');
+    const [additionalCtx, setAdditionalCtx] = useState('');
+    const [wordCountVal, setWordCountVal] = useState('650');
+    const [essay, setEssay] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [polishStep, setPolishStep] = useState<string | null>(null);
     const [isEditing, setIsEditing] = useState(false);
     const [copied, setCopied] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [detectedScholarship, setDetectedScholarship] = useState<string | null>(null);
     const [forbiddenFound, setForbiddenFound] = useState<string[]>([]);
+    const [detectedScholarship, setDetectedScholarship] = useState<string | null>(null);
+    const [lastGenerated, setLastGenerated] = useState<Date | null>(null);
+    const [tick, setTick] = useState(0);
 
-    // Live word count of output
-    const outputWordCount = useMemo(
-        () => generatedEssay ? generatedEssay.split(/\s+/).filter(Boolean).length : 0,
-        [generatedEssay]
-    );
-    const targetWords = parseInt(desiredWordCount, 10) || 650;
-    const wordCountDiff = outputWordCount - targetWords;
-    const wordCountOk = Math.abs(wordCountDiff) / targetWords <= 0.12;
+    // Tick for "last updated" refresh
+    React.useEffect(() => {
+        const id = setInterval(() => setTick(t => t + 1), 30000);
+        return () => clearInterval(id);
+    }, []);
 
-    // Detect forbidden phrases in the generated essay
-    const scanForbidden = (text: string) => {
-        const lower = text.toLowerCase();
-        return SCHOLARSHIP_FORBIDDEN_PHRASES.filter(phrase => lower.includes(phrase));
-    };
+    const targetWords = parseInt(wordCountVal, 10) || 650;
+    const outputWords = useMemo(() => countWords(essay), [essay]);
+    const wordDiff = outputWords - targetWords;
+    const wordCountOk = essay ? Math.abs(wordDiff) / targetWords <= 0.12 : false;
 
-    // Detect scholarship name from description
-    const liveDetectedScholarship = useMemo(
-        () => detectScholarshipName(scholarshipDescription),
-        [scholarshipDescription]
-    );
-
-    const descTooShort = scholarshipDescription.trim().length > 0 && scholarshipDescription.trim().length < 50;
+    const liveDetected = useMemo(() => detectScholarshipName(scholarshipDesc), [scholarshipDesc]);
+    const descTooShort = scholarshipDesc.trim().length > 0 && scholarshipDesc.trim().length < 50;
     const canGenerate = !isLoading && apiKeySet && !descTooShort;
+
+    const handleTypeSelect = (type: EssayType) => {
+        setSelectedType(type);
+        setWordCountVal(String(type.defaultWords));
+    };
 
     const handleGenerate = useCallback(async () => {
         if (!apiKeySet) { openSettings(); return; }
         setIsLoading(true);
         setError(null);
         setPolishStep(null);
-        setGeneratedEssay('');
+        setEssay('');
         setForbiddenFound([]);
-        setDetectedScholarship(liveDetectedScholarship);
+        setDetectedScholarship(liveDetected);
         try {
-            const essay = await generateScholarshipEssay({
+            const result = await generateScholarshipEssay({
                 profile: userProfile,
                 essayType: selectedType.id,
                 essayLabel: selectedType.label,
-                scholarshipDescription,
-                additionalContext,
+                scholarshipDescription: scholarshipDesc,
+                additionalContext: additionalCtx,
                 wordCount: targetWords,
                 promptHint: selectedType.promptHint,
                 onStep: (step) => setPolishStep(step),
             });
-            setGeneratedEssay(essay);
-            setForbiddenFound(scanForbidden(essay));
+            setEssay(result);
+            setForbiddenFound(scanForbidden(result));
+            setLastGenerated(new Date());
         } catch (e: unknown) {
-            const msg = e instanceof Error ? e.message : String(e);
-            setError(msg || 'Generation failed. Please try again.');
+            setError(e instanceof Error ? e.message : 'Generation failed. Please try again.');
         } finally {
             setIsLoading(false);
             setPolishStep(null);
         }
-    }, [apiKeySet, openSettings, userProfile, selectedType, scholarshipDescription, additionalContext, targetWords, liveDetectedScholarship]);
+    }, [apiKeySet, openSettings, userProfile, selectedType, scholarshipDesc, additionalCtx, targetWords, liveDetected]);
 
     const handleCopy = () => {
-        if (!generatedEssay) return;
-        navigator.clipboard.writeText(generatedEssay).then(() => {
+        if (!essay) return;
+        navigator.clipboard.writeText(essay).then(() => {
             setCopied(true);
             setTimeout(() => setCopied(false), 2000);
         });
     };
 
     const handleDownload = () => {
-        if (!generatedEssay) return;
-        const name = userProfile.personalInfo.name.replace(/\s+/g, '_');
-        downloadCoverLetterAsPDF(generatedEssay, `${name}_${selectedType.id}.pdf`, 'professional');
-    };
-
-    // Update default word count when essay type changes
-    const handleTypeSelect = (type: EssayType) => {
-        setSelectedType(type);
-        setDesiredWordCount(String(type.defaultWords));
+        if (!essay) return;
+        const name = userProfile.personalInfo?.name?.replace(/\s+/g, '_') || 'essay';
+        downloadCoverLetterAsPDF(essay, `${name}_${selectedType.id}.pdf`, 'professional');
     };
 
     return (
-        <div className="space-y-8">
-            {/* Header */}
-            <div className="bg-[#1B2B4B] rounded-2xl p-6 text-white relative overflow-hidden">
-                <div className="absolute inset-0 opacity-10"
-                    style={{ backgroundImage: 'radial-gradient(circle at 80% 50%, #C9A84C 0%, transparent 60%)' }} />
-                <div className="relative flex items-center gap-3 mb-2">
-                    <div className="p-2 bg-[#C9A84C]/20 rounded-xl">
-                        <BookOpen className="h-6 w-6 text-[#C9A84C]" />
-                    </div>
-                    <div>
-                        <h2 className="text-xl font-bold tracking-tight">Scholarship Essay Writer</h2>
-                        <p className="text-[11px] font-semibold uppercase tracking-widest text-[#C9A84C]">
-                            Per-type structure · Scholarship-aware · Always humanized
-                        </p>
-                    </div>
-                </div>
-                <p className="relative text-white/70 text-sm leading-relaxed max-w-2xl mt-1">
-                    Generate compelling scholarship essays drawn from your profile. Each essay follows the exact structure reviewers expect for its type, with forbidden clichés blocked and word count enforced.
-                </p>
+        <div className="flex flex-col h-full min-h-0 bg-zinc-50 dark:bg-neutral-900">
 
-                {/* Known scholarship pills */}
-                <div className="relative flex flex-wrap gap-1.5 mt-3">
-                    {KNOWN_SCHOLARSHIPS.map(s => (
-                        <span key={s} className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-white/10 text-white/60">
-                            {s}
-                        </span>
-                    ))}
+            {/* ── Detected scholarships top bar ──────────────────────────────── */}
+            <div className="flex items-center gap-3 px-5 py-2.5 border-b border-zinc-200 dark:border-neutral-700/60 bg-white dark:bg-neutral-800/60 flex-shrink-0 flex-wrap">
+                <span className="text-[11px] font-semibold text-zinc-500 dark:text-zinc-400 whitespace-nowrap">
+                    Detected Scholarships (Live)
+                </span>
+                <div className="flex items-center gap-2 flex-wrap">
+                    {KNOWN_SCHOLARSHIPS.map(s => {
+                        const active = liveDetected === s;
+                        return (
+                            <span
+                                key={s}
+                                className={`text-[11px] font-semibold px-3 py-1 rounded-full border transition-all ${
+                                    active
+                                        ? 'bg-[#C9A84C] border-[#C9A84C] text-white shadow-sm'
+                                        : 'bg-transparent border-zinc-300 dark:border-neutral-600 text-zinc-600 dark:text-zinc-400'
+                                }`}
+                            >
+                                {s}
+                            </span>
+                        );
+                    })}
+                </div>
+                <div className="ml-auto">
+                    <button className="flex items-center gap-1.5 text-[11px] font-semibold text-zinc-500 dark:text-zinc-400 hover:text-[#1B2B4B] dark:hover:text-[#C9A84C] transition-colors">
+                        <PlusIcon />
+                        Add / Manage
+                    </button>
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
-                {/* Left: Essay Type Selector + Word Count */}
-                <div className="lg:col-span-2 space-y-6">
-                    <div>
-                        <Label className="text-base font-bold mb-3 block text-zinc-800 dark:text-zinc-100">Essay Type</Label>
-                        <div className="space-y-2 max-h-[420px] overflow-y-auto pr-1 thin-scrollbar">
-                            {essayTypes.map(type => {
-                                const isSelected = selectedType.id === type.id;
-                                return (
-                                    <button
-                                        key={type.id}
-                                        onClick={() => handleTypeSelect(type)}
-                                        className={`w-full text-left p-3 rounded-xl border-2 transition-all duration-150 ${
-                                            isSelected
-                                                ? 'border-[#C9A84C] bg-[#1B2B4B]/5 dark:bg-[#C9A84C]/5 shadow-sm'
-                                                : 'border-zinc-200 dark:border-neutral-700 hover:border-[#1B2B4B]/40 dark:hover:border-[#C9A84C]/30 bg-white dark:bg-neutral-800/40'
-                                        }`}
-                                    >
-                                        <div className="flex items-center gap-2">
-                                            <span className="text-lg">{type.emoji}</span>
-                                            <div className="min-w-0 flex-1">
-                                                <p className={`text-sm font-semibold ${isSelected ? 'text-[#1B2B4B] dark:text-[#C9A84C]' : 'text-zinc-800 dark:text-zinc-200'}`}>
+            {/* ── Body: left panel + right panel ─────────────────────────────── */}
+            <div className="flex flex-1 min-h-0 overflow-hidden">
+
+                {/* ══ LEFT PANEL ══════════════════════════════════════════════ */}
+                <div className="w-[400px] xl:w-[440px] flex-shrink-0 flex flex-col border-r border-zinc-200 dark:border-neutral-700/60 bg-white dark:bg-neutral-800/40 overflow-y-auto thin-scrollbar">
+                    <div className="p-5 space-y-5">
+
+                        {/* Title */}
+                        <div className="pb-1">
+                            <h2 className="text-xl font-bold text-zinc-900 dark:text-zinc-50 tracking-tight">Essay Writer</h2>
+                            <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">AI-powered essays for scholarships and applications</p>
+                        </div>
+
+                        {/* Essay type */}
+                        <div>
+                            <p className="text-xs font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-widest mb-1">Essay Type</p>
+                            <p className="text-[11px] text-zinc-400 dark:text-zinc-500 mb-2.5">Choose the type of essay you want</p>
+                            <div className="space-y-1.5">
+                                {ESSAY_TYPES.map(type => {
+                                    const sel = selectedType.id === type.id;
+                                    return (
+                                        <button
+                                            key={type.id}
+                                            onClick={() => handleTypeSelect(type)}
+                                            className={`w-full text-left px-3.5 py-2.5 rounded-xl flex items-center gap-3 transition-all border ${
+                                                sel
+                                                    ? 'border-l-[3px] border-l-[#C9A84C] border-t-transparent border-r-transparent border-b-transparent bg-[#1B2B4B]/5 dark:bg-[#C9A84C]/8'
+                                                    : 'border-transparent hover:bg-zinc-50 dark:hover:bg-neutral-700/40'
+                                            }`}
+                                            style={sel ? {
+                                                borderTopWidth: 0,
+                                                borderRightWidth: 0,
+                                                borderBottomWidth: 0,
+                                                borderLeftWidth: '3px',
+                                                borderLeftColor: '#C9A84C',
+                                                background: sel ? 'rgba(27,43,75,0.05)' : undefined,
+                                            } : {}}
+                                        >
+                                            <span className="text-base flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-lg bg-zinc-100 dark:bg-neutral-700">
+                                                {type.icon}
+                                            </span>
+                                            <div className="min-w-0">
+                                                <p className={`text-sm font-semibold truncate ${sel ? 'text-[#1B2B4B] dark:text-[#C9A84C]' : 'text-zinc-800 dark:text-zinc-200'}`}>
                                                     {type.label}
                                                 </p>
-                                                <p className="text-[11px] text-zinc-500 dark:text-zinc-400 truncate">
-                                                    {type.wordCount} · {type.description.substring(0, 46)}…
-                                                </p>
+                                                <p className="text-[11px] text-zinc-400 dark:text-zinc-500 truncate">{type.subtitle}</p>
                                             </div>
-                                            {isSelected && <CheckCircle className="h-4 w-4 text-[#C9A84C] ml-auto flex-shrink-0" />}
-                                        </div>
-                                    </button>
-                                );
-                            })}
-                        </div>
-                    </div>
-
-                    {/* Word Count */}
-                    <div>
-                        <Label htmlFor="word-count" className="text-sm font-semibold mb-1 block">Target Word Count</Label>
-                        <select
-                            id="word-count"
-                            value={desiredWordCount}
-                            onChange={e => setDesiredWordCount(e.target.value)}
-                            className="w-full text-sm rounded-lg border border-zinc-300 dark:border-neutral-600 bg-white dark:bg-neutral-700 px-3 py-2 focus:ring-2 focus:ring-[#1B2B4B] focus:border-[#1B2B4B]"
-                        >
-                            <option value="300">~300 words (Short)</option>
-                            <option value="400">~400 words (Brief)</option>
-                            <option value="500">~500 words (Standard)</option>
-                            <option value="600">~600 words</option>
-                            <option value="650">~650 words (Recommended)</option>
-                            <option value="750">~750 words</option>
-                            <option value="800">~800 words (Detailed)</option>
-                            <option value="1000">~1000 words (Long)</option>
-                            <option value="1500">~1500 words (Research proposal)</option>
-                        </select>
-                        <p className="text-[11px] text-zinc-400 dark:text-zinc-500 mt-1">
-                            Suggested for {selectedType.label}: {selectedType.wordCount}
-                        </p>
-                    </div>
-
-                    {/* Tips */}
-                    <div className="p-4 rounded-xl bg-[#1B2B4B]/5 dark:bg-[#1B2B4B]/30 border border-[#1B2B4B]/15 dark:border-[#C9A84C]/20">
-                        <p className="text-xs font-bold text-[#1B2B4B] dark:text-[#C9A84C] mb-2">
-                            ✦ Tips for {selectedType.label}
-                        </p>
-                        <ul className="space-y-1.5">
-                            {selectedType.tips.map((tip, i) => (
-                                <li key={i} className="text-xs text-[#1B2B4B]/80 dark:text-zinc-300 flex items-start gap-1.5">
-                                    <span className="mt-0.5 text-[#C9A84C] font-bold flex-shrink-0">·</span>
-                                    {tip}
-                                </li>
-                            ))}
-                        </ul>
-                    </div>
-                </div>
-
-                {/* Right: Inputs & Controls */}
-                <div className="lg:col-span-3 space-y-5">
-                    {/* Scholarship Description */}
-                    <div>
-                        <div className="flex items-center justify-between mb-1.5">
-                            <Label htmlFor="scholarship-desc" className="text-sm font-semibold">
-                                Scholarship / Program Description
-                            </Label>
-                            {liveDetectedScholarship && (
-                                <span className="flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-[#C9A84C]/15 text-[#B8922A] dark:text-[#C9A84C]">
-                                    <svg className="h-3 w-3" viewBox="0 0 24 24" fill="currentColor">
-                                        <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26Z"/>
-                                    </svg>
-                                    {liveDetectedScholarship} detected
-                                </span>
-                            )}
-                        </div>
-                        <p className="text-xs text-zinc-400 dark:text-zinc-500 mb-1.5">
-                            Paste the scholarship call, eligibility criteria, values, or requirements. The AI uses this to align your essay to the scholarship's specific mission.
-                        </p>
-                        <Textarea
-                            id="scholarship-desc"
-                            value={scholarshipDescription}
-                            onChange={e => setScholarshipDescription(e.target.value)}
-                            placeholder="Paste the scholarship description, eligibility criteria, or values here. The more detail you give, the better the essay will be aligned to what reviewers want…"
-                            rows={6}
-                            disabled={isLoading}
-                            className={descTooShort ? 'border-amber-400 focus:ring-amber-400' : ''}
-                        />
-                        {descTooShort && (
-                            <p className="mt-1 text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1">
-                                <AlertTriangle className="h-3 w-3 flex-shrink-0" />
-                                Add more detail ({scholarshipDescription.trim().length}/50 chars minimum) — a fuller description produces a much better essay.
-                            </p>
-                        )}
-                        {!scholarshipDescription.trim() && (
-                            <p className="mt-1 text-xs text-zinc-400 dark:text-zinc-500">
-                                💡 No description? The AI will write a strong general essay using your profile alone.
-                            </p>
-                        )}
-                    </div>
-
-                    {/* Additional context */}
-                    <div>
-                        <Label htmlFor="additional-context" className="text-sm font-semibold mb-1.5 block">
-                            Additional Context
-                            <span className="ml-2 text-xs font-normal text-zinc-400">(optional)</span>
-                        </Label>
-                        <Textarea
-                            id="additional-context"
-                            value={additionalContext}
-                            onChange={e => setAdditionalContext(e.target.value)}
-                            placeholder="Specific stories, achievements, or talking points to include. E.g.: 'I founded a community recycling programme in 2022 that served 500 households — I want this mentioned prominently…'"
-                            rows={3}
-                            disabled={isLoading}
-                        />
-                    </div>
-
-                    {error && (
-                        <div className="p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 flex items-start gap-2 text-sm text-red-700 dark:text-red-300">
-                            <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" />
-                            {error}
-                        </div>
-                    )}
-
-                    {/* Generate button */}
-                    <Button
-                        onClick={handleGenerate}
-                        disabled={!canGenerate}
-                        size="lg"
-                        className="w-full bg-[#1B2B4B] hover:bg-[#1B2B4B]/90 text-white border-0 shadow-md disabled:opacity-50"
-                    >
-                        {isLoading ? (
-                            <>
-                                <svg className="animate-spin h-5 w-5 mr-3 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                                </svg>
-                                <span>{polishStep ?? `Writing your ${selectedType.label}…`}</span>
-                            </>
-                        ) : (
-                            <>
-                                <Sparkles className="h-5 w-5 mr-2 text-[#C9A84C]" />
-                                Generate {selectedType.emoji} {selectedType.label}
-                            </>
-                        )}
-                    </Button>
-
-                    {!apiKeySet && (
-                        <p className="text-amber-600 dark:text-amber-400 text-xs text-center">
-                            ⚠️ Set your API key in{' '}
-                            <button onClick={openSettings} className="underline font-semibold">Settings</button>{' '}
-                            to enable generation.
-                        </p>
-                    )}
-                </div>
-            </div>
-
-            {/* Generated Essay Output */}
-            {generatedEssay && (
-                <div className="bg-white dark:bg-neutral-800/50 rounded-2xl border border-zinc-200 dark:border-neutral-700 overflow-hidden shadow-sm">
-                    {/* Output header */}
-                    <div className="flex flex-wrap items-center justify-between gap-3 p-5 border-b border-zinc-200 dark:border-neutral-700 bg-[#1B2B4B]/3 dark:bg-[#1B2B4B]/20">
-                        <div className="flex items-center gap-3">
-                            <div className="p-2 bg-[#1B2B4B] rounded-lg">
-                                <FileText className="h-4 w-4 text-[#C9A84C]" />
+                                        </button>
+                                    );
+                                })}
                             </div>
-                            <div>
-                                <h3 className="text-sm font-bold text-zinc-900 dark:text-zinc-50 flex items-center gap-2">
-                                    {selectedType.emoji} {selectedType.label}
+                        </div>
+
+                        {/* Word count */}
+                        <div>
+                            <label className="text-xs font-bold text-zinc-700 dark:text-zinc-300 mb-1.5 block">
+                                Target Word Count
+                            </label>
+                            <div className="relative">
+                                <select
+                                    value={wordCountVal}
+                                    onChange={e => setWordCountVal(e.target.value)}
+                                    className="w-full appearance-none text-sm rounded-lg border border-zinc-300 dark:border-neutral-600 bg-white dark:bg-neutral-700 text-zinc-800 dark:text-zinc-100 px-3.5 py-2.5 pr-9 focus:ring-2 focus:ring-[#1B2B4B] focus:border-[#1B2B4B] outline-none"
+                                >
+                                    {WORD_COUNT_OPTIONS.map(o => (
+                                        <option key={o.value} value={o.value}>{o.label}</option>
+                                    ))}
+                                </select>
+                                <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400">
+                                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                    </svg>
+                                </div>
+                            </div>
+                            <p className="text-[10.5px] text-zinc-400 dark:text-zinc-500 mt-1">
+                                Suggested for {selectedType.label}: {selectedType.wordCountRange}
+                            </p>
+                        </div>
+
+                        {/* Tips */}
+                        <div>
+                            <p className="text-xs font-bold text-zinc-700 dark:text-zinc-300 mb-2">
+                                Tips for {selectedType.label}
+                            </p>
+                            <div className="space-y-2">
+                                {selectedType.tips.map((tip, i) => (
+                                    <div key={i} className="flex items-start gap-2.5">
+                                        <span className={`flex-shrink-0 ${TIP_COLORS[i % TIP_COLORS.length]} text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center mt-0.5`}>
+                                            {i + 1}
+                                        </span>
+                                        <p className="text-xs text-zinc-600 dark:text-zinc-400 leading-relaxed">{tip}</p>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Scholarship description */}
+                        <div>
+                            <div className="flex items-baseline justify-between mb-1.5">
+                                <label className="text-xs font-bold text-zinc-700 dark:text-zinc-300">
+                                    Scholarship Description
+                                    <span className="ml-1.5 text-[10px] font-semibold text-red-500">(Required)</span>
+                                </label>
+                                {descTooShort && (
+                                    <span className="text-[10px] text-amber-500 font-semibold">Too short</span>
+                                )}
+                            </div>
+                            <textarea
+                                value={scholarshipDesc}
+                                onChange={e => setScholarshipDesc(e.target.value)}
+                                maxLength={2000}
+                                rows={5}
+                                disabled={isLoading}
+                                placeholder="Paste the scholarship description or requirements here…"
+                                className={`w-full text-sm rounded-lg border px-3.5 py-2.5 resize-none outline-none transition-all bg-white dark:bg-neutral-700/60 text-zinc-800 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 focus:ring-2 focus:ring-[#1B2B4B] dark:focus:ring-[#C9A84C] ${
+                                    descTooShort
+                                        ? 'border-amber-400 dark:border-amber-500'
+                                        : 'border-zinc-300 dark:border-neutral-600'
+                                }`}
+                            />
+                            <div className="flex items-center justify-between mt-1">
+                                <span className="text-[10.5px] text-zinc-400 dark:text-zinc-500">
+                                    {scholarshipDesc.trim() ? '' : 'No description? We\'ll write a strong general essay from your profile.'}
+                                </span>
+                                <span className="text-[10.5px] text-zinc-400 dark:text-zinc-500 tabular-nums">
+                                    {scholarshipDesc.length} / 2000
+                                </span>
+                            </div>
+                        </div>
+
+                        {/* Additional context */}
+                        <div>
+                            <div className="flex items-baseline justify-between mb-1.5">
+                                <label className="text-xs font-bold text-zinc-700 dark:text-zinc-300">
+                                    Additional Context
+                                    <span className="ml-1.5 text-[10px] font-medium text-zinc-400">(Optional)</span>
+                                </label>
+                            </div>
+                            <textarea
+                                value={additionalCtx}
+                                onChange={e => setAdditionalCtx(e.target.value)}
+                                maxLength={1000}
+                                rows={3}
+                                disabled={isLoading}
+                                placeholder="Add any personal story, achievements, or details that should be included…"
+                                className="w-full text-sm rounded-lg border border-zinc-300 dark:border-neutral-600 px-3.5 py-2.5 resize-none outline-none transition-all bg-white dark:bg-neutral-700/60 text-zinc-800 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 focus:ring-2 focus:ring-[#1B2B4B] dark:focus:ring-[#C9A84C]"
+                            />
+                            <p className="text-right text-[10.5px] text-zinc-400 dark:text-zinc-500 mt-1 tabular-nums">
+                                {additionalCtx.length} / 1000
+                            </p>
+                        </div>
+
+                        {error && (
+                            <div className="rounded-lg p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-xs text-red-700 dark:text-red-300 flex items-start gap-2">
+                                <WarnIcon />
+                                {error}
+                            </div>
+                        )}
+
+                        {/* Generate button */}
+                        <button
+                            onClick={handleGenerate}
+                            disabled={!canGenerate}
+                            className="w-full rounded-xl py-3.5 px-5 flex items-center justify-center gap-2.5 font-bold text-sm text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed relative overflow-hidden"
+                            style={{
+                                background: canGenerate
+                                    ? 'linear-gradient(135deg, #C9A84C 0%, #E8C56A 50%, #C9A84C 100%)'
+                                    : '#C9A84C',
+                                boxShadow: canGenerate ? '0 4px 16px rgba(201,168,76,0.35)' : 'none',
+                            }}
+                        >
+                            {isLoading && (
+                                <svg className="animate-spin h-4 w-4 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                    <circle className="opacity-30" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                    <path className="opacity-80" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                                </svg>
+                            )}
+                            {!isLoading && <SparkleIcon />}
+                            <div className="text-left">
+                                <div>{isLoading ? (polishStep ?? `Writing your ${selectedType.label}…`) : 'Generate Essay'}</div>
+                                {!isLoading && (
+                                    <div className="text-[10px] font-normal opacity-80 mt-0.5">
+                                        Writing your best possible essay…
+                                    </div>
+                                )}
+                            </div>
+                        </button>
+
+                        {!apiKeySet && (
+                            <p className="text-center text-xs text-amber-600 dark:text-amber-400">
+                                ⚠️{' '}
+                                <button onClick={openSettings} className="underline font-semibold">
+                                    Set your API key in Settings
+                                </button>{' '}
+                                to enable generation.
+                            </p>
+                        )}
+                    </div>
+
+                    {/* Bottom spacer */}
+                    <div className="flex-1" />
+                </div>
+
+                {/* ══ RIGHT PANEL ═════════════════════════════════════════════ */}
+                <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+                    {essay ? (
+                        <>
+                            {/* Output header */}
+                            <div className="flex items-center gap-3 px-6 py-3.5 border-b border-zinc-200 dark:border-neutral-700/60 bg-white dark:bg-neutral-800/40 flex-shrink-0">
+                                <div className="p-2 bg-[#1B2B4B] dark:bg-[#1B2B4B] rounded-lg flex-shrink-0">
+                                    <DocIcon />
+                                </div>
+                                <div className="flex items-center gap-2 flex-wrap min-w-0">
+                                    <h3 className="text-base font-bold text-zinc-900 dark:text-zinc-50 truncate">
+                                        {selectedType.label}
+                                    </h3>
                                     {detectedScholarship && (
-                                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-[#C9A84C]/20 text-[#B8922A] dark:text-[#C9A84C]">
-                                            {detectedScholarship}
+                                        <span className="flex items-center gap-1 text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-[#C9A84C]/15 text-[#A87E28] dark:text-[#C9A84C] border border-[#C9A84C]/30 flex-shrink-0">
+                                            <svg className="h-2.5 w-2.5" fill="currentColor" viewBox="0 0 24 24">
+                                                <path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z" />
+                                            </svg>
+                                            Detected: {detectedScholarship} Scholarship
                                         </span>
                                     )}
-                                </h3>
-                                {/* Word count target vs actual */}
-                                <div className="flex items-center gap-2 mt-0.5">
-                                    <span className={`text-xs font-semibold ${
-                                        wordCountOk
-                                            ? 'text-emerald-600 dark:text-emerald-400'
-                                            : 'text-amber-600 dark:text-amber-400'
-                                    }`}>
-                                        {outputWordCount} words
-                                    </span>
-                                    <span className="text-xs text-zinc-400 dark:text-zinc-500">
-                                        (target: {targetWords})
-                                    </span>
-                                    {wordCountOk ? (
-                                        <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">✓ on target</span>
-                                    ) : (
-                                        <span className="text-[10px] font-semibold text-amber-600 dark:text-amber-400">
-                                            {wordCountDiff > 0 ? `+${wordCountDiff}` : wordCountDiff} from target
+                                </div>
+
+                                {/* Word count badge */}
+                                <div className={`ml-auto flex items-center gap-1.5 flex-shrink-0 text-xs font-semibold ${wordCountOk ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}`}>
+                                    {wordCountOk && <CheckIcon />}
+                                    <span>Word Count: {outputWords} / {targetWords}</span>
+                                    {wordCountOk && <span className="font-bold">✓ On Target</span>}
+                                    {!wordCountOk && (
+                                        <span className="font-bold">
+                                            {wordDiff > 0 ? `+${wordDiff}` : wordDiff} words
                                         </span>
                                     )}
                                 </div>
                             </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <Button variant="secondary" size="sm" onClick={() => setIsEditing(!isEditing)}>
-                                <Edit className="h-4 w-4 mr-1.5" />
-                                {isEditing ? 'Done' : 'Edit'}
-                            </Button>
-                            <Button variant="secondary" size="sm" onClick={handleCopy}>
-                                <ClipboardCopy className="h-4 w-4 mr-1.5" />
-                                {copied ? '✓ Copied!' : 'Copy'}
-                            </Button>
-                            <Button variant="secondary" size="sm" onClick={handleDownload}>
-                                <Download className="h-4 w-4 mr-1.5" />
-                                PDF
-                            </Button>
-                            <Button variant="ghost" size="sm" onClick={handleGenerate} disabled={isLoading}>
-                                <Sparkles className="h-4 w-4 mr-1.5" />
-                                Redo
-                            </Button>
-                        </div>
-                    </div>
 
-                    {/* Forbidden phrase warning */}
-                    {forbiddenFound.length > 0 && (
-                        <div className="mx-5 mt-4 p-3 rounded-xl border border-amber-200 dark:border-amber-700/50 bg-amber-50 dark:bg-amber-900/15">
-                            <p className="text-xs font-bold text-amber-700 dark:text-amber-400 mb-1.5 flex items-center gap-1.5">
-                                <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0" />
-                                {forbiddenFound.length} cliché phrase{forbiddenFound.length > 1 ? 's' : ''} detected — reviewers penalise these
-                            </p>
-                            <div className="flex flex-wrap gap-1.5">
-                                {forbiddenFound.map(phrase => (
-                                    <span key={phrase} className="text-[10.5px] font-medium px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-800/30 text-amber-800 dark:text-amber-300">
-                                        "{phrase}"
-                                    </span>
-                                ))}
+                            {/* Action buttons */}
+                            <div className="flex items-center gap-2 px-6 py-2.5 border-b border-zinc-100 dark:border-neutral-700/40 bg-white dark:bg-neutral-800/20 flex-shrink-0">
+                                <ActionBtn icon={<EditIcon />} label={isEditing ? 'Done' : 'Edit'} onClick={() => setIsEditing(!isEditing)} active={isEditing} />
+                                <ActionBtn icon={<CopyIcon />} label={copied ? 'Copied!' : 'Copy'} onClick={handleCopy} />
+                                <ActionBtn icon={<DownloadIcon />} label="Download PDF" onClick={handleDownload} />
+                                <ActionBtn icon={<RedoIcon />} label="Redo" onClick={handleGenerate} disabled={isLoading} />
                             </div>
-                            <p className="text-[11px] text-amber-600 dark:text-amber-500 mt-1.5">
-                                Edit the essay to replace these with a specific named experience or number.
-                            </p>
+
+                            {/* Essay body + forbidden phrases */}
+                            <div className="flex-1 overflow-y-auto thin-scrollbar bg-white dark:bg-neutral-900">
+                                <div className="max-w-3xl mx-auto px-8 py-8">
+                                    <div
+                                        contentEditable={isEditing}
+                                        suppressContentEditableWarning
+                                        onBlur={e => {
+                                            const t = e.currentTarget.innerText;
+                                            setEssay(t);
+                                            setForbiddenFound(scanForbidden(t));
+                                        }}
+                                        className={`text-zinc-800 dark:text-zinc-200 whitespace-pre-wrap leading-[1.9] text-[15px] font-serif min-h-[200px] outline-none ${
+                                            isEditing
+                                                ? 'rounded-lg ring-2 ring-[#C9A84C] ring-inset p-4 bg-[#C9A84C]/5'
+                                                : ''
+                                        }`}
+                                    >
+                                        {essay}
+                                    </div>
+
+                                    {/* Forbidden phrases panel */}
+                                    {forbiddenFound.length > 0 && (
+                                        <div className="mt-8 rounded-xl border border-amber-200 dark:border-amber-700/40 bg-amber-50 dark:bg-amber-900/15 p-4">
+                                            <div className="flex items-center gap-2 mb-2.5">
+                                                <WarnIcon />
+                                                <p className="text-xs font-bold text-amber-700 dark:text-amber-400">
+                                                    Detected Common Phrases
+                                                </p>
+                                            </div>
+                                            <div className="flex flex-wrap gap-2 mb-3">
+                                                {forbiddenFound.map(phrase => (
+                                                    <span
+                                                        key={phrase}
+                                                        className="text-xs font-medium px-2.5 py-1 rounded-full bg-amber-100 dark:bg-amber-800/30 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-700/40"
+                                                    >
+                                                        {phrase}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                            <p className="text-xs text-amber-600 dark:text-amber-500">
+                                                Consider using more specific and original expressions.
+                                            </p>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Footer */}
+                            <div className="flex items-center justify-between px-6 py-2.5 border-t border-zinc-100 dark:border-neutral-700/40 bg-white dark:bg-neutral-800/30 flex-shrink-0">
+                                <div className="flex items-center gap-3 text-[11px] text-zinc-400 dark:text-zinc-500">
+                                    <span>Written from your profile</span>
+                                    <span className="h-1 w-1 rounded-full bg-zinc-300 dark:bg-neutral-600" />
+                                    <span>Humanized by AI</span>
+                                    <span className="h-1 w-1 rounded-full bg-zinc-300 dark:bg-neutral-600" />
+                                    <span>Review before submitting</span>
+                                </div>
+                                {lastGenerated && (
+                                    <div className="flex items-center gap-1 text-[11px] text-zinc-400 dark:text-zinc-500">
+                                        <span>Last updated: {timeAgo(lastGenerated)}</span>
+                                        <button onClick={() => setTick(t => t + 1)} className="hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors ml-0.5">
+                                            <RedoIcon />
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        </>
+                    ) : (
+                        /* Empty state */
+                        <div className="flex-1 flex items-center justify-center p-10">
+                            <div className="text-center max-w-sm">
+                                <div className="w-16 h-16 rounded-2xl bg-[#1B2B4B]/8 dark:bg-[#1B2B4B]/30 flex items-center justify-center mx-auto mb-4">
+                                    <span className="text-3xl">{selectedType.icon}</span>
+                                </div>
+                                <h3 className="text-base font-bold text-zinc-800 dark:text-zinc-200 mb-2">
+                                    Ready to write your {selectedType.label}
+                                </h3>
+                                <p className="text-sm text-zinc-500 dark:text-zinc-400 leading-relaxed mb-5">
+                                    Fill in the scholarship description on the left and click <strong>Generate Essay</strong>. Your essay will appear here.
+                                </p>
+                                <div className="flex flex-wrap gap-2 justify-center">
+                                    {['Written from your profile', 'Scholarship-aware', 'Always humanized'].map(tag => (
+                                        <span key={tag} className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-[#1B2B4B]/8 dark:bg-[#1B2B4B]/30 text-[#1B2B4B] dark:text-[#C9A84C]">
+                                            {tag}
+                                        </span>
+                                    ))}
+                                </div>
+                            </div>
                         </div>
                     )}
-
-                    {/* Essay body */}
-                    <div
-                        contentEditable={isEditing}
-                        suppressContentEditableWarning
-                        onBlur={e => {
-                            const text = e.currentTarget.innerText;
-                            setGeneratedEssay(text);
-                            setForbiddenFound(scanForbidden(text));
-                        }}
-                        className={`p-6 sm:p-8 text-zinc-800 dark:text-zinc-200 whitespace-pre-wrap leading-[1.9] text-sm font-serif max-w-3xl mx-auto min-h-[300px] ${
-                            isEditing
-                                ? 'ring-2 ring-inset ring-[#C9A84C] focus:outline-none bg-[#C9A84C]/5 dark:bg-[#C9A84C]/10 rounded-lg m-4 p-6'
-                                : ''
-                        }`}
-                    >
-                        {generatedEssay}
-                    </div>
-
-                    <div className="px-6 pb-4 flex items-center gap-2">
-                        <div className="h-1.5 w-1.5 bg-[#C9A84C] rounded-full" />
-                        <p className="text-xs text-zinc-400 dark:text-zinc-500">
-                            Written from your profile · Humanized · Review and personalize before submitting
-                        </p>
-                    </div>
                 </div>
-            )}
+            </div>
+
+            {/* Bottom bar */}
+            <div className="flex items-center justify-between px-6 py-2 border-t border-zinc-200 dark:border-neutral-700/60 bg-white dark:bg-neutral-800/30 flex-shrink-0">
+                <p className="text-[11px] text-zinc-400 dark:text-zinc-500">
+                    ProCV helps you write better essays, faster.
+                </p>
+                <p className="text-[11px] text-zinc-400 dark:text-zinc-500">
+                    Your story. Stronger applications. Greater opportunities. ✦
+                </p>
+            </div>
         </div>
     );
 };
+
+// ─── Action button ─────────────────────────────────────────────────────────────
+
+interface ActionBtnProps {
+    icon: React.ReactNode;
+    label: string;
+    onClick: () => void;
+    active?: boolean;
+    disabled?: boolean;
+}
+const ActionBtn: React.FC<ActionBtnProps> = ({ icon, label, onClick, active, disabled }) => (
+    <button
+        onClick={onClick}
+        disabled={disabled}
+        className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg border transition-all disabled:opacity-40 ${
+            active
+                ? 'bg-[#1B2B4B] border-[#1B2B4B] text-white dark:bg-[#C9A84C] dark:border-[#C9A84C] dark:text-[#1B2B4B]'
+                : 'bg-white dark:bg-neutral-700/50 border-zinc-200 dark:border-neutral-600 text-zinc-700 dark:text-zinc-300 hover:border-zinc-400 dark:hover:border-neutral-500'
+        }`}
+    >
+        {icon}
+        {label}
+    </button>
+);
 
 export default ScholarshipEssayWriter;
