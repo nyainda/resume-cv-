@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { UserProfileSlot, UserProfile, ProfileColor } from '../types';
 import { canAddProfileSlot, getProfileSlotLimit } from '../services/accountTierService';
 import { getSyncTimeAgo } from '../services/userDataCloudService';
+import VaultPage from './vault/VaultPage';
 
 const GOLD = '#C9A84C';
 const NAVY = '#1B2B4B';
@@ -70,9 +71,14 @@ interface Props {
   onCreate: (name: string, color: ProfileColor, cloneFrom?: UserProfile) => void;
   onDelete: (id: string) => Promise<void>;
   onRename: (id: string, name: string, color: ProfileColor) => void;
+  onBuildCV?: (jd: string) => void;
+  initialTab?: 'profiles' | 'vault';
 }
 
-export default function RoomsPage({ profiles, activeSlot, userProfile, onSwitch, onCreate, onDelete, onRename }: Props) {
+type PageTab = 'profiles' | 'vault';
+
+export default function RoomsPage({ profiles, activeSlot, userProfile, onSwitch, onCreate, onDelete, onRename, onBuildCV, initialTab = 'profiles' }: Props) {
+  const [pageTab, setPageTab] = useState<PageTab>(initialTab);
   const [modal, setModal] = useState<{ mode: 'create' | 'edit'; slot?: UserProfileSlot } | null>(null);
   const [modalName, setModalName] = useState('');
   const [modalColor, setModalColor] = useState<ProfileColor>('indigo');
@@ -104,44 +110,82 @@ export default function RoomsPage({ profiles, activeSlot, userProfile, onSwitch,
   const limit = getProfileSlotLimit();
 
   return (
-    <div className="max-w-5xl mx-auto">
+    <div className="max-w-5xl mx-auto flex flex-col h-full">
 
       {/* ── Page header ─────────────────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-8">
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-5 flex-shrink-0">
         <div>
           <h1 className="text-2xl sm:text-3xl font-extrabold text-zinc-900 dark:text-zinc-50 leading-tight">
             Career Rooms
           </h1>
           <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1.5 max-w-md leading-relaxed">
-            Each room is a separate career identity — its own profile, job target, CVs, and applications. Switch between them without mixing anything up.
+            Each room is a separate career identity — its own profile, job target, CVs, and applications.
           </p>
         </div>
-        <div className="flex items-center gap-3 flex-shrink-0">
-          <span className="text-xs text-zinc-400 dark:text-zinc-500">
-            {profiles.length} / {limit === Infinity ? '∞' : limit} rooms
-          </span>
-          {canAdd ? (
-            <button
-              onClick={openCreate}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold text-white transition-opacity hover:opacity-90 active:scale-95 shadow-sm"
-              style={{ background: NAVY }}
-            >
-              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
-                <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-              </svg>
-              New Room
-            </button>
-          ) : (
-            <button
-              onClick={() => window.dispatchEvent(new CustomEvent('procv:openPricing'))}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold text-white transition-opacity hover:opacity-90 shadow-sm"
-              style={{ background: GOLD }}
-            >
-              🔒 Upgrade for more rooms
-            </button>
-          )}
-        </div>
+        {pageTab === 'profiles' && (
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <span className="text-xs text-zinc-400 dark:text-zinc-500">
+              {profiles.length} / {limit === Infinity ? '∞' : limit} rooms
+            </span>
+            {canAdd ? (
+              <button
+                onClick={openCreate}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold text-white transition-opacity hover:opacity-90 active:scale-95 shadow-sm"
+                style={{ background: NAVY }}
+              >
+                <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+                </svg>
+                New Room
+              </button>
+            ) : (
+              <button
+                onClick={() => window.dispatchEvent(new CustomEvent('procv:openPricing'))}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold text-white transition-opacity hover:opacity-90 shadow-sm"
+                style={{ background: GOLD }}
+              >
+                🔒 Upgrade for more rooms
+              </button>
+            )}
+          </div>
+        )}
       </div>
+
+      {/* ── Tab switcher ─────────────────────────────────────────────── */}
+      <div className="flex gap-1 bg-zinc-50 dark:bg-neutral-800/60 p-1 rounded-xl mb-6 self-start flex-shrink-0">
+        {([
+          { id: 'profiles', label: '👤 Career Profiles' },
+          { id: 'vault',    label: '📥 Job Vault' },
+        ] as const).map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => setPageTab(tab.id)}
+            className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${
+              pageTab === tab.id
+                ? 'bg-white dark:bg-neutral-700 text-zinc-900 dark:text-zinc-50 shadow-sm'
+                : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300'
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* ── Vault tab ────────────────────────────────────────────────── */}
+      {pageTab === 'vault' && (
+        <div className="flex-1 min-h-0">
+          <VaultPage
+            profiles={profiles}
+            activeSlot={activeSlot}
+            userProfile={userProfile}
+            onBuildCV={onBuildCV ?? (() => {})}
+          />
+        </div>
+      )}
+
+      {/* ── Profiles tab ─────────────────────────────────────────────── */}
+      {pageTab === 'profiles' && (
+      <div className="flex-1 min-h-0 overflow-y-auto">
 
       {/* ── Empty state ─────────────────────────────────────────────── */}
       {profiles.length === 0 && (
@@ -387,6 +431,9 @@ export default function RoomsPage({ profiles, activeSlot, userProfile, onSwitch,
             </button>
           )}
         </div>
+      )}
+
+      </div>
       )}
 
       {/* ── Create / Edit modal ─────────────────────────────────────── */}

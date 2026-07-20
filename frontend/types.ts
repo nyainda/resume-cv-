@@ -703,6 +703,33 @@ export interface PersonalizationChange {
   reason: string;
 }
 
+// ─── Job Vault ────────────────────────────────────────────────────────────────
+
+export type VaultRoomType  = 'primary' | 'stretch' | 'uncategorized';
+export type VaultJobStatus = 'saved' | 'building' | 'applied' | 'expired';
+export type VaultPriority  = 'low' | 'medium' | 'high' | 'dream';
+export type VaultInputType = 'text' | 'url' | 'pdf' | 'image';
+
+export interface VaultJob {
+  id:          string;
+  roomId:      string;          // profile slot ID
+  title:       string;
+  company:     string;
+  rawJd:       string;
+  inputType:   VaultInputType;
+  sourceUrl?:  string;
+  matchScore?: number;          // 0–100, undefined = classifying
+  roomReason?: string;
+  roomType:    VaultRoomType;
+  deadline?:   string;          // ISO date string
+  priority:    VaultPriority;
+  status:      VaultJobStatus;
+  builtCvId?:  string;
+  fingerprint: string;
+  createdAt:   number;          // unix ms
+  updatedAt:   number;
+}
+
 export interface EnhancedJobAnalysis {
   // Block A: Role Summary
   archetype: JobArchetype;

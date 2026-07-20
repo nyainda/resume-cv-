@@ -311,7 +311,7 @@ const AppViewRouter: React.FC<AppViewRouterProps> = ({
                 />
               )}
 
-              {currentView === 'rooms' && (
+              {(currentView === 'rooms' || currentView === 'vault') && (
                 <RoomsPage
                   profiles={profiles}
                   activeSlot={activeSlot}
@@ -320,6 +320,11 @@ const AppViewRouter: React.FC<AppViewRouterProps> = ({
                   onCreate={onCreateProfile}
                   onDelete={onDeleteProfile}
                   onRename={onRenameProfile}
+                  initialTab={currentView === 'vault' ? 'vault' : 'profiles'}
+                  onBuildCV={(jd) => {
+                    onSlotUpdate({ jobDescription: jd });
+                    setCurrentView('cv-generator');
+                  }}
                 />
               )}
 

@@ -154,6 +154,17 @@ export const ShareNavIcon: React.FC<{ className?: string }> = ({ className }) =>
   </svg>
 );
 
+export const VaultNavIcon: React.FC<{ className?: string }> = ({ className }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round">
+    <rect x="3" y="3" width="18" height="18" rx="3"/>
+    <path d="M3 9h18"/>
+    <path d="M9 21V9"/>
+    <circle cx="6" cy="6" r="0.5" fill="currentColor"/>
+    <circle cx="12" cy="15" r="2"/>
+    <path d="M12 13v-1"/>
+  </svg>
+);
+
 export const UsersIcon: React.FC<{ className?: string }> = ({ className }) => (
   <svg
     className={className}

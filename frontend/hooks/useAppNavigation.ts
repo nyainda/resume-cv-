@@ -16,6 +16,7 @@ import {
   HomeNavIcon,
   CVGenNavIcon,
   BuildNavIcon,
+  VaultNavIcon,
 } from '../components/nav/NavIcons';
 import { Target, List, BookOpen } from '../components/icons';
 import { isPureFreeTier, getEffectiveTier } from '../services/accountTierService';
@@ -25,6 +26,7 @@ import { hasCompletedOnboarding } from '../components/OnboardingWizard';
 export type AppView =
   | 'dashboard'
   | 'rooms'
+  | 'vault'
   | 'generator'
   | 'build'
   | 'linkedin'
@@ -47,7 +49,7 @@ export type AppView =
 
 const VIEW_KEY = 'procv:lastView';
 const RESTORABLE_VIEWS = [
-  'dashboard', 'rooms', 'generator', 'build', 'linkedin', 'interview', 'essays',
+  'dashboard', 'rooms', 'vault', 'generator', 'build', 'linkedin', 'interview', 'essays',
   'history', 'tracker', 'toolkit', 'email', 'negotiation',
   'analytics', 'score', 'pivot',
 ] as const;
@@ -185,6 +187,7 @@ export function useAppNavigation({
   const primaryNav = [
     { id: 'dashboard', label: 'Home',          icon: HomeNavIcon },
     { id: 'rooms',     label: 'Rooms',         icon: RoomsNavIcon },
+    { id: 'vault',     label: 'Job Vault',     icon: VaultNavIcon },
     { id: 'generator', label: 'CV Generator',  icon: CVGenNavIcon },
     { id: 'build',     label: 'Build Report',  icon: BuildNavIcon },
     { id: 'score',     label: 'Score My CV',   icon: ScoreNavIcon },
