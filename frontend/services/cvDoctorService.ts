@@ -22,6 +22,7 @@ import { CVData } from '../types';
 import { groqChat } from './groqService';
 import { getCachedBannedPhrases } from './cvEngineClient';
 import { detectField } from './cvPromptHelpers';
+import { purifiedCompletion } from './purifiedLLMGateway';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -357,6 +358,11 @@ Return ONLY this JSON (no markdown, no prose):
         if (typeof v === 'string' && v.trim().length > 20) return v.trim();
         return undefined;
     };
+    // Purify the suggested summary through the gateway so Doctor can't reintroduce banned phrases
+    const rawSummary = cleanStr(parsed.suggestedSummary);
+    const suggestedSummary = rawSummary
+        ? (await purifiedCompletion(() => Promise.resolve(rawSummary))).text
+        : undefined;
     return {
         toAdd:            clean(parsed.toAdd),
         toRemove:         clean(parsed.toRemove),
@@ -364,7 +370,7 @@ Return ONLY this JSON (no markdown, no prose):
         noMetricCount,
         duplicateSkills:  clean(parsed.duplicateSkills, 4),
         summaryIssues:    clean(parsed.summaryIssues, 3),
-        suggestedSummary: cleanStr(parsed.suggestedSummary),
+        suggestedSummary,
     };
 }
 
@@ -419,10 +425,15 @@ RULES:
 Return ONLY a JSON array of exactly 3 strings:
 ["rewrite one", "rewrite two", "rewrite three"]`;
 
-    const text = await groqChat(FAST_MODEL, SYSTEM_JSON, prompt, { temperature: 0.65, json: true, maxTokens: 600 });
-    const arr = safeParseJson(text);
+    const rawText = await groqChat(FAST_MODEL, SYSTEM_JSON, prompt, { temperature: 0.65, json: true, maxTokens: 600 });
+    const arr = safeParseJson(rawText);
     if (!Array.isArray(arr)) return [];
-    return arr.filter((s: unknown): s is string => typeof s === 'string').slice(0, 3);
+    const strings = arr.filter((s: unknown): s is string => typeof s === 'string').slice(0, 3);
+    // Run each rewrite through the purification gateway to strip any AI/banned phrases
+    const purified = await Promise.all(
+        strings.map(s => purifiedCompletion(() => Promise.resolve(s)).then(r => r.text))
+    );
+    return purified;
 }
 
 // ─── 3b. Suggest a quantified version for a metric-less bullet ────────────────
@@ -497,7 +508,10 @@ STRICT RULES:
 - BANNED phrases — never use: ${bannedList}
 - Return ONLY the single rewritten bullet — no quotes, no preamble, no commentary`;
 
-    const raw = await groqChat(FAST_MODEL, SYSTEM_JSON, prompt, { temperature: 0.5, maxTokens: 130 });
+    // Run the raw groqChat call through the purification gateway
+    const { text: raw } = await purifiedCompletion(
+        () => groqChat(FAST_MODEL, SYSTEM_JSON, prompt, { temperature: 0.5, maxTokens: 130 })
+    );
     return raw.trim()
         .replace(/^```[\s\S]*?```/g, '')
         .replace(/^["•\-*·»]\s*/, '')

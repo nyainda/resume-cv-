@@ -3746,6 +3746,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
           cv={currentCV}
           jobDescription={jobDescription || undefined}
           diff={optimizeDiff}
+          initialAnnotations={buildReport?.annotations}
           onApplyBullet={(roleIndex, bulletIndex, newText) => {
             if (!currentCV) return;
             const exp = currentCV.experience.map((role, rIdx) => {

@@ -423,6 +423,7 @@ const AppViewRouter: React.FC<AppViewRouterProps> = ({
                 <ScoreMyCVPage
                   currentCV={currentCV}
                   onGoToGenerator={() => setCurrentView('generator')}
+                  buildReport={buildReport}
                   onCVUpdate={(cv) => {
                     setCurrentCV(cv);
                     if (isAuthenticated && activeSlot) enqueueSlotSync({ ...activeSlot, currentCV: cv }).catch(() => {});

@@ -97,6 +97,10 @@ import {
     handleRuleRegistryRollback,
 } from './handlers/ruleRegistry';
 
+import {
+    handleEscapesPost, handleEscapesGet, handleEscapePromote,
+} from './handlers/escapes';
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default {
@@ -187,6 +191,11 @@ async function _dispatch(request: Request, env: Env, ctx: ExecutionContext, url:
         const rl = await rateLimitRequest(env, request, 'cache', 120, 60);
         if (!rl.allowed) return rateLimitResponse(request, env, rl.retryAfter);
     }
+
+    // ── Pipeline learning loop ────────────────────────────────────────────────
+    if (p === '/api/pipeline/escapes'       && m === 'POST') return handleEscapesPost(request, env);
+    if (p === '/api/pipeline/escapes'       && m === 'GET')  return handleEscapesGet(request, env);
+    if (p === '/api/admin/escapes/promote'  && m === 'POST') return handleEscapePromote(request, env, url);
 
     // ── Data / KV reads ───────────────────────────────────────────────────────
     if (p === '/health')                                                    return handleHealth(request, env);

@@ -1082,6 +1082,8 @@ interface ScoreMyCVPageProps {
   currentCV: CVData | null;
   onGoToGenerator: () => void;
   onCVUpdate?: (cv: CVData) => void;
+  /** Pre-computed ARE build report — atsReport reused when no JD has been entered */
+  buildReport?: import('../types/buildReport').CVBuildReport | null;
 }
 
 interface ScoreResults {
@@ -1101,7 +1103,7 @@ interface ScoreResults {
 const BULLET_FIX_SIGNALS = new Set(['verb_saturation','banned_opener','repeated_opener','pronoun_leak','passive_voice','length_uniformity']);
 const SUMMARY_FIX_SIGNALS = new Set(['summary_cliches','generic_opener']);
 
-const ScoreMyCVPage: React.FC<ScoreMyCVPageProps> = ({ currentCV, onGoToGenerator, onCVUpdate }) => {
+const ScoreMyCVPage: React.FC<ScoreMyCVPageProps> = ({ currentCV, onGoToGenerator, onCVUpdate, buildReport }) => {
   const [jd, setJd]                     = useState('');
   const [jdExpanded, setJdExpanded]     = useState(false);
   const [scoring, setScoring]           = useState(false);
@@ -1276,7 +1278,10 @@ const ScoreMyCVPage: React.FC<ScoreMyCVPageProps> = ({ currentCV, onGoToGenerato
     const humanVoice     = scoreHRDetection(currentCV, extraOpeners, extraAiisms);
     const bulletQuality  = scoreBulletQuality(currentCV);
     const careerLogic    = auditSeniorityCoherence(currentCV);
-    const atsMatch       = jd.trim() ? scoreAtsCoverage(currentCV, jd.trim()) : null;
+    // Use cached ARE result when no JD is entered; run fresh when JD is provided
+    const atsMatch = jd.trim()
+      ? scoreAtsCoverage(currentCV, jd.trim())
+      : (buildReport?.atsReport ?? null);
     const evidenceScore  = scoreEvidenceStrength(currentCV);
     const densityScore   = scoreAchievementDensity(currentCV);
     const metricStrength = scoreMetricStrength(currentCV);

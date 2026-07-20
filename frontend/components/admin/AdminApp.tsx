@@ -12,12 +12,13 @@ const HealthTab        = lazy(() => import('./HealthTab'));
 const CVEngineTab      = lazy(() => import('./CVEngineTab'));
 const LeakQueueTab     = lazy(() => import('./LeakQueueTab'));
 const PipelineTab      = lazy(() => import('./PipelineTab'));
+const EscapeReviewPage = lazy(() => import('./EscapeReviewPage'));
 const LiveFeedTab      = lazy(() => import('./LiveFeedTab'));
 const DBBrowserTab     = lazy(() => import('./DBBrowserTab'));
 const NotificationsTab = lazy(() => import('./NotificationsTab'));
 const SeoTab           = lazy(() => import('./SeoTab'));
 
-export type AdminTab = 'overview' | 'users' | 'auth-logs' | 'cv-engine' | 'leak-queue' | 'tokens' | 'health' | 'pipeline' | 'live-feed' | 'db' | 'notifications' | 'seo';
+export type AdminTab = 'overview' | 'users' | 'auth-logs' | 'cv-engine' | 'leak-queue' | 'tokens' | 'health' | 'pipeline' | 'live-feed' | 'db' | 'notifications' | 'seo' | 'escapes';
 
 const NAV_GROUPS = [
   {
@@ -36,6 +37,7 @@ const NAV_GROUPS = [
       { id: 'users'          as AdminTab, label: 'Users',          icon: <IUsers /> },
       { id: 'auth-logs'      as AdminTab, label: 'Auth Logs',      icon: <ILogs /> },
       { id: 'leak-queue'     as AdminTab, label: 'Leak Queue',     icon: <IWarn /> },
+      { id: 'escapes'        as AdminTab, label: 'Escape Review',  icon: <IWarn /> },
       { id: 'db'             as AdminTab, label: 'DB Browser',     icon: <IDB /> },
     ],
   },
@@ -254,6 +256,7 @@ function AdminAppInner() {
             {tab === 'overview'       && <OverviewTab />}
             {tab === 'live-feed'      && <LiveFeedTab />}
             {tab === 'pipeline'       && <PipelineTab />}
+            {tab === 'escapes'        && <EscapeReviewPage />}
             {tab === 'seo'            && <SeoTab />}
             {tab === 'notifications'  && <NotificationsTab />}
             {tab === 'users'          && <UsersTab />}

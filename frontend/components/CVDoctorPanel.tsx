@@ -30,6 +30,8 @@ interface Props {
     onClose:         () => void;
     /** Called when the doctor makes a structural change to the full CV (e.g. dedup skills) */
     onUpdateCV?:     (cv: CVData) => void;
+    /** Pre-computed bullet annotations from ARE — skips classifyBullets() when provided */
+    initialAnnotations?: BulletAnnotation[];
 }
 
 // ─── Colour legend items ──────────────────────────────────────────────────────
@@ -244,7 +246,7 @@ const PARAPHRASE_TONES: { id: ParaphraseTone; label: string; desc: string; emoji
 
 type Tab = 'scan' | 'bullets' | 'changes' | 'paraphrase';
 
-const CVDoctorPanel: React.FC<Props> = ({ cv, jobDescription, diff, onApplyBullet, onClose, onUpdateCV }) => {
+const CVDoctorPanel: React.FC<Props> = ({ cv, jobDescription, diff, onApplyBullet, onClose, onUpdateCV, initialAnnotations }) => {
     const [activeTab, setActiveTab] = useState<Tab>(diff && diff.totalChanges > 0 ? 'changes' : 'scan');
     const [scan,      setScan]      = useState<CVDoctorScan | null>(null);
     const [scanLoading, setScanLoading] = useState(false);
@@ -304,7 +306,10 @@ const CVDoctorPanel: React.FC<Props> = ({ cv, jobDescription, diff, onApplyBulle
         setTimeout(() => setParaCopied(false), 2000);
     };
 
-    const annotations = React.useMemo(() => classifyBullets(cv), [cv]);
+    const annotations = React.useMemo(
+        () => (initialAnnotations && initialAnnotations.length > 0) ? initialAnnotations : classifyBullets(cv),
+        [initialAnnotations, cv],
+    );
     const goodCount   = annotations.filter(a => a.primaryIssue === 'good').length;
     const issueCount  = annotations.length - goodCount;
 

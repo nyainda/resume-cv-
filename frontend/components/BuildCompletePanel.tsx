@@ -10,6 +10,7 @@
  */
 
 import React, { useState, useCallback } from 'react';
+import { recordEscape } from '../services/escapeCollector';
 import { CVData } from '../types';
 import type { CVBuildReport, ReviewItem, ManualFlag } from '../types/buildReport';
 import {
@@ -575,9 +576,19 @@ export default function BuildCompletePanel({
   }, [onApplySuggestion]);
 
   const handleSkip = useCallback((id: string) => {
-    setLocalItems(prev =>
-      prev.map(i => i.id === id ? { ...i, skipped: true } : i)
-    );
+    setLocalItems(prev => {
+      const item = prev.find(i => i.id === id);
+      if (item) {
+        // Emit escape signal — the AI suggestion was not good enough for this pattern
+        const escType =
+          item.issueType === 'weak_verb'     ? 'weak_verb'    :
+          item.issueType === 'passive_voice' ? 'passive'      :
+          item.issueType === 'ai_language'   ? 'ai_language'  :
+          item.issueType === 'banned_phrase' ? 'banned_phrase' : 'other';
+        recordEscape(escType, item.original, 'user_skip');
+      }
+      return prev.map(i => i.id === id ? { ...i, skipped: true } : i);
+    });
     onSkipSuggestion(id);
   }, [onSkipSuggestion]);
 
