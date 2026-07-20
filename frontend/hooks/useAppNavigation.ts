@@ -16,7 +16,6 @@ import {
   HomeNavIcon,
   CVGenNavIcon,
   BuildNavIcon,
-  VaultNavIcon,
 } from '../components/nav/NavIcons';
 import { Target, List, BookOpen } from '../components/icons';
 import { isPureFreeTier, getEffectiveTier } from '../services/accountTierService';
@@ -185,14 +184,13 @@ export function useAppNavigation({
   }, []);
 
   const primaryNav = [
-    { id: 'dashboard', label: 'Home',          icon: HomeNavIcon },
-    { id: 'rooms',     label: 'Rooms',         icon: RoomsNavIcon },
-    { id: 'vault',     label: 'Job Vault',     icon: VaultNavIcon },
-    { id: 'generator', label: 'CV Generator',  icon: CVGenNavIcon },
-    { id: 'build',     label: 'Build Report',  icon: BuildNavIcon },
-    { id: 'score',     label: 'Score My CV',   icon: ScoreNavIcon },
+    { id: 'dashboard', label: 'Home',           icon: HomeNavIcon },
+    { id: 'rooms',     label: 'Career Rooms',   icon: RoomsNavIcon },
+    { id: 'generator', label: 'CV Generator',   icon: CVGenNavIcon },
+    { id: 'build',     label: 'Build Report',   icon: BuildNavIcon },
+    { id: 'score',     label: 'Score My CV',    icon: ScoreNavIcon },
     { id: 'interview', label: 'Interview Prep', icon: InterviewNavIcon },
-    { id: 'tracker',   label: 'Job Tracker',   icon: Target },
+    { id: 'tracker',   label: 'Job Tracker',    icon: Target },
   ];
 
   const moreNavGroups = [
