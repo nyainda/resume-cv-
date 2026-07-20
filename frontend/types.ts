@@ -305,6 +305,11 @@ export interface SavedCoverLetter {
   name: string;
   createdAt: string;
   text: string;
+  // Rich metadata saved at generation time — used for history cards & quality badges
+  company?: string;
+  jobTitle?: string;
+  wordCount?: number;
+  issueCount?: number; // number of HR rule violations at save time (0 = Excellent)
 }
 
 // --- Scholarship / Grant Application Formats ---

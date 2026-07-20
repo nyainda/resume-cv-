@@ -8,6 +8,10 @@ interface CoverLetterPreviewProps {
   onTextChange: (newText: string) => void;
   fileName: string;
   personalInfo?: PersonalInfo;
+  /** Called when the user clicks "Save to History". Receives word count + issue count so the caller can enrich with company/jobTitle. */
+  onSave?: (data: { wordCount: number; issueCount: number }) => void;
+  /** If a letter was just saved, show a brief confirmation */
+  savedConfirm?: boolean;
 }
 
 // ─── Letter text formatter ────────────────────────────────────────────────────
@@ -701,8 +705,10 @@ const CoverLetterPreview: React.FC<CoverLetterPreviewProps> = ({
   onTextChange,
   fileName,
   personalInfo,
+  onSave,
 }) => {
   const [copied,    setCopied]    = useState(false);
+  const [saved,     setSaved]     = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [template,  setTemplate]  = useState<CoverLetterTemplate>('modern');
   const [status,    setStatus]    = useState('');
@@ -776,7 +782,7 @@ const CoverLetterPreview: React.FC<CoverLetterPreviewProps> = ({
 
         {/* Action buttons */}
         {!isEmpty && (
-          <div className="flex items-center gap-2 flex-shrink-0">
+          <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
             <button
               onClick={() => setIsEditing(e => !e)}
               className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-zinc-200 dark:border-neutral-700 text-sm font-medium text-zinc-700 dark:text-zinc-300 bg-white dark:bg-neutral-800 hover:bg-zinc-50 dark:hover:bg-neutral-700 transition-colors"
@@ -795,6 +801,25 @@ const CoverLetterPreview: React.FC<CoverLetterPreviewProps> = ({
                 : <><svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>Copy</>
               }
             </button>
+            {onSave && (
+              <button
+                onClick={() => {
+                  onSave({ wordCount, issueCount: issues.length });
+                  setSaved(true);
+                  setTimeout(() => setSaved(false), 2500);
+                }}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border text-sm font-medium transition-colors"
+                style={saved
+                  ? { borderColor: '#22c55e', color: '#16a34a', background: '#f0fdf4' }
+                  : { borderColor: '#1B2B4B', color: '#1B2B4B', background: '#1B2B4B0D' }
+                }
+              >
+                {saved
+                  ? <><svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>Saved!</>
+                  : <><svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" /></svg>Save</>
+                }
+              </button>
+            )}
           </div>
         )}
       </div>

@@ -28,6 +28,7 @@ const AccountPage          = lazy(() => import('./AccountPage'));
 const SettingsPage         = lazy(() => import('./SettingsPage'));
 const ShareProfilePage     = lazy(() => import('./ShareProfilePage'));
 const BuildReportPage      = lazy(() => import('./BuildReportPage'));
+const CoverLettersPage     = lazy(() => import('./CoverLettersPage'));
 
 // ── Shared fallback spinner ────────────────────────────────────────────────────
 const ViewFallback: React.FC = () => (
@@ -89,6 +90,7 @@ interface AppViewRouterProps {
   onProfileSave: (profile: UserProfile) => void;
   onGitHubCVGenerated: (cv: CVData) => void;
   onJsonProfileImported: (profile: UserProfile) => void;
+  onSaveCoverLetter: (letter: SavedCoverLetter) => void;
   onDeleteCV: (id: string) => void;
   onLoadCV: (cv: CVData) => void;
   onSwitchProfile: (slot: UserProfileSlot) => void;
@@ -156,6 +158,7 @@ const AppViewRouter: React.FC<AppViewRouterProps> = ({
   onProfileSave,
   onGitHubCVGenerated,
   onJsonProfileImported,
+  onSaveCoverLetter,
   onDeleteCV,
   onLoadCV,
   onSwitchProfile,
@@ -338,6 +341,14 @@ const AppViewRouter: React.FC<AppViewRouterProps> = ({
                   onNavigate={(view) => setCurrentView(view as any)}
                   onEditProfile={() => setIsEditingProfile(true)}
                   onSwitchProfile={onSwitchProfile}
+                />
+              )}
+
+              {currentView === 'cover-letters' && (
+                <CoverLettersPage
+                  savedCoverLetters={savedCoverLetters}
+                  onSaveCoverLetter={onSaveCoverLetter}
+                  onGoToGenerator={() => setCurrentView('generator')}
                 />
               )}
 

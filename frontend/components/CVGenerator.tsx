@@ -180,6 +180,8 @@ interface CVGeneratorProps {
   /** Called after runAutoRepair completes — lifts the report to App level so the
    *  standalone Build Report page can display it even after navigating away. */
   onBuildReportReady?: (report: CVBuildReport, cv: CVData) => void;
+  /** Called when user clicks "Save" on the cover letter — passes enough metadata for the history view. */
+  onSaveCoverLetter?: (letter: import('../types').SavedCoverLetter) => void;
 }
 
 const fileToBase64 = (file: File): Promise<{ base64: string, mimeType: string }> => {
@@ -267,7 +269,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
   onSaveStories, onGoToInterviewPrep, onRestoreProfileBullets, importedFromJson,
   profileId, initialJobDescription, initialTargetCompany, initialTargetJobTitle,
   initialCvPurpose, initialGenerationMode, initialJdKeywords, onSlotUpdate, onPinField, onUnpinField, onShareLinkAdded,
-  onUpgrade, openToolkitAtQualityAudit, activeSlot, darkMode = false,
+  onUpgrade, openToolkitAtQualityAudit, activeSlot, darkMode = false, onSaveCoverLetter,
 }) => {
   const GOLD = '#C9A84C';
   const { isAuthenticated, requireAuth, user: workerUser, isLoading: isAuthLoading } = useAuth();
@@ -3631,6 +3633,19 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
               onTextChange={setCoverLetter}
               fileName={`${userProfile.personalInfo.name.replace(/\s+/g, '_')}_Cover_Letter.pdf`}
               personalInfo={userProfile.personalInfo}
+              onSave={onSaveCoverLetter ? ({ wordCount, issueCount }) => {
+                const text = coverLetter ?? '';
+                onSaveCoverLetter({
+                  id: `cl-${Date.now()}`,
+                  name: targetCompany || targetJobTitle || 'Cover Letter',
+                  createdAt: new Date().toISOString(),
+                  text,
+                  company: targetCompany || undefined,
+                  jobTitle: targetJobTitle || undefined,
+                  wordCount,
+                  issueCount,
+                });
+              } : undefined}
             />
           )}
         </div>

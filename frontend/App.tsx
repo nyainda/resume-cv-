@@ -893,6 +893,15 @@ const AppInner: React.FC = () => {
         setToolkitSuggestions={setToolkitSuggestions}
         toolkitForceTab={toolkitForceTab}
         setToolkitForceTab={setToolkitForceTab}
+        onSaveCoverLetter={(letter) => {
+          setSavedCoverLetters((prev: import('./types').SavedCoverLetter[]) => {
+            const updated = [letter, ...prev.filter(l => l.id !== letter.id)];
+            if (isAuthenticated && activeSlot) {
+              enqueueSlotSync({ ...activeSlot, savedCoverLetters: updated }).catch(() => {});
+            }
+            return updated;
+          });
+        }}
         onSaveCV={handleSaveCV}
         onAutoSaveCV={handleSaveCVFromPipeline}
         onAutoTrack={handleAutoTrack}

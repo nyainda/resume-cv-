@@ -17,7 +17,7 @@ import {
   CVGenNavIcon,
   BuildNavIcon,
 } from '../components/nav/NavIcons';
-import { Target, List, BookOpen } from '../components/icons';
+import { Target, List, BookOpen, FileText } from '../components/icons';
 import { isPureFreeTier, getEffectiveTier } from '../services/accountTierService';
 import { hasCompletedOnboarding } from '../components/OnboardingWizard';
 
@@ -32,6 +32,7 @@ export type AppView =
   | 'interview'
   | 'essays'
   | 'history'
+  | 'cover-letters'
   | 'tracker'
   | 'toolkit'
   | 'email'
@@ -49,7 +50,7 @@ export type AppView =
 const VIEW_KEY = 'procv:lastView';
 const RESTORABLE_VIEWS = [
   'dashboard', 'rooms', 'vault', 'generator', 'build', 'linkedin', 'interview', 'essays',
-  'history', 'tracker', 'toolkit', 'email', 'negotiation',
+  'history', 'cover-letters', 'tracker', 'toolkit', 'email', 'negotiation',
   'analytics', 'score', 'pivot',
 ] as const;
 type RestorableView = typeof RESTORABLE_VIEWS[number];
@@ -212,8 +213,9 @@ export function useAppNavigation({
     {
       label: 'Track',
       items: [
-        { id: 'history',   label: 'CV History', icon: List },
-        { id: 'analytics', label: 'Analytics',  icon: AnalyticsNavIcon },
+        { id: 'history',        label: 'CV History',      icon: List },
+        { id: 'cover-letters',  label: 'Cover Letters',   icon: FileText },
+        { id: 'analytics',      label: 'Analytics',       icon: AnalyticsNavIcon },
       ],
     },
     {
