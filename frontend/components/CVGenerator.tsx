@@ -37,6 +37,7 @@ import QualityIssuesPanel from './QualityIssuesPanel';
 import { scoreAtsCoverage } from '../services/cvAtsKeywords';
 import BuildCompletePanel from './BuildCompletePanel';
 import { runAutoRepair } from '../services/autoRepairEngine';
+import { deduplicateCVSkills } from '../services/cvQualityGate';
 import type { CVBuildReport } from '../types/buildReport';
 import { recordFieldHistory } from '../services/cvPromptHelpers';
 import { profileToCV } from '../utils/profileToCV';
@@ -1335,6 +1336,10 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
         setBuildReport(null);
       }
 
+      // Auto-fix: silently remove exact-match duplicate skills before committing.
+      // The quality gate still flags semantic duplicates ("Stakeholder Management"
+      // vs "Stakeholder Engagement") so users can review those manually.
+      generatedData = deduplicateCVSkills(generatedData);
       setCurrentCV(generatedData);
       syncCurrentCVToD1(generatedData);
       setDraftCV(null); // draft replaced by polished final version

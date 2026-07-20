@@ -27,6 +27,7 @@
  */
 
 import { workerTieredLLM } from './cvEngineClient';
+import type { CVData } from '../types';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -637,3 +638,26 @@ function _saveViolationsForNextRun(violations: QualityViolation[], profileFinger
 // Exported as empty string so any stale import site causes no regression — the Worker-fetched
 // version is always used for generation.
 export const CRITICAL_RULES_REMINDER = '';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Auto-fix: deduplicate skills in a CV without requiring user action.
+// Uses the same normalisation as scoreSkills so the fix is consistent with
+// what the quality gate flags ("React" and "React.js" both normalise to
+// "reactjs" — the first occurrence wins, the second is silently dropped).
+// ─────────────────────────────────────────────────────────────────────────────
+export function deduplicateCVSkills(cv: CVData): CVData {
+  if (!Array.isArray(cv.skills) || cv.skills.length === 0) return cv;
+  const seen = new Set<string>();
+  const deduped: string[] = [];
+  for (const skill of cv.skills) {
+    if (typeof skill !== 'string' || !skill.trim()) continue;
+    const key = skill.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (!seen.has(key)) {
+      seen.add(key);
+      deduped.push(skill.trim());
+    }
+  }
+  // Return same reference if nothing changed (avoids spurious re-renders)
+  if (deduped.length === cv.skills.length) return cv;
+  return { ...cv, skills: deduped };
+}

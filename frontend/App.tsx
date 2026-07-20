@@ -228,10 +228,28 @@ const AppInner: React.FC = () => {
   });
 
   // ── Build Report — lifted from CVGenerator so the standalone page persists ──
+  // Also written into the active slot so it survives page refresh and syncs
+  // to other devices via D1 (same path as currentCV / savedCoverLetters).
   const [lastBuildReport, setLastBuildReport] = useState<CVBuildReport | null>(null);
+
+  // Restore from slot whenever the active profile changes (e.g. sign-in, profile switch).
+  useEffect(() => {
+    if (activeSlot?.lastBuildReport) {
+      setLastBuildReport(activeSlot.lastBuildReport ?? null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeSlot?.id]);
+
   const handleBuildReportReady = useCallback((report: CVBuildReport, _cv: CVData) => {
     setLastBuildReport(report);
-  }, []);
+    // Persist into the slot so it survives refresh on this device and syncs
+    // to other signed-in devices on their next D1 poll.
+    if (activeSlot) {
+      const updated = { ...activeSlot, lastBuildReport: report };
+      setProfiles(prev => prev.map(p => p.id === activeSlot.id ? updated : p));
+      enqueueSlotSync(updated).catch(() => {});
+    }
+  }, [activeSlot, setProfiles]);
 
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);

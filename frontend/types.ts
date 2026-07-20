@@ -1,5 +1,6 @@
 
 // types.ts
+import type { CVBuildReport } from './types/buildReport';
 
 // --- S3: Confidence-Tagged Profile Fields ---
 
@@ -178,6 +179,9 @@ export interface UserProfileSlot {
   // ── Tracker / analytics ─────────────────────────────────────────────────
   lastGeneratedAt?: string;         // ISO timestamp of last successful generation
   lastAtsScore?: number;            // cached ATS score after last generation (0-100)
+
+  // ── Build report — persisted so it survives refresh + syncs across devices ─
+  lastBuildReport?: CVBuildReport | null;
 }
 
 // --- Email Application ---
