@@ -1,11 +1,82 @@
 /**
- * vaultService.ts — Job Vault CRUD using localStorage.
- * Scoped to the current user via a prefix; no D1 sync in v1.
+ * vaultService.ts — Job Vault CRUD.
+ * Primary store: localStorage (instant, offline-capable).
+ * Secondary: D1 via CF Worker (sync on save/update/delete when authenticated).
  */
 
 import type { VaultJob, VaultInputType, VaultRoomType, VaultPriority } from '../types';
 
 const VAULT_KEY = 'procv:vault_jobs';
+
+// ── Backend sync helpers ──────────────────────────────────────────────────────
+
+const ENGINE_URL: string = (import.meta as any).env?.VITE_CV_ENGINE_URL ?? '';
+
+function vaultApiUrl(path: string): string {
+  if (/^https?:\/\//.test(ENGINE_URL)) return ENGINE_URL + path;
+  if (ENGINE_URL) return window.location.origin + ENGINE_URL + path;
+  return path; // relative — proxied in dev
+}
+
+function isAuthenticated(): boolean {
+  try { return !!localStorage.getItem('procv:worker_user'); } catch { return false; }
+}
+
+async function apiPost(path: string, body: object): Promise<void> {
+  if (!isAuthenticated()) return;
+  try {
+    await fetch(vaultApiUrl(path), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(body),
+    });
+  } catch { /* offline — localStorage is the source of truth */ }
+}
+
+async function apiPatch(path: string, body: object): Promise<void> {
+  if (!isAuthenticated()) return;
+  try {
+    await fetch(vaultApiUrl(path), {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(body),
+    });
+  } catch { /* offline */ }
+}
+
+async function apiDelete(path: string): Promise<void> {
+  if (!isAuthenticated()) return;
+  try {
+    await fetch(vaultApiUrl(path), { method: 'DELETE', credentials: 'include' });
+  } catch { /* offline */ }
+}
+
+/** Pull server jobs and merge into localStorage (server wins on conflict). */
+export async function syncVaultFromServer(): Promise<void> {
+  if (!isAuthenticated()) return;
+  try {
+    const res = await fetch(vaultApiUrl('/api/vault/jobs'), {
+      credentials: 'include',
+    });
+    if (!res.ok) return;
+    const data = await res.json() as { ok: boolean; jobs: VaultJob[] };
+    if (!data.ok || !Array.isArray(data.jobs) || data.jobs.length === 0) return;
+
+    const local = loadAll();
+    const localById = new Map(local.map(j => [j.id, j]));
+
+    // Merge: server wins on updated_at
+    for (const sj of data.jobs) {
+      const lj = localById.get(sj.id);
+      if (!lj || sj.updated_at >= lj.updated_at) {
+        localById.set(sj.id, sj);
+      }
+    }
+    saveAll([...localById.values()].sort((a, b) => b.createdAt - a.createdAt));
+  } catch { /* offline */ }
+}
 
 function getKey(): string {
   try {
@@ -81,23 +152,42 @@ export function saveVaultJob(input: SaveVaultJobInput): SaveVaultJobResult {
 
   const now = Date.now();
   const newJob: VaultJob = {
-    id:         crypto.randomUUID(),
-    roomId:     input.roomId,
-    title:      input.title || 'Untitled Role',
-    company:    input.company || 'Unknown Company',
-    rawJd:      input.rawJd,
-    inputType:  input.inputType,
-    sourceUrl:  input.sourceUrl,
-    deadline:   input.deadline,
-    priority:   input.priority,
-    roomType:   'uncategorized',
-    status:     'saved',
+    id:          crypto.randomUUID(),
+    roomId:      input.roomId,
+    title:       input.title || 'Untitled Role',
+    company:     input.company || 'Unknown Company',
+    rawJd:       input.rawJd,
+    inputType:   input.inputType,
+    sourceUrl:   input.sourceUrl,
+    deadline:    input.deadline,
+    priority:    input.priority,
+    roomType:    'uncategorized',
+    status:      'saved',
     fingerprint: fp,
-    createdAt:  now,
-    updatedAt:  now,
+    createdAt:   now,
+    updatedAt:   now,
   };
 
   saveAll([newJob, ...jobs]);
+
+  // Fire-and-forget D1 sync (camelCase → snake_case for the API)
+  apiPost('/api/vault/jobs', {
+    id:          newJob.id,
+    room_id:     newJob.roomId,
+    title:       newJob.title,
+    company:     newJob.company,
+    raw_jd:      newJob.rawJd,
+    input_type:  newJob.inputType,
+    source_url:  newJob.sourceUrl ?? null,
+    deadline:    newJob.deadline ?? null,
+    priority:    newJob.priority,
+    room_type:   newJob.roomType,
+    status:      newJob.status,
+    fingerprint: newJob.fingerprint,
+    created_at:  newJob.createdAt,
+    updated_at:  newJob.updatedAt,
+  });
+
   return { job: newJob, isDuplicate: false };
 }
 
@@ -108,11 +198,37 @@ export function updateVaultJob(id: string, patch: Partial<VaultJob>): VaultJob |
   const updated = { ...jobs[idx], ...patch, updatedAt: Date.now() };
   jobs[idx] = updated;
   saveAll(jobs);
+
+  // Translate only the patched fields to snake_case for the API
+  const apiPatch: Record<string, unknown> = {};
+  if ('matchScore'  in patch) apiPatch['match_score']  = patch.matchScore;
+  if ('roomType'    in patch) apiPatch['room_type']    = patch.roomType;
+  if ('roomReason'  in patch) apiPatch['room_reason']  = patch.roomReason;
+  if ('status'      in patch) apiPatch['status']       = patch.status;
+  if ('deadline'    in patch) apiPatch['deadline']     = patch.deadline;
+  if ('priority'    in patch) apiPatch['priority']     = patch.priority;
+  if ('builtCvId'   in patch) apiPatch['built_cv_id']  = patch.builtCvId;
+  if ('title'       in patch) apiPatch['title']        = patch.title;
+  if ('company'     in patch) apiPatch['company']      = patch.company;
+  if (Object.keys(apiPatch).length > 0) {
+    apiPatch['updated_at'] = updated.updatedAt;
+    apiPatch['updated_at'] = updated.updatedAt;
+    void apiPatch; // suppress unused warning
+    // Intentionally fire-and-forget — patch the backend job
+    fetch(vaultApiUrl(`/api/vault/jobs/${id}`), {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(apiPatch),
+    }).catch(() => {});
+  }
+
   return updated;
 }
 
 export function deleteVaultJob(id: string): void {
   saveAll(loadAll().filter(j => j.id !== id));
+  apiDelete(`/api/vault/jobs/${id}`);
 }
 
 /** Cheap title/company extractor from raw JD text */

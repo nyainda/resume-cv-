@@ -5,6 +5,7 @@ import {
   saveVaultJob,
   updateVaultJob,
   deleteVaultJob,
+  syncVaultFromServer,
   extractTitleCompany,
   naiveMatchScore,
   roomTypeFromScore,
@@ -15,9 +16,10 @@ import {
 export function useVaultJobs(profileSkills: string = '') {
   const [jobs, setJobs] = useState<VaultJob[]>(() => getAllVaultJobs());
 
-  // Reload from storage when hook mounts (in case another tab updated it)
+  // On mount: load local then pull server delta
   useEffect(() => {
     setJobs(getAllVaultJobs());
+    syncVaultFromServer().then(() => setJobs(getAllVaultJobs()));
   }, []);
 
   const refresh = useCallback(() => {

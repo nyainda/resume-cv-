@@ -187,6 +187,25 @@ export async function runDbCleanupCron(env: Env): Promise<void> {
         summary.cv_leak_candidates = leakRes.meta?.changes ?? 0;
     } catch (e) { summary.cv_leak_candidates_err = 1; console.error('[cron] cv_leak_candidates cleanup error', e); }
 
+    // Vault job cleanup:
+    //   1. Remove 'expired' status jobs that haven't changed in 30+ days
+    //   2. Remove any vault job older than 180 days (safety purge)
+    try {
+        const vaultExpired = await env.CV_DB.prepare(
+            `DELETE FROM vault_jobs
+             WHERE status = 'expired'
+               AND updated_at < ?`
+        ).bind(Date.now() - 30 * 86400 * 1000).run();
+        summary.vault_expired = vaultExpired.meta?.changes ?? 0;
+    } catch (e) { summary.vault_expired_err = 1; console.error('[cron] vault_jobs expired cleanup error', e); }
+
+    try {
+        const vaultOld = await env.CV_DB.prepare(
+            `DELETE FROM vault_jobs WHERE created_at < ?`
+        ).bind(Date.now() - 180 * 86400 * 1000).run();
+        summary.vault_old = vaultOld.meta?.changes ?? 0;
+    } catch (e) { summary.vault_old_err = 1; console.error('[cron] vault_jobs old cleanup error', e); }
+
     console.log(`[cron] db-cleanup: ${JSON.stringify(summary)}`);
 }
 

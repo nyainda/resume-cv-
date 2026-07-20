@@ -101,6 +101,11 @@ import {
     handleEscapesPost, handleEscapesGet, handleEscapePromote,
 } from './handlers/escapes';
 
+import {
+    handleVaultJobsGet, handleVaultJobsPost,
+    handleVaultJobPatch, handleVaultJobDelete,
+} from './handlers/vault';
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default {
@@ -330,6 +335,13 @@ async function _dispatch(request: Request, env: Env, ctx: ExecutionContext, url:
     // /api/cv/prompt-registry/:section  (public — active prompt)
     const sectionMatch = /^\/api\/cv\/prompt-registry\/([^/]+)$/.exec(p);
     if (sectionMatch && m === 'GET') return handlePromptRegistryGet(request, env, decodeURIComponent(sectionMatch[1]));
+
+    // ── Job Vault ─────────────────────────────────────────────────────────────
+    if (p === '/api/vault/jobs' && m === 'GET')  return handleVaultJobsGet(request, env, url);
+    if (p === '/api/vault/jobs' && m === 'POST') return handleVaultJobsPost(request, env);
+    const vaultPatchMatch = /^\/api\/vault\/jobs\/([^/]+)$/.exec(p);
+    if (vaultPatchMatch && m === 'PATCH')  return handleVaultJobPatch(request, env, vaultPatchMatch[1]);
+    if (vaultPatchMatch && m === 'DELETE') return handleVaultJobDelete(request, env, vaultPatchMatch[1]);
 
     return json({ error: 'not_found', path: p }, request, env, 404);
 }
