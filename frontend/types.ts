@@ -42,6 +42,7 @@ export interface Education {
   id: string;
   degree: string;
   school: string;
+  startYear?: string;
   graduationYear: string;
 }
 
@@ -50,6 +51,8 @@ export interface Project {
   name: string;
   description: string;
   link: string;
+  startDate?: string;
+  endDate?: string;
 }
 
 export interface Language {

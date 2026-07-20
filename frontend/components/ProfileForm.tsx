@@ -261,9 +261,9 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
       personalInfo: { name: '', email: '', phone: '', location: '', linkedin: '', website: '', github: '', photo: '' },
       summary: '',
       workExperience: [{ id: '1', company: '', jobTitle: '', startDate: '', endDate: '', responsibilities: '' }],
-      education: [{ id: '1', degree: '', school: '', graduationYear: '' }],
+      education: [{ id: '1', degree: '', school: '', startYear: '', graduationYear: '' }],
       skills: [],
-      projects: [{ id: '1', name: '', description: '', link: '' }],
+      projects: [{ id: '1', name: '', description: '', link: '', startDate: '', endDate: '' }],
       languages: [{ id: '1', name: '', proficiency: '' }],
     },
   });
@@ -996,13 +996,17 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
                 <Label className="text-xs mb-1 block">School / University <span className="text-red-400">*</span></Label>
                 <Input placeholder="e.g. University of Oxford" {...register(`education.${index}.school`, { required: true })} />
               </div>
+              <div>
+                <Label className="text-xs mb-1 block">Start Year <span className="text-zinc-400 font-normal">(optional)</span></Label>
+                <Input placeholder="2019" {...register(`education.${index}.startYear`)} />
+              </div>
             </div>
           </EntryCard>
         ))}
         {eduFields.length === 0 && <EmptyState message="No education entries yet." />}
       </div>
       <Button type="button" variant="secondary" size="sm"
-        onClick={() => { const ni = eduFields.length; appendEdu({ id: `${Date.now()}`, degree: '', school: '', graduationYear: '' }); setOpenEdu(ni); }}>
+        onClick={() => { const ni = eduFields.length; appendEdu({ id: `${Date.now()}`, degree: '', school: '', startYear: '', graduationYear: '' }); setOpenEdu(ni); }}>
         <Plus className="h-4 w-4 mr-1.5" /> Add Education
       </Button>
     </div>
@@ -1094,6 +1098,16 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
                   );
                 })()}
               </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <Label className="text-xs mb-1 block">Start Date <span className="text-zinc-400 font-normal">(optional)</span></Label>
+                  <Input type="date" {...register(`projects.${index}.startDate`)} />
+                </div>
+                <div>
+                  <Label className="text-xs mb-1 block">End Date <span className="text-zinc-400 font-normal">(leave blank if ongoing)</span></Label>
+                  <Input type="date" {...register(`projects.${index}.endDate`)} />
+                </div>
+              </div>
               <div>
                 <Label className="text-xs mb-1 block">Link</Label>
                 <Input placeholder="https://github.com/username/project" {...register(`projects.${index}.link`)} />
@@ -1104,7 +1118,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
         {projFields.length === 0 && <EmptyState message="No projects added yet." />}
       </div>
       <Button type="button" variant="secondary" size="sm"
-        onClick={() => { const ni = projFields.length; appendProj({ id: `${Date.now()}`, name: '', description: '', link: '' }); setOpenProj(ni); }}>
+        onClick={() => { const ni = projFields.length; appendProj({ id: `${Date.now()}`, name: '', description: '', link: '', startDate: '', endDate: '' }); setOpenProj(ni); }}>
         <Plus className="h-4 w-4 mr-1.5" /> Add Project
       </Button>
     </div>

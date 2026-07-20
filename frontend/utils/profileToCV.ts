@@ -100,12 +100,15 @@ export function profileToCV(profile: UserProfile): CVData {
       degree:      edu.degree         || '',
       school:      edu.school         || '',
       year:        edu.graduationYear || '',
+      startYear:   edu.startYear      || undefined,
       description: (edu as any).description || '',
     })),
     projects: (profile.projects || []).map(p => ({
       name:        p.name        || '',
       description: p.description || '',
       link:        p.link        || '',
+      dates:       formatExpDateRange(p.startDate, p.endDate) || undefined,
+      endDate:     p.endDate     || undefined,
     })),
     languages: (profile.languages || []).map(l => ({
       name:        l.name        || '',
