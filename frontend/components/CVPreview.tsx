@@ -166,6 +166,24 @@ const CVPreview: React.FC<CVPreviewProps> = (props) => {
       data-cv-spacing={spacingLevel !== 0 ? spacingLevel : undefined}
       className="min-w-[210mm] bg-white shadow-sm mx-auto relative"
       style={{
+        // ── Dark-mode isolation ──────────────────────────────────────────────
+        // The CV preview is always a light document regardless of the app's
+        // dark mode setting. We pin colorScheme to 'light' and explicitly
+        // reset the Tailwind/shadcn CSS variables to their light-mode values
+        // so nothing inherits the near-white body text colour from dark mode.
+        colorScheme: 'light',
+        color: '#1a1a1a',
+        ['--background' as string]: '0 0% 100%',
+        ['--foreground' as string]: '240 10% 3.9%',
+        ['--primary' as string]: '220 50% 20%',
+        ['--primary-foreground' as string]: '0 0% 100%',
+        ['--secondary' as string]: '240 4.8% 95.9%',
+        ['--secondary-foreground' as string]: '240 5.9% 10%',
+        ['--muted' as string]: '240 4.8% 95.9%',
+        ['--muted-foreground' as string]: '240 3.8% 46.1%',
+        ['--border' as string]: '35 15% 88%',
+        ['--input' as string]: '35 15% 88%',
+        // ────────────────────────────────────────────────────────────────────
         ...(density !== 1 ? { zoom: density } : {}),
         ...(autoFit && fitScale < 1
           ? {
