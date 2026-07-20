@@ -225,6 +225,7 @@ export const TIERED_MODEL_MAP: Record<string, { model: string; tier: number; fre
     jdKeywords:           { model: '@cf/meta/llama-3.3-70b-instruct-fp8-fast',     tier: 1, free: false, description: 'JD keyword extraction, tier 1/2/3 classification — Llama 70B' },
     cvGenerate:           { model: '@cf/mistralai/mistral-small-3.1-24b-instruct', tier: 2, free: true,  description: 'Main CV JSON generation — Mistral Small 3.1 24B (FREE)' },
     cvGenerateLong:       { model: '@cf/mistralai/mistral-small-3.1-24b-instruct', tier: 2, free: true,  description: 'Long-context CV generation — Mistral Small 3.1 24B (FREE)' },
+    cvGenerateFast:       { model: '@cf/meta/llama-3.1-8b-instruct',               tier: 2, free: true,  description: 'Fast CV generation fallback — Llama 3.1 8B (different model from primary, used in race/fallback)' },
     cvExperience:         { model: '@cf/mistralai/mistral-small-3.1-24b-instruct', tier: 2, free: true,  description: 'CV experience bullets — Mistral Small 3.1 24B (FREE)' },
     cvProjects:           { model: '@cf/mistralai/mistral-small-3.1-24b-instruct', tier: 2, free: true,  description: 'CV projects section — Mistral Small 3.1 24B (FREE)' },
     cvAudit:              { model: '@cf/mistralai/mistral-small-3.1-24b-instruct', tier: 2, free: true,  description: 'Post-generation humanizer audit — Mistral Small 3.1 24B (FREE)' },
@@ -234,6 +235,8 @@ export const TIERED_MODEL_MAP: Record<string, { model: string; tier: number; fre
     cvSkills:             { model: '@cf/ibm-granite/granite-4.0-h-micro',          tier: 2, free: true,  description: 'CV skills list — IBM Granite 4.0 Micro (FREE)' },
     cvEducation:          { model: '@cf/ibm-granite/granite-4.0-h-micro',          tier: 2, free: true,  description: 'CV education section — IBM Granite 4.0 Micro (FREE)' },
     cvFallback:           { model: '@cf/mistralai/mistral-small-3.1-24b-instruct', tier: 2, free: true,  description: 'Section-parallel fallback — Mistral Small 3.1 24B (FREE)' },
+    // cvGenerateFast is intentionally NOT in PAID_UPGRADE_MAP — it's always Llama 8B.
+    // Its purpose is resilience (different model family), not quality uplift.
     rhythmSelection:      { model: '@cf/mistralai/mistral-small-3.1-24b-instruct', tier: 2, free: true,  description: 'Rhythm pattern selection — Mistral Small 3.1 24B (FREE)' },
     seniorityDetect:      { model: '@cf/meta/llama-3.2-3b-instruct',               tier: 2, free: true,  description: 'Seniority + field detection from JD — Llama 3.2 3B (FREE)' },
     multilingualGenerate: { model: '@cf/mistralai/mistral-small-3.1-24b-instruct', tier: 2, free: true,  description: 'Multilingual CV text generation — Mistral Small 3.1 24B (FREE)' },
@@ -269,6 +272,7 @@ const MODEL_FALLBACK_CHAIN: Record<string, string[]> = {
     // Tier 2 — Mistral Small 3.1 24B → fallback to Llama 3.1 8B → Llama 3.2 3B
     cvGenerate:           ['@cf/mistralai/mistral-small-3.1-24b-instruct', '@cf/meta/llama-3.1-8b-instruct', '@cf/meta/llama-3.2-3b-instruct'],
     cvGenerateLong:       ['@cf/mistralai/mistral-small-3.1-24b-instruct', '@cf/meta/llama-3.1-8b-instruct', '@cf/meta/llama-3.2-3b-instruct'],
+    cvGenerateFast:       ['@cf/meta/llama-3.1-8b-instruct', '@cf/meta/llama-3.2-3b-instruct'],
     cvExperience:         ['@cf/mistralai/mistral-small-3.1-24b-instruct', '@cf/meta/llama-3.1-8b-instruct', '@cf/meta/llama-3.2-3b-instruct'],
     cvProjects:           ['@cf/mistralai/mistral-small-3.1-24b-instruct', '@cf/meta/llama-3.1-8b-instruct', '@cf/meta/llama-3.2-3b-instruct'],
     cvAudit:              ['@cf/mistralai/mistral-small-3.1-24b-instruct', '@cf/meta/llama-3.1-8b-instruct', '@cf/meta/llama-3.2-3b-instruct'],
@@ -405,6 +409,7 @@ export async function handleTieredLLM(request: Request, env: Env): Promise<Respo
     const _internalSystemMap: Record<string, string> = {
         cvGenerate:       _CV_SYSTEM_PROFESSIONAL,
         cvGenerateLong:   _CV_SYSTEM_PROFESSIONAL,
+        cvGenerateFast:   _CV_SYSTEM_PROFESSIONAL,
         cvExperience:     _CV_SYSTEM_PROFESSIONAL,
         cvProjects:       _CV_SYSTEM_PROFESSIONAL,
         cvAudit:          _CV_SYSTEM_AUDIT,
@@ -610,7 +615,10 @@ export async function handleRaceLLM(request: Request, env: Env): Promise<Respons
 
 // ─── Parallel sections ────────────────────────────────────────────────────────
 const PARALLEL_SECTIONS_MAX_COUNT       = 8;
-const PARALLEL_SECTIONS_DEFAULT_FALLBACK = 'cvFallback';
+// cvGenerateFast (Llama 3.1 8B) is a genuinely different model from the primary
+// Mistral — when Mistral is slow or returning empty, this fallback actually helps.
+// cvFallback also maps to Mistral so using it as the fallback was a no-op.
+const PARALLEL_SECTIONS_DEFAULT_FALLBACK = 'cvGenerateFast';
 const PARALLEL_SECTIONS_INSTRUCTION_MAX  = 6000;
 const PARALLEL_SECTIONS_PREAMBLE_MAX     = TIERED_LLM_MAX_PROMPT_CHARS;
 
@@ -807,6 +815,7 @@ export async function handleProxyLLM(request: Request, env: Env): Promise<Respon
     const _internalSystemMap: Record<string, string> = {
         cvGenerate:       _CV_SYSTEM_PROFESSIONAL,
         cvGenerateLong:   _CV_SYSTEM_PROFESSIONAL,
+        cvGenerateFast:   _CV_SYSTEM_PROFESSIONAL,
         cvExperience:     _CV_SYSTEM_PROFESSIONAL,
         cvProjects:       _CV_SYSTEM_PROFESSIONAL,
         cvAudit:          _CV_SYSTEM_AUDIT,

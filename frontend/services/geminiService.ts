@@ -3178,7 +3178,11 @@ ${lines}
     // CV-gen race tasks: kept for the LEGACY fallback path below. Fires
     // Llama 4 Scout (paid) AND GLM 4.7 Flash (free, 131K) in parallel
     // server-side and takes whichever lands first.
-    const CV_GEN_RACE_TASKS = ['cvGenerate', 'cvGenerateLong'];
+    // cvGenerateFast (Llama 3.1 8B) is a genuinely different model family from
+    // cvGenerate (Mistral 24B). Racing different models means if Mistral is slow
+    // or returning empty, Llama 8B can win and still deliver a generation.
+    // cvGenerateLong was also Mistral — racing the same model twice was a no-op.
+    const CV_GEN_RACE_TASKS = ['cvGenerate', 'cvGenerateFast'];
 
     // ── PRIMARY (Apr 27 2026): Section-parallel CV generation ───────────────
     // Only used when the user has selected Workers AI as their provider.
