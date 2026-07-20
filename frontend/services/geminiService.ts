@@ -24,6 +24,7 @@ import { repairCvSummaryWithAi as _repairCvSummaryWithAi } from './aiInlineFix';
 import { startTrace, storeTrace, attachTrace, type TraceBuilder } from './generationTrace';
 import { getPromptVersions } from './promptRegistryClient';
 import { runValidationEngine } from './cvValidationEngine';
+import { reconcileSkills, type ReconciledSkills } from './skillsReconciler';
 import { runFinalCVGuard, fixSummaryOpener, purgeSummarySeekingLanguage, deduplicateSkills } from './cvFinalGuard';
 
 // ── Pipeline-safe banned-phrases helper ──────────────────────────────────────
@@ -1864,15 +1865,26 @@ function buildStaleProfileRefreshInstruction(
     `;
 }
 
-function applySourceFidelityRules(cvData: CVData, profile: UserProfile): CVData {
+function applySourceFidelityRules(cvData: CVData, profile: UserProfile, reconciledSkills?: ReconciledSkills | null): CVData {
     const sourceRoles = profile.workExperience || [];
-    const sourceSkills = Array.from(new Set((profile.skills || []).map(s => String(s || '').trim()).filter(Boolean)));
+
+    // When JD-reconciled skills are available they are authoritative: only
+    // reconciled skills are allowed on the CV (prevents JD-irrelevant profile
+    // skills from leaking back after generation). For the no-JD path fall back
+    // to the raw profile skill list as before.
+    const sourceSkills = (reconciledSkills?.finalSkills?.length ?? 0) > 0
+        ? reconciledSkills!.finalSkills
+        : Array.from(new Set((profile.skills || []).map(s => String(s || '').trim()).filter(Boolean)));
 
     // Rule 1 + 5: never add unseen skills, never remove existing skills.
     const generatedSkills = Array.isArray(cvData.skills) ? cvData.skills.map(s => String(s || '').trim()).filter(Boolean) : [];
     const allowedSet = new Set(sourceSkills.map(s => s.toLowerCase()));
     const filtered = generatedSkills.filter(s => allowedSet.has(s.toLowerCase()));
-    const mergedSkills = Array.from(new Set([...filtered, ...sourceSkills]));
+    // JD path: use ONLY reconciled skills so JD-irrelevant profile skills
+    // cannot merge back in. No-JD path: merge filtered + source as before.
+    const mergedSkills = (reconciledSkills?.finalSkills?.length ?? 0) > 0
+        ? Array.from(new Set([...filtered, ...reconciledSkills!.finalSkills]))
+        : Array.from(new Set([...filtered, ...sourceSkills]));
     cvData.skills = mergedSkills.slice(0, 25);
 
     // Rule 7 (summary): if the generated professional summary would come out
@@ -2030,11 +2042,11 @@ function applyFidelityAgainstSourceCV(cvData: CVData, sourceCV: CVData): CVData 
 
 function finalizeCvData(
     cvData: CVData,
-    opts: { profile?: UserProfile; sourceCv?: CVData; runPurify?: boolean; auditLabel?: string; purifierWarnings?: number } = {}
+    opts: { profile?: UserProfile; sourceCv?: CVData; runPurify?: boolean; auditLabel?: string; purifierWarnings?: number; reconciledSkills?: ReconciledSkills | null } = {}
 ): CVData {
-    const { profile, sourceCv, runPurify = true, auditLabel = 'finalizeCvData', purifierWarnings } = opts;
+    const { profile, sourceCv, runPurify = true, auditLabel = 'finalizeCvData', purifierWarnings, reconciledSkills } = opts;
     let out = runPurify ? purifyCV(cvData).cv : cvData;
-    if (profile) out = applySourceFidelityRules(out, profile);
+    if (profile) out = applySourceFidelityRules(out, profile, reconciledSkills);
     else if (sourceCv) out = applyFidelityAgainstSourceCV(out, sourceCv);
     // Cheap, deterministic post-flight quality audit. Pure regex, runs in
     // <5 ms on a typical CV, never mutates `out`. Logs a single line on
@@ -2527,6 +2539,50 @@ export const generateCV = async (
         }
     } else if (keywordRes.status === 'rejected') {
         console.error("Keyword analysis failed, proceeding without explicit keywords.", keywordRes.reason);
+    }
+
+    // ── JD-aware skill reconciliation ─────────────────────────────────────────
+    // Run immediately after JD analysis so we know which profile skills are
+    // actually relevant to this job. Result flows into three places:
+    //   1. mainPromptInstruction — hint for the skills section prompt
+    //   2. experience section instruction — per-role skill-demonstration directives
+    //   3. applySourceFidelityRules — authoritative post-gen skills gate
+    let _reconciledSkills: ReconciledSkills | null = null;
+    if (jd && keywordRes.status === 'fulfilled' && keywordRes.value) {
+        const jdAllSkills = [
+            ...(keywordRes.value.keywords || []),
+            ...(keywordRes.value.skills || []),
+        ];
+        if (jdAllSkills.length > 0) {
+            try {
+                const experienceEntries = (profile.workExperience || []).map((exp, idx) => {
+                    const raw = exp.responsibilities;
+                    const bullets: string[] = Array.isArray(raw)
+                        ? raw as string[]
+                        : typeof raw === 'string'
+                            ? raw.split(/\n|•|–|-/).map((s: string) => s.trim()).filter(Boolean)
+                            : [];
+                    return { id: `role_${idx}`, bullets };
+                });
+                const flatBullets = experienceEntries.flatMap(e => e.bullets);
+                _reconciledSkills = reconcileSkills(
+                    profile.skills ?? [],
+                    jdAllSkills,
+                    flatBullets,
+                    experienceEntries,
+                    /* jdOnlyMode= */ true,
+                );
+                console.log(
+                    `[SkillsReconcile] JD-aware: ${_reconciledSkills.finalSkills.length} skills ` +
+                    `(promoted=${_reconciledSkills.promoted.length}, ` +
+                    `+${_reconciledSkills.addedFromJD.length} evidenced JD, ` +
+                    `-${_reconciledSkills.dropped.length} dropped). ` +
+                    `Evidence map: ${_reconciledSkills.evidenceMap.size} skills role-anchored.`
+                );
+            } catch (err) {
+                console.warn('[SkillsReconcile] Failed (non-fatal, using profile.skills):', err);
+            }
+        }
     }
 
     // ── Gap-pin block ──────────────────────────────────────────────────────────
@@ -3055,6 +3111,62 @@ Output must be fluent, professional-grade ${targetLanguage} — not a literal tr
         console.log(`[CV Examples] Structural reference injected (${cvExample.seniority} ${cvExample.primaryTitle}, ${cvExample.experienceStructure.length} roles)`);
     }
 
+    // ── Inject reconciled-skills hint into prompt ──────────────────────────────
+    // Appended AFTER the full instruction is assembled so the model sees it near
+    // the end of the context window (recency bias) just before the section call.
+    // Only fires on the JD path — no-JD generation is unchanged.
+    if (_reconciledSkills?.finalSkills?.length) {
+        const promotedLine = _reconciledSkills.promoted.length
+            ? `\nHighest priority (confirmed in profile AND JD): ${_reconciledSkills.promoted.join(', ')}.`
+            : '';
+        mainPromptInstruction += `\n\n=== JD-RECONCILED SKILLS (pre-computed — use as primary source for skills section) ===
+The following ${_reconciledSkills.finalSkills.length} skills are BOTH relevant to the target job description AND evidenced in this candidate's profile or experience history. Use these as the starting point for the skills section — prefer this list over raw profile skills for the skills array output.${promotedLine}
+Reconciled list (in priority order): ${_reconciledSkills.finalSkills.join(', ')}
+If 15 slots remain unfilled after this list, draw from the general profile skills. Never add a skill absent from both this list and the profile.
+=== END RECONCILED SKILLS ===`;
+    }
+
+    // ── Per-role skill-demonstration directives ────────────────────────────────
+    // Built from the evidenceMap: skills anchored to specific experience entries
+    // become soft directives injected into the experience section instruction.
+    // "Demonstrate, don't just list" — never force or fabricate.
+    let _skillDemonstrationBlock = '';
+    if (_reconciledSkills?.evidenceMap?.size) {
+        // Build role_idx → skills mapping; pick the most recent role per skill
+        // to avoid the same skill directive appearing across multiple roles.
+        const roleMap = new Map<number, string[]>();
+        for (const [skill, roleIds] of _reconciledSkills.evidenceMap) {
+            // Exclude profile-only evidence (no experience anchor)
+            const entryIds = roleIds.filter(id => id !== 'profile');
+            if (entryIds.length === 0) continue;
+            // Prefer lowest index (most recent role — profile order is newest-first)
+            const earliest = entryIds
+                .map(id => parseInt(id.replace('role_', ''), 10))
+                .filter(n => !isNaN(n))
+                .sort((a, b) => a - b)[0];
+            if (earliest === undefined) continue;
+            if (!roleMap.has(earliest)) roleMap.set(earliest, []);
+            roleMap.get(earliest)!.push(skill);
+        }
+        if (roleMap.size > 0) {
+            const lines = Array.from(roleMap.entries())
+                .sort(([a], [b]) => a - b)
+                .map(([idx, skills]) => {
+                    const exp = profile.workExperience?.[idx];
+                    const label = exp
+                        ? `${exp.jobTitle || 'Role'} at ${exp.company || ''}`.trim()
+                        : `Role ${idx + 1}`;
+                    return `  ROLE_${idx + 1} (${label}): ${skills.slice(0, 5).join(', ')}`;
+                })
+                .join('\n');
+            _skillDemonstrationBlock = `\n\n=== JD SKILL-DEMONSTRATION DIRECTIVES ===
+For the roles listed below, where NATURAL, write bullets that DEMONSTRATE these skills in action — not merely list them. Demonstrating a skill inside an achievement bullet is stronger than naming it in the skills section alone.
+GUARDRAIL: Do NOT force a skill into a bullet if it distorts the achievement or requires inventing facts. When in doubt, leave it out.
+${lines}
+=== END SKILL-DEMONSTRATION DIRECTIVES ===`;
+        }
+    }
+
     const temperature = purpose === 'academic' ? 0.5 :
         generationMode === 'honest' ? 0.5 :
             generationMode === 'boosted' ? 0.65 : 0.75;
@@ -3156,7 +3268,7 @@ Output must be fluent, professional-grade ${targetLanguage} — not a literal tr
         const sections: ParallelSectionRequest[] = [
             { name: 'summary',    task: 'cvSummary',    instruction: 'OUTPUT-ONLY OVERRIDE: Reply with a JSON object that has exactly one key called summary whose value is the professional summary as a single string. The summary must be 60–90 words, 3–4 sentences, following the hook → proof → promise formula. Honor every rule above (banned phrases, sentence rhythm, length). CRITICAL BANS — the summary must NEVER include any seeking or aspiration language — not even mid-sentence. Absolutely banned: "Seeking to", "Looking to", "Aiming to", "Hoping to", "Eager to" (in any form — "eager to apply", "eager to contribute", "eager to join", etc.), "Excited to", "seeking an opportunity", "looking forward to", "keen to", or ANY clause that expresses what the candidate wants rather than what they deliver. The final sentence MUST state a concrete value delivered to future employers — never a job-seeking statement. Do NOT include any other CVData fields. NO markdown fences, NO commentary.', maxTokens: 500,  temperature, json: true },
             { name: 'skills',     task: 'cvSkills',     instruction: 'OUTPUT-ONLY OVERRIDE: Reply with a JSON object that has exactly one key called skills whose value is an array of EXACTLY 15 string skills. Honor the position-1-5 / 6-10 / 11-13 / 14-15 ordering rule above (JD-priority order for ATS). Do NOT include any other CVData fields. NO markdown fences, NO commentary.', maxTokens: 700,  temperature, json: true },
-            { name: 'experience', task: 'cvExperience', instruction: `OUTPUT-ONLY OVERRIDE: Reply with a JSON object that has exactly one key called experience whose value is an array. COMPLETENESS RULE (highest priority): your array MUST contain exactly ${(profile.workExperience || []).length} item(s) — one per role in the profile (ROLE_1 through ROLE_${(profile.workExperience || []).length}). Omitting any role is a critical failure. Each array item is an object with these string fields: company, jobTitle, dates (e.g. "Jan 2020 – Present"), startDate (YYYY-MM-DD), endDate (YYYY-MM-DD or "Present"), and a responsibilities field that is an array of bullet-point strings. Honor the EXACT bullet count per role (binding) and verb-tense rules (current role = present tense bare form e.g. "Manage" not "Manages", past roles = past tense). FIRST bullet of every role is a SCOPE ANCHOR naming team size, budget, geographic coverage, or project count — not an achievement. No two bullets across the entire document may start with the same verb. OPENER ROTATION — use all 7 opener types across each role; no single type may appear more than twice per role: (1) verb "Manage/Build/Lead…"; (2) number "KES 800K in…", "3 counties…"; (3) scope "Across 5 regions…", "For 200+ clients…"; (4) context "As the sole engineer…", "After acquiring…"; (5) timeframe "In Q2 2024…", "Over 6 months…"; (6) collaboration "With the operations team…", "Partnering with…"; (7) outcome "Top performer in…", "Ranked #1…". Roles with 5+ bullets must use at least 3 different opener types. FORBIDDEN VERBS — never start any bullet with invented AI verbs: Greenfielded, Scaffolded (non-software), Materialized, Actioned, Ideated, Solutioned, Conceptualized, Operationalized — use real strong verbs (Built, Led, Delivered, Managed, Designed, Implemented, etc.). CRITICAL ROLE ISOLATION: each role in the profile is labeled ROLE_1, ROLE_2, etc. Bullets for ROLE_N must draw ONLY from ROLE_N's responsibilities text — never copy facts, metrics, project names, or technologies from a different role into another role's bullets. Cross-contamination between roles is a rejection-level failure. Do NOT include any other CVData fields. NO markdown fences, NO commentary.`, maxTokens: 5000, temperature, json: true },
+            { name: 'experience', task: 'cvExperience', instruction: `OUTPUT-ONLY OVERRIDE: Reply with a JSON object that has exactly one key called experience whose value is an array. COMPLETENESS RULE (highest priority): your array MUST contain exactly ${(profile.workExperience || []).length} item(s) — one per role in the profile (ROLE_1 through ROLE_${(profile.workExperience || []).length}). Omitting any role is a critical failure. Each array item is an object with these string fields: company, jobTitle, dates (e.g. "Jan 2020 – Present"), startDate (YYYY-MM-DD), endDate (YYYY-MM-DD or "Present"), and a responsibilities field that is an array of bullet-point strings. Honor the EXACT bullet count per role (binding) and verb-tense rules (current role = present tense bare form e.g. "Manage" not "Manages", past roles = past tense). FIRST bullet of every role is a SCOPE ANCHOR naming team size, budget, geographic coverage, or project count — not an achievement. No two bullets across the entire document may start with the same verb. OPENER ROTATION — use all 7 opener types across each role; no single type may appear more than twice per role: (1) verb "Manage/Build/Lead…"; (2) number "KES 800K in…", "3 counties…"; (3) scope "Across 5 regions…", "For 200+ clients…"; (4) context "As the sole engineer…", "After acquiring…"; (5) timeframe "In Q2 2024…", "Over 6 months…"; (6) collaboration "With the operations team…", "Partnering with…"; (7) outcome "Top performer in…", "Ranked #1…". Roles with 5+ bullets must use at least 3 different opener types. FORBIDDEN VERBS — never start any bullet with invented AI verbs: Greenfielded, Scaffolded (non-software), Materialized, Actioned, Ideated, Solutioned, Conceptualized, Operationalized — use real strong verbs (Built, Led, Delivered, Managed, Designed, Implemented, etc.). CRITICAL ROLE ISOLATION: each role in the profile is labeled ROLE_1, ROLE_2, etc. Bullets for ROLE_N must draw ONLY from ROLE_N's responsibilities text — never copy facts, metrics, project names, or technologies from a different role into another role's bullets. Cross-contamination between roles is a rejection-level failure. Do NOT include any other CVData fields. NO markdown fences, NO commentary.${_skillDemonstrationBlock}`, maxTokens: 5000, temperature, json: true },
             { name: 'education',  task: 'cvEducation',  instruction: 'OUTPUT-ONLY OVERRIDE: Reply with a JSON object that has exactly one key called education whose value is an array. Each array item is an object with these string fields: degree, school, year, description. The description should be one concise sentence covering GPA / honors / thesis / 2–3 relevant courses where applicable. Honor the GRADUATION-STATUS RULE strictly — past or current-year graduation years mean the degree is COMPLETED; never write "currently pursuing" for a past degree. Do NOT include any other CVData fields. NO markdown fences, NO commentary.', maxTokens: 800, temperature, json: true },
         ];
         if (Array.isArray(profile.projects) && profile.projects.length > 0) {
@@ -3437,6 +3549,7 @@ Output must be fluent, professional-grade ${targetLanguage} — not a literal tr
             carryProfile: profile,
             engineBrief,
             finalize: { profile },
+            reconciledSkills: _reconciledSkills,
             onPurifyReport: (report) => {
                 // ── TELEMETRY — fire-and-forget. ──
                 try {
@@ -3515,6 +3628,7 @@ Output must be fluent, professional-grade ${targetLanguage} — not a literal tr
             carryProfile: profile,
             engineBrief: null,
             finalize: { profile },
+            reconciledSkills: _reconciledSkills,
             ...(callerOnPurifyReport ? { onPurifyReport: callerOnPurifyReport } : {}),
         });
     }
@@ -5290,13 +5404,17 @@ interface QualityPolishOpts {
     engineBrief?: CVBrief | null;
     onPurifyReport?: (report: PurifyReport) => void | Promise<void>;
     onLeakSummary?: (summary: LeakSummaryPayload) => void;
+    /** JD-reconciled skill set from reconcileSkills(). When present, used as
+     *  the authoritative allowed-skills list in applySourceFidelityRules so
+     *  JD-irrelevant profile skills cannot leak back after generation. */
+    reconciledSkills?: ReconciledSkills | null;
 }
 
 async function runQualityPolishPasses(
     cvData: CVData,
     opts: QualityPolishOpts,
 ): Promise<CVData> {
-    const { runHumanizer = true, bulletCount, carryProfile, engineBrief, finalize, onPurifyReport, onLeakSummary } = opts;
+    const { runHumanizer = true, bulletCount, carryProfile, engineBrief, finalize, onPurifyReport, onLeakSummary, reconciledSkills } = opts;
     let out = cvData;
 
     // 1. Humanizer pass — fixes short bullets, banned phrases in summary,
@@ -5521,7 +5639,7 @@ async function runQualityPolishPasses(
     // even when purifier flagged warnings that couldn't be auto-fixed).
     _dispatchPolishStage('finalizing');
     if ('profile' in finalize) {
-        out = finalizeCvData(out, { profile: finalize.profile, runPurify: false, purifierWarnings: _purifyWarnings });
+        out = finalizeCvData(out, { profile: finalize.profile, runPurify: false, purifierWarnings: _purifyWarnings, reconciledSkills });
     } else {
         out = finalizeCvData(out, { sourceCv: finalize.sourceCv, runPurify: false, purifierWarnings: _purifyWarnings });
     }
