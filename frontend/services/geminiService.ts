@@ -3488,7 +3488,34 @@ ${lines}
         } else {
             // Claude or Gemini — route strictly through groqChat (which enforces
             // the selected provider). No Workers AI race, no cross-provider switch.
-            rawText = await groqChat(GROQ_LARGE, SYSTEM_INSTRUCTION_PROFESSIONAL, mainPromptInstruction, { temperature, json: true, maxTokens: 6000 });
+            // Pre-emptively slim when the prompt is over the proxy hard limit so the
+            // CF edge never sees an oversized body (mirror of the Workers AI path above).
+            const BYOK_PROXY_MAX_CHARS = 95_000; // slightly under PROXY_MAX_PROMPT_CHARS to account for JSON envelope
+            const promptForByok = mainPromptInstruction.length > BYOK_PROXY_MAX_CHARS
+                ? slimPromptProfile(mainPromptInstruction, profile)
+                : mainPromptInstruction;
+            if (promptForByok.length < mainPromptInstruction.length) {
+                console.warn(`[CV Gen] Prompt (${mainPromptInstruction.length.toLocaleString()} chars) exceeds proxy limit — pre-slimmed to ${promptForByok.length.toLocaleString()} chars before sending.`);
+            }
+            try {
+                rawText = await groqChat(GROQ_LARGE, SYSTEM_INSTRUCTION_PROFESSIONAL, promptForByok, { temperature, json: true, maxTokens: 6000 });
+            } catch (byokErr: any) {
+                const status = byokErr?.status;
+                const msg = (byokErr?.message || '').toLowerCase();
+                const isTooLarge = status === 413 || msg.includes('too large') || msg.includes('too long') || msg.includes('request entity');
+                if (isTooLarge) {
+                    // Last resort — slim even further and retry once
+                    const slimmedFurther = slimPromptProfile(promptForByok, profile);
+                    if (slimmedFurther.length < promptForByok.length) {
+                        console.warn(`[CV Gen] 413 on BYOK path — retrying with further-slimmed prompt (${slimmedFurther.length.toLocaleString()} chars).`);
+                        rawText = await groqChat(GROQ_LARGE, SYSTEM_INSTRUCTION_PROFESSIONAL, slimmedFurther, { temperature, json: true, maxTokens: 6000 });
+                    } else {
+                        throw byokErr;
+                    }
+                } else {
+                    throw byokErr;
+                }
+            }
         }
 
         const cleanText = stripFencesMain(rawText);

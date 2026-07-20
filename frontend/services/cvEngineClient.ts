@@ -1104,6 +1104,9 @@ export interface WorkerProxyLLMOptions {
 
 const PROXY_LLM_ENDPOINT = '/api/cv/proxy-llm';
 const WORKER_PROXY_LLM_TIMEOUT_MS = 60_000;
+// Must stay in sync with PROXY_MAX_PROMPT_CHARS in backend/cv-engine-worker/src/handlers/llm.ts.
+// Truncating client-side avoids a CF-edge 413 when the request body is too large to reach the worker.
+const CLIENT_PROXY_MAX_PROMPT_CHARS = 100_000;
 
 /**
  * Send a text-generation request to the CF Worker, which will call Claude or
@@ -1133,7 +1136,7 @@ export async function workerProxyLLM(
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     task,
-                    prompt,
+                    prompt:      prompt.slice(0, CLIENT_PROXY_MAX_PROMPT_CHARS),
                     provider:    opts.provider,
                     apiKey:      opts.apiKey,
                     model:       opts.model,
@@ -1202,7 +1205,7 @@ export async function workerProxyStream(
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
             task,
-            prompt,
+            prompt:      prompt.slice(0, CLIENT_PROXY_MAX_PROMPT_CHARS),
             provider:    opts.provider,
             apiKey:      opts.apiKey,
             model:       opts.model,
