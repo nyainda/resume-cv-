@@ -13,6 +13,7 @@ import { findOverusedWords } from './cvEngine/wordFrequency';
 import { ROLE_TRACKS } from '../data/roleTracks';
 import { normaliseCustomSections } from '../utils/normaliseSectionType';
 import { profileToCV } from '../utils/profileToCV';
+import { formatExpDateRange } from '../utils/cvDataUtils';
 import {
     collectSourceNumberTokens as _collectSourceNumberTokens,
     repairBulletsAgainstSource as _repairBulletsAgainstSource,
@@ -1950,7 +1951,7 @@ function applySourceFidelityRules(cvData: CVData, profile: UserProfile, reconcil
                 jobTitle: src.jobTitle || exp.jobTitle,
                 startDate: src.startDate || exp.startDate,
                 endDate: src.endDate || exp.endDate,
-                dates: exp.dates || '',
+                dates: exp.dates || formatExpDateRange(exp.startDate, exp.endDate),
                 responsibilities: voiceFixed.length ? voiceFixed : sourceBullets,
             };
         });

@@ -171,3 +171,33 @@ export function formatEduDateRange(startYear?: string, year?: string): string {
   if (start) return start;
   return '';
 }
+
+/**
+ * Format a work-experience date field (ISO string, plain year, or "Present")
+ * into a short human-readable string like "Jan 2020" or "Present".
+ */
+function formatExpDate(d?: string): string {
+  if (!d) return '';
+  if (d.toLowerCase() === 'present') return 'Present';
+  const date = new Date(d);
+  if (isNaN(date.getTime())) return d; // already formatted, e.g. "Jan 2020"
+  return date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+}
+
+/**
+ * Build a formatted date range string from work-experience startDate/endDate.
+ * e.g. ("2020-01-01", "Present") → "Jan 2020 – Present"
+ * e.g. ("2018-06-01", "2022-03-01") → "Jun 2018 – Mar 2022"
+ *
+ * Use this as a fallback when the AI omits the `dates` display field but
+ * still returns ISO `startDate`/`endDate` for sorting.
+ */
+export function formatExpDateRange(startDate?: string, endDate?: string): string {
+  const s = formatExpDate(startDate);
+  const e = formatExpDate(endDate);
+  if (!s && !e) return '';
+  if (!s) return e;
+  if (!e) return s;
+  if (s === e) return s;
+  return `${s} – ${e}`;
+}

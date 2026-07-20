@@ -1,4 +1,5 @@
 import { UserProfile, CVData, CVPublication, CustomSection } from '../types';
+import { formatExpDateRange } from './cvDataUtils';
 
 /**
  * Directly converts a UserProfile into CVData without any AI call.
@@ -11,22 +12,6 @@ import { UserProfile, CVData, CVPublication, CustomSection } from '../types';
  * (where the form stores skills as a textarea string) works correctly.
  */
 export function profileToCV(profile: UserProfile): CVData {
-  const formatDate = (dateStr: string | undefined): string => {
-    if (!dateStr) return '';
-    if (dateStr.toLowerCase() === 'present') return 'Present';
-    const d = new Date(dateStr);
-    if (isNaN(d.getTime())) return dateStr;
-    return d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
-  };
-
-  const formatDateRange = (start: string | undefined, end: string | undefined): string => {
-    const s = formatDate(start);
-    const e = (end?.toLowerCase() === 'present') ? 'Present' : formatDate(end);
-    if (!s && !e) return '';
-    if (!s) return e;
-    if (!e) return s;
-    return `${s} – ${e}`;
-  };
 
   // ── Normalise skills — form stores as textarea string, API stores as array ──
   const rawSkills = (profile as any).skills;
@@ -103,7 +88,7 @@ export function profileToCV(profile: UserProfile): CVData {
     experience: (profile.workExperience || []).map(exp => ({
       company:          exp.company  || '',
       jobTitle:         exp.jobTitle || '',
-      dates:            formatDateRange(exp.startDate, exp.endDate),
+      dates:            formatExpDateRange(exp.startDate, exp.endDate),
       startDate:        exp.startDate || '',
       endDate:          exp.endDate   || '',
       location:         (exp as any).location || '',
