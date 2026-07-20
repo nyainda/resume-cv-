@@ -307,17 +307,17 @@ const ScholarshipEssayWriter: React.FC<ScholarshipEssayWriterProps> = ({
         <div className="flex flex-col h-full min-h-0 bg-zinc-50 dark:bg-neutral-900">
 
             {/* ── Detected scholarships top bar ──────────────────────────────── */}
-            <div className="flex items-center gap-3 px-5 py-2.5 border-b border-zinc-200 dark:border-neutral-700/60 bg-white dark:bg-neutral-800/60 flex-shrink-0 flex-wrap">
-                <span className="text-[11px] font-semibold text-zinc-500 dark:text-zinc-400 whitespace-nowrap">
+            <div className="flex items-center gap-2 px-4 sm:px-5 py-2.5 border-b border-zinc-200 dark:border-neutral-700/60 bg-white dark:bg-neutral-800/60 flex-shrink-0 overflow-x-auto">
+                <span className="text-[11px] font-semibold text-zinc-500 dark:text-zinc-400 whitespace-nowrap flex-shrink-0">
                     Detected Scholarships (Live)
                 </span>
-                <div className="flex items-center gap-2 flex-wrap">
+                <div className="flex items-center gap-2 flex-shrink-0">
                     {KNOWN_SCHOLARSHIPS.map(s => {
                         const active = liveDetected === s;
                         return (
                             <span
                                 key={s}
-                                className={`text-[11px] font-semibold px-3 py-1 rounded-full border transition-all ${
+                                className={`text-[11px] font-semibold px-3 py-1 rounded-full border transition-all whitespace-nowrap ${
                                     active
                                         ? 'bg-[#C9A84C] border-[#C9A84C] text-white shadow-sm'
                                         : 'bg-transparent border-zinc-300 dark:border-neutral-600 text-zinc-600 dark:text-zinc-400'
@@ -328,20 +328,20 @@ const ScholarshipEssayWriter: React.FC<ScholarshipEssayWriterProps> = ({
                         );
                     })}
                 </div>
-                <div className="ml-auto">
-                    <button className="flex items-center gap-1.5 text-[11px] font-semibold text-zinc-500 dark:text-zinc-400 hover:text-[#1B2B4B] dark:hover:text-[#C9A84C] transition-colors">
+                <div className="ml-auto flex-shrink-0 pl-2">
+                    <button className="flex items-center gap-1.5 text-[11px] font-semibold text-zinc-500 dark:text-zinc-400 hover:text-[#1B2B4B] dark:hover:text-[#C9A84C] transition-colors whitespace-nowrap">
                         <PlusIcon />
-                        Add / Manage
+                        <span className="hidden sm:inline">Add / Manage</span>
                     </button>
                 </div>
             </div>
 
             {/* ── Body: left panel + right panel ─────────────────────────────── */}
-            <div className="flex flex-1 min-h-0 overflow-hidden">
+            <div className="flex flex-col lg:flex-row flex-1 lg:min-h-0 lg:overflow-hidden">
 
                 {/* ══ LEFT PANEL ══════════════════════════════════════════════ */}
-                <div className="w-[400px] xl:w-[440px] flex-shrink-0 flex flex-col border-r border-zinc-200 dark:border-neutral-700/60 bg-white dark:bg-neutral-800/40 overflow-y-auto thin-scrollbar">
-                    <div className="p-5 space-y-5">
+                <div className="w-full lg:w-[400px] xl:w-[440px] lg:flex-shrink-0 flex flex-col border-b lg:border-b-0 lg:border-r border-zinc-200 dark:border-neutral-700/60 bg-white dark:bg-neutral-800/40 lg:overflow-y-auto thin-scrollbar">
+                    <div className="p-4 sm:p-5 space-y-5">
 
                         {/* Title */}
                         <div className="pb-1">
@@ -540,52 +540,53 @@ const ScholarshipEssayWriter: React.FC<ScholarshipEssayWriterProps> = ({
                 </div>
 
                 {/* ══ RIGHT PANEL ═════════════════════════════════════════════ */}
-                <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+                <div className="flex-1 flex flex-col min-w-0 lg:overflow-hidden">
                     {essay ? (
                         <>
                             {/* Output header */}
-                            <div className="flex items-center gap-3 px-6 py-3.5 border-b border-zinc-200 dark:border-neutral-700/60 bg-white dark:bg-neutral-800/40 flex-shrink-0">
-                                <div className="p-2 bg-[#1B2B4B] dark:bg-[#1B2B4B] rounded-lg flex-shrink-0">
+                            <div className="flex flex-wrap items-start gap-2 px-4 sm:px-6 py-3 sm:py-3.5 border-b border-zinc-200 dark:border-neutral-700/60 bg-white dark:bg-neutral-800/40 flex-shrink-0">
+                                <div className="p-2 bg-[#1B2B4B] rounded-lg flex-shrink-0">
                                     <DocIcon />
                                 </div>
-                                <div className="flex items-center gap-2 flex-wrap min-w-0">
-                                    <h3 className="text-base font-bold text-zinc-900 dark:text-zinc-50 truncate">
-                                        {selectedType.label}
-                                    </h3>
-                                    {detectedScholarship && (
-                                        <span className="flex items-center gap-1 text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-[#C9A84C]/15 text-[#A87E28] dark:text-[#C9A84C] border border-[#C9A84C]/30 flex-shrink-0">
-                                            <svg className="h-2.5 w-2.5" fill="currentColor" viewBox="0 0 24 24">
-                                                <path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z" />
-                                            </svg>
-                                            Detected: {detectedScholarship} Scholarship
-                                        </span>
-                                    )}
-                                </div>
-
-                                {/* Word count badge */}
-                                <div className={`ml-auto flex items-center gap-1.5 flex-shrink-0 text-xs font-semibold ${wordCountOk ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}`}>
-                                    {wordCountOk && <CheckIcon />}
-                                    <span>Word Count: {outputWords} / {targetWords}</span>
-                                    {wordCountOk && <span className="font-bold">✓ On Target</span>}
-                                    {!wordCountOk && (
-                                        <span className="font-bold">
-                                            {wordDiff > 0 ? `+${wordDiff}` : wordDiff} words
-                                        </span>
-                                    )}
+                                <div className="flex flex-col min-w-0 flex-1">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                        <h3 className="text-sm sm:text-base font-bold text-zinc-900 dark:text-zinc-50">
+                                            {selectedType.label}
+                                        </h3>
+                                        {detectedScholarship && (
+                                            <span className="flex items-center gap-1 text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-[#C9A84C]/15 text-[#A87E28] dark:text-[#C9A84C] border border-[#C9A84C]/30 flex-shrink-0">
+                                                <svg className="h-2.5 w-2.5" fill="currentColor" viewBox="0 0 24 24">
+                                                    <path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z" />
+                                                </svg>
+                                                Detected: {detectedScholarship}
+                                            </span>
+                                        )}
+                                    </div>
+                                    {/* Word count — sits below title on mobile, inline on sm+ */}
+                                    <div className={`mt-0.5 flex items-center gap-1.5 text-xs font-semibold ${wordCountOk ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}`}>
+                                        {wordCountOk && <CheckIcon />}
+                                        <span>{outputWords} / {targetWords} words</span>
+                                        {wordCountOk && <span className="font-bold hidden sm:inline">✓ On Target</span>}
+                                        {!wordCountOk && (
+                                            <span className="font-bold">
+                                                ({wordDiff > 0 ? `+${wordDiff}` : wordDiff})
+                                            </span>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
 
-                            {/* Action buttons */}
-                            <div className="flex items-center gap-2 px-6 py-2.5 border-b border-zinc-100 dark:border-neutral-700/40 bg-white dark:bg-neutral-800/20 flex-shrink-0">
+                            {/* Action buttons — horizontal scroll on very small screens */}
+                            <div className="flex items-center gap-2 px-4 sm:px-6 py-2.5 border-b border-zinc-100 dark:border-neutral-700/40 bg-white dark:bg-neutral-800/20 flex-shrink-0 overflow-x-auto">
                                 <ActionBtn icon={<EditIcon />} label={isEditing ? 'Done' : 'Edit'} onClick={() => setIsEditing(!isEditing)} active={isEditing} />
                                 <ActionBtn icon={<CopyIcon />} label={copied ? 'Copied!' : 'Copy'} onClick={handleCopy} />
-                                <ActionBtn icon={<DownloadIcon />} label="Download PDF" onClick={handleDownload} />
+                                <ActionBtn icon={<DownloadIcon />} label="PDF" onClick={handleDownload} />
                                 <ActionBtn icon={<RedoIcon />} label="Redo" onClick={handleGenerate} disabled={isLoading} />
                             </div>
 
                             {/* Essay body + forbidden phrases */}
                             <div className="flex-1 overflow-y-auto thin-scrollbar bg-white dark:bg-neutral-900">
-                                <div className="max-w-3xl mx-auto px-8 py-8">
+                                <div className="max-w-3xl mx-auto px-4 sm:px-8 py-5 sm:py-8">
                                     <div
                                         contentEditable={isEditing}
                                         suppressContentEditableWarning
