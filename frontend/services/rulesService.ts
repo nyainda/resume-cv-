@@ -55,9 +55,15 @@ export async function fetchCVRules(): Promise<CVRules> {
                 const timer = setTimeout(() => controller.abort(), 6000);
                 const res = await fetch(url, {
                     signal: controller.signal,
+                    credentials: 'include',
                     headers: { 'Accept': 'application/json' },
                 });
                 clearTimeout(timer);
+                if (res.status === 401) {
+                    // Not logged in yet — don't cache, let the next call retry after login.
+                    _inflight = null;
+                    return OFFLINE_FALLBACK;
+                }
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 const rules = (await res.json()) as CVRules;
                 _cache = rules;
@@ -67,8 +73,9 @@ export async function fetchCVRules(): Promise<CVRules> {
             }
         }
 
+        // Genuine network failure — don't cache so the next generation attempt retries.
         console.warn('[RulesService] Could not fetch pipeline rules from any source — using offline fallback.');
-        _cache = OFFLINE_FALLBACK;
+        _inflight = null;
         return OFFLINE_FALLBACK;
     })();
 

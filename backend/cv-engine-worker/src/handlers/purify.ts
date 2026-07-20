@@ -2,6 +2,7 @@
 import { Env, kvd } from '../types';
 import { json, escapeRegex } from '../utils';
 import { getCachedBannedPhrases } from './data';
+import { sessionCookieFromRequest } from './auth';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CV Pipeline Rules — GET /api/cv/rules
@@ -310,8 +311,6 @@ FOUNDATIONAL RULES (structural — apply to every CV you produce):
     Scope, responsibility, and metric scale must visibly increase across roles.
     Current role must carry the largest numbers and broadest scope.
     Promotions within the same company must be made explicit.
-
-${_CV_HUMANIZATION_RULES}
 
 Output ONLY valid JSON matching the requested schema. NEVER include markdown, code fences, or prose outside the schema.
 `;
@@ -1224,6 +1223,21 @@ export function runFinalVisibleTextGate(cv: any): GateResult {
 }
 
 export async function handleGetRules(request: Request, env: Env): Promise<Response> {
+    // Require a valid session — these are proprietary prompt-engineering constants,
+    // not public data. A 401 here causes rulesService to fall back to offline stubs
+    // and retry after login rather than caching the empty result permanently.
+    const token = sessionCookieFromRequest(request);
+    if (token) {
+        const { results } = await env.CV_DB.prepare(
+            `SELECT user_id FROM user_sessions WHERE token = ? AND expires_at > ?`
+        ).bind(token, Math.floor(Date.now() / 1000)).all();
+        if (!results[0]?.user_id) {
+            return json({ error: 'unauthorized' }, request, env, 401);
+        }
+    } else {
+        return json({ error: 'unauthorized' }, request, env, 401);
+    }
+
     const payload = {
         version:               _CV_RULES_VERSION,
         systemProfessional:    _CV_SYSTEM_PROFESSIONAL,
@@ -1244,6 +1258,7 @@ export async function handleGetRules(request: Request, env: Env): Promise<Respon
         cvDataSchema:                 _CV_DATA_SCHEMA,
     };
     const res = json(payload, request, env);
-    res.headers.set('Cache-Control', 'public, max-age=3600');
+    // private — this response contains proprietary IP and is session-specific
+    res.headers.set('Cache-Control', 'private, max-age=3600');
     return res;
 }

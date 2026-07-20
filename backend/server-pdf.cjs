@@ -706,8 +706,6 @@ FOUNDATIONAL RULES (structural — apply to every CV you produce):
     Current role must carry the largest numbers and broadest scope.
     Promotions within the same company must be made explicit.
 
-${CV_HUMANIZATION_RULES}
-
 Output ONLY valid JSON matching the requested schema. NEVER include markdown, code fences, or prose outside the schema.
 `;
 
