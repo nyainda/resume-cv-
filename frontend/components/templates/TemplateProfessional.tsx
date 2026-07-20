@@ -43,6 +43,20 @@ const TemplateProfessional: React.FC<TemplateProps> = ({ cvData, personalInfo, i
     className: "outline-none ring-1 ring-transparent focus:ring-blue-400 focus:bg-blue-100/50 dark:focus:bg-blue-900/50 rounded px-1 -mx-1 transition-all"
   } : {};
 
+  // For personal-info fields: writes into cvData.personalInfo so the parent
+  // can pick up the change via the normal onDataChange callback.
+  const editableInfoProps = (field: string) => isEditing ? {
+    contentEditable: true,
+    suppressContentEditableWarning: true,
+    onBlur: (e: React.FocusEvent<HTMLElement>) => {
+      const d = JSON.parse(JSON.stringify(cvData));
+      if (!d.personalInfo) d.personalInfo = {};
+      d.personalInfo[field] = e.currentTarget.innerText.trim();
+      onDataChange(d);
+    },
+    className: "outline-none ring-1 ring-transparent focus:ring-blue-400 focus:bg-blue-100/50 dark:focus:bg-blue-900/50 rounded px-1 -mx-1 transition-all cursor-text"
+  } : {};
+
   // --- Single, reusable header used by EVERY section (built-in + custom). ---
   // Signature element: a short accent "tick" + tracked label + hairline rule
   // running out to the margin. One component, one rhythm, everywhere.
@@ -172,10 +186,11 @@ const TemplateProfessional: React.FC<TemplateProps> = ({ cvData, personalInfo, i
             <SectionHeader title="Skills" />
             {(() => {
               const sk = cvData.skills.slice(0, 15);
-              // Round-robin distribution keeps columns balanced regardless of
-              // count (5/5/5, 4/4/3, 5/4/4 — never a lopsided 5/5/1 tail).
               const cols: string[][] = [[], [], []];
               sk.forEach((s, i) => cols[i % 3].push(s));
+              // Track original indices so edits map to the right array slot
+              const colIdxs: number[][] = [[], [], []];
+              sk.forEach((_, i) => colIdxs[i % 3].push(i));
               return (
                 <div className="grid grid-cols-3 gap-x-6 gap-y-1">
                   {cols.map((col, ci) => (
@@ -183,7 +198,7 @@ const TemplateProfessional: React.FC<TemplateProps> = ({ cvData, personalInfo, i
                       {col.map((s, si) => (
                         <li key={si} className="flex items-center gap-2 text-sm text-zinc-700">
                           <span className="w-1 h-1 rounded-full shrink-0" style={{ backgroundColor: INK_DOT }} />
-                          {s}
+                          <span {...editableProps(['skills', colIdxs[ci][si]])}>{s}</span>
                         </li>
                       ))}
                     </ul>
@@ -235,8 +250,10 @@ const TemplateProfessional: React.FC<TemplateProps> = ({ cvData, personalInfo, i
             <p className="text-sm leading-relaxed text-zinc-700 flex flex-wrap gap-x-1.5 gap-y-1">
               {cvData.languages.map((l, i) => (
                 <span key={i} className="flex items-center gap-1.5">
-                  <span className="font-medium text-zinc-900">{l.name}</span>
-                  <span className="text-zinc-400 text-xs font-mono">({l.proficiency})</span>
+                  <span className="font-medium text-zinc-900" {...editableProps(['languages', i, 'name'])}>{l.name}</span>
+                  <span className="text-zinc-400 text-xs font-mono">(</span>
+                  <span className="text-zinc-400 text-xs font-mono" {...editableProps(['languages', i, 'proficiency'])}>{l.proficiency}</span>
+                  <span className="text-zinc-400 text-xs font-mono">)</span>
                   {i < (cvData.languages?.length ?? 0) - 1 && <span className="text-zinc-300 ml-1">•</span>}
                 </span>
               ))}
@@ -251,11 +268,14 @@ const TemplateProfessional: React.FC<TemplateProps> = ({ cvData, personalInfo, i
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-5">
               {cvData.references.map((ref, index) => (
                 <div key={index} className="text-sm text-zinc-700">
-                  <p className="font-serif font-bold text-zinc-900">{ref.name}</p>
-                  <p className="text-zinc-600">{ref.title}{ref.company ? `, ${ref.company}` : ''}</p>
-                  {ref.relationship && <p className="text-zinc-500 italic font-serif">{ref.relationship}</p>}
-                  {ref.email && <p className="font-mono text-[13px] text-zinc-500">{ref.email}</p>}
-                  {ref.phone && <p className="font-mono text-[13px] text-zinc-500">{ref.phone}</p>}
+                  <p className="font-serif font-bold text-zinc-900" {...editableProps(['references', index, 'name'])}>{ref.name}</p>
+                  <p className="text-zinc-600">
+                    <span {...editableProps(['references', index, 'title'])}>{ref.title}</span>
+                    {ref.company ? <>, <span {...editableProps(['references', index, 'company'])}>{ref.company}</span></> : null}
+                  </p>
+                  {ref.relationship && <p className="text-zinc-500 italic font-serif" {...editableProps(['references', index, 'relationship'])}>{ref.relationship}</p>}
+                  {ref.email && <p className="font-mono text-[13px] text-zinc-500" {...editableProps(['references', index, 'email'])}>{ref.email}</p>}
+                  {ref.phone && <p className="font-mono text-[13px] text-zinc-500" {...editableProps(['references', index, 'phone'])}>{ref.phone}</p>}
                 </div>
               ))}
             </div>
@@ -270,7 +290,8 @@ const TemplateProfessional: React.FC<TemplateProps> = ({ cvData, personalInfo, i
   return (
     <div id="cv-preview-professional" className="bg-white p-10 text-zinc-900 shadow-lg border font-serif">
       <header className="pb-6 mb-8 border-b border-zinc-200" data-pdf-keep="true">
-        <h1 className="text-[2.75rem] leading-none font-serif font-black tracking-tight text-zinc-900">
+        <h1 className="text-[2.75rem] leading-none font-serif font-black tracking-tight text-zinc-900"
+          {...editableInfoProps('name')}>
           {personalInfo.name}
         </h1>
         <span
@@ -278,27 +299,31 @@ const TemplateProfessional: React.FC<TemplateProps> = ({ cvData, personalInfo, i
           style={{ backgroundColor: accent }}
         />
         <div className="flex items-center gap-x-3 gap-y-1 text-[13px] font-mono text-zinc-500 mt-4 flex-wrap">
-          <span>{personalInfo.email}</span>
-          <span className="text-zinc-300">•</span>
-          <span>{personalInfo.phone}</span>
-          <span className="text-zinc-300">•</span>
-          <span>{personalInfo.location}</span>
+          <span {...editableInfoProps('email')}>{personalInfo.email}</span>
+          {personalInfo.phone && <><span className="text-zinc-300">•</span><span {...editableInfoProps('phone')}>{personalInfo.phone}</span></>}
+          {personalInfo.location && <><span className="text-zinc-300">•</span><span {...editableInfoProps('location')}>{personalInfo.location}</span></>}
           {personalInfo.linkedin && (
             <>
               <span className="text-zinc-300">•</span>
-              <a href={personalInfo.linkedin} className="hover:underline" style={{ color: INK_LINK }}>LinkedIn</a>
+              {isEditing
+                ? <span {...editableInfoProps('linkedin')}>{personalInfo.linkedin}</span>
+                : <a href={personalInfo.linkedin} className="hover:underline" style={{ color: INK_LINK }}>LinkedIn</a>}
             </>
           )}
           {personalInfo.website && (
             <>
               <span className="text-zinc-300">•</span>
-              <a href={personalInfo.website} className="hover:underline" style={{ color: INK_LINK }}>Website</a>
+              {isEditing
+                ? <span {...editableInfoProps('website')}>{personalInfo.website}</span>
+                : <a href={personalInfo.website} className="hover:underline" style={{ color: INK_LINK }}>Website</a>}
             </>
           )}
           {personalInfo.github && (
             <>
               <span className="text-zinc-300">•</span>
-              <a href={personalInfo.github} className="hover:underline" style={{ color: INK_LINK }}>GitHub</a>
+              {isEditing
+                ? <span {...editableInfoProps('github')}>{personalInfo.github}</span>
+                : <a href={personalInfo.github} className="hover:underline" style={{ color: INK_LINK }}>GitHub</a>}
             </>
           )}
         </div>

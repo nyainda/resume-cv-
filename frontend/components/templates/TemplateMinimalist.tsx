@@ -44,6 +44,18 @@ const TemplateMinimalist: React.FC<TemplateProps> = ({ cvData, personalInfo, isE
         className: "outline-none ring-1 ring-transparent focus:ring-blue-400 focus:bg-blue-100/50 dark:focus:bg-blue-900/50 rounded px-1 -mx-1 transition-all"
     } : {};
 
+    const editableInfoProps = (field: string) => isEditing ? {
+        contentEditable: true,
+        suppressContentEditableWarning: true,
+        onBlur: (e: React.FocusEvent<HTMLElement>) => {
+            const d = JSON.parse(JSON.stringify(cvData));
+            if (!d.personalInfo) d.personalInfo = {};
+            d.personalInfo[field] = e.currentTarget.innerText.trim();
+            onDataChange(d);
+        },
+        className: "outline-none ring-1 ring-transparent focus:ring-blue-400 focus:bg-blue-100/50 dark:focus:bg-blue-900/50 rounded px-1 -mx-1 transition-all cursor-text"
+    } : {};
+
     const SectionHeader: React.FC<{ title: string }> = ({ title }) => (
       <h2 className="text-sm font-bold uppercase tracking-widest mb-4" style={{ color: accent }}>{title}</h2>
     );
@@ -121,9 +133,14 @@ const TemplateMinimalist: React.FC<TemplateProps> = ({ cvData, personalInfo, isE
                                 <div className="grid grid-cols-3 gap-x-4">
                                     {[0, 1, 2].map(ci => (
                                         <ul key={ci} className="list-disc list-outside ml-4 space-y-0.5">
-                                            {sk.slice(ci * perCol, (ci + 1) * perCol).map((s, si) => (
-                                                <li key={si} className="text-base text-slate-700">{s}</li>
-                                            ))}
+                                            {sk.slice(ci * perCol, (ci + 1) * perCol).map((s, si) => {
+                                                const globalIdx = ci * perCol + si;
+                                                return (
+                                                    <li key={si} className="text-base text-slate-700">
+                                                        <span {...editableProps(['skills', globalIdx])}>{s}</span>
+                                                    </li>
+                                                );
+                                            })}
                                         </ul>
                                     ))}
                                 </div>
@@ -178,11 +195,14 @@ const TemplateMinimalist: React.FC<TemplateProps> = ({ cvData, personalInfo, isE
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                             {cvData.references.map((ref, index) => (
                                 <div key={index} className="text-sm text-slate-700">
-                                    <p className="font-bold text-slate-900">{ref.name}</p>
-                                    <p className="text-slate-600">{ref.title}{ref.company ? `, ${ref.company}` : ''}</p>
-                                    {ref.relationship && <p className="text-slate-500 italic">{ref.relationship}</p>}
-                                    {ref.email && <p>{ref.email}</p>}
-                                    {ref.phone && <p>{ref.phone}</p>}
+                                    <p className="font-bold text-slate-900" {...editableProps(['references', index, 'name'])}>{ref.name}</p>
+                                    <p className="text-slate-600">
+                                        <span {...editableProps(['references', index, 'title'])}>{ref.title}</span>
+                                        {ref.company ? <>, <span {...editableProps(['references', index, 'company'])}>{ref.company}</span></> : null}
+                                    </p>
+                                    {ref.relationship && <p className="text-slate-500 italic" {...editableProps(['references', index, 'relationship'])}>{ref.relationship}</p>}
+                                    {ref.email && <p {...editableProps(['references', index, 'email'])}>{ref.email}</p>}
+                                    {ref.phone && <p {...editableProps(['references', index, 'phone'])}>{ref.phone}</p>}
                                 </div>
                             ))}
                         </div>
@@ -205,16 +225,23 @@ const TemplateMinimalist: React.FC<TemplateProps> = ({ cvData, personalInfo, isE
                     />
                   </div>
                 )}
-                <h1 className="text-3xl font-light tracking-tight text-slate-900 mb-2">{personalInfo.name}</h1>
+                <h1 className="text-3xl font-light tracking-tight text-slate-900 mb-2"
+                    {...editableInfoProps('name')}>{personalInfo.name}</h1>
                 <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm text-slate-500">
-                    <span>{personalInfo.email}</span>
-                    <span>{personalInfo.phone}</span>
-                    <span>{personalInfo.location}</span>
+                    <span {...editableInfoProps('email')}>{personalInfo.email}</span>
+                    {personalInfo.phone && <span {...editableInfoProps('phone')}>{personalInfo.phone}</span>}
+                    {personalInfo.location && <span {...editableInfoProps('location')}>{personalInfo.location}</span>}
                 </div>
                 <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm text-slate-500 mt-1">
-                    {personalInfo.linkedin && <a href={personalInfo.linkedin} className="hover:text-slate-800 hover:underline">LinkedIn</a>}
-                    {personalInfo.website && <a href={personalInfo.website} className="hover:text-slate-800 hover:underline">Website</a>}
-                    {personalInfo.github && <a href={personalInfo.github} className="hover:text-slate-800 hover:underline">GitHub</a>}
+                    {personalInfo.linkedin && (isEditing
+                        ? <span {...editableInfoProps('linkedin')}>{personalInfo.linkedin}</span>
+                        : <a href={personalInfo.linkedin} className="hover:text-slate-800 hover:underline">LinkedIn</a>)}
+                    {personalInfo.website && (isEditing
+                        ? <span {...editableInfoProps('website')}>{personalInfo.website}</span>
+                        : <a href={personalInfo.website} className="hover:text-slate-800 hover:underline">Website</a>)}
+                    {personalInfo.github && (isEditing
+                        ? <span {...editableInfoProps('github')}>{personalInfo.github}</span>
+                        : <a href={personalInfo.github} className="hover:text-slate-800 hover:underline">GitHub</a>)}
                 </div>
             </header>
 
