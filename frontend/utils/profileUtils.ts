@@ -62,6 +62,8 @@ export function parseSlotData(
       savedCoverLetters: isPayload ? (parsed.savedCoverLetters ?? []) : [],
       trackedApps:       isPayload ? (parsed.trackedApps       ?? []) : [],
       starStories:       isPayload ? (parsed.starStories       ?? []) : [],
+      // Restore build report from D1 so fixed annotations don't reappear on this device.
+      lastBuildReport:   isPayload && parsed.lastBuildReport ? parsed.lastBuildReport : undefined,
     } as UserProfileSlot;
   } catch {
     return null;

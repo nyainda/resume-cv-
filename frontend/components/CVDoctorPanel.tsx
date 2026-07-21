@@ -306,10 +306,12 @@ const CVDoctorPanel: React.FC<Props> = ({ cv, jobDescription, diff, onApplyBulle
         setTimeout(() => setParaCopied(false), 2000);
     };
 
-    const annotations = React.useMemo(
-        () => (initialAnnotations && initialAnnotations.length > 0) ? initialAnnotations : classifyBullets(cv),
-        [initialAnnotations, cv],
-    );
+    const annotations = React.useMemo(() => {
+        const raw = (initialAnnotations && initialAnnotations.length > 0) ? initialAnnotations : classifyBullets(cv);
+        // Filter out annotations the user has already fixed — they carry resolved:true in the
+        // persisted build report so they don't reappear after a refresh or cross-device restore.
+        return raw.filter(a => !a.resolved);
+    }, [initialAnnotations, cv]);
     const goodCount   = annotations.filter(a => a.primaryIssue === 'good').length;
     const issueCount  = annotations.length - goodCount;
 

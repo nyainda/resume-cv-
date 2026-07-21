@@ -270,6 +270,9 @@ export async function syncSlot(slot: UserProfileSlot): Promise<void> {
             savedCoverLetters: (slot.savedCoverLetters ?? []).slice(0, 50),
             trackedApps: (slot.trackedApps ?? []).slice(0, 200),
             starStories: (slot.starStories ?? []).slice(0, 100),
+            // Build report syncs so fixed issues don't reappear on other devices / after refresh.
+            // Dropped in tier-2+ trimming — losing it is recoverable (re-run generates a fresh one).
+            lastBuildReport: slot.lastBuildReport ?? null,
         };
 
         let slotJsonToSend = JSON.stringify(slotPayload);
@@ -283,7 +286,7 @@ export async function syncSlot(slot: UserProfileSlot): Promise<void> {
         // Tier 3 (still >512 KB, extremely long profile): profile + currentCV, no collections.
         // Tier 4 (still >512 KB, profile alone is huge): profile-only plain JSON (last resort).
         if (slotJsonToSend.length > MAX_SLOT_BYTES) {
-            // Tier 1: trim history aggressively, keep currentCV
+            // Tier 1: trim history aggressively, keep currentCV + build report
             const tier1Payload = JSON.stringify({
                 profile: profileWithoutPhoto,
                 currentCV: currentCVForD1,
@@ -291,11 +294,12 @@ export async function syncSlot(slot: UserProfileSlot): Promise<void> {
                 savedCoverLetters: (slot.savedCoverLetters ?? []).slice(0, 5),
                 trackedApps: (slot.trackedApps ?? []).slice(0, 50),
                 starStories: (slot.starStories ?? []).slice(0, 20),
+                lastBuildReport: slot.lastBuildReport ?? null,
             });
             if (tier1Payload.length <= MAX_SLOT_BYTES) {
                 slotJsonToSend = tier1Payload;
             } else {
-                // Tier 2: drop all collections, keep currentCV
+                // Tier 2: drop all collections + build report, keep currentCV
                 const tier2Payload = JSON.stringify({
                     profile: profileWithoutPhoto,
                     currentCV: currentCVForD1,
@@ -303,6 +307,7 @@ export async function syncSlot(slot: UserProfileSlot): Promise<void> {
                     savedCoverLetters: [],
                     trackedApps: [],
                     starStories: [],
+                    // lastBuildReport intentionally omitted — losing it is recoverable
                 });
                 if (tier2Payload.length <= MAX_SLOT_BYTES) {
                     console.warn(

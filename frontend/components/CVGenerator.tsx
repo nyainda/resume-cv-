@@ -178,6 +178,9 @@ interface CVGeneratorProps {
   activeSlot?: UserProfileSlot | null;
   /** Mirror of App-level dark mode so the generator can style non-Tailwind elements */
   darkMode?: boolean;
+  /** Last build report persisted in the active slot — used to restore annotations
+   *  after a cross-device D1 sync so fixed issues don't reappear. */
+  buildReport?: CVBuildReport | null;
   /** Called after runAutoRepair completes — lifts the report to App level so the
    *  standalone Build Report page can display it even after navigating away. */
   onBuildReportReady?: (report: CVBuildReport, cv: CVData) => void;
@@ -273,6 +276,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
   profileId, initialJobDescription, initialTargetCompany, initialTargetJobTitle,
   initialCvPurpose, initialGenerationMode, initialJdKeywords, onSlotUpdate, onPinField, onUnpinField, onShareLinkAdded,
   onUpgrade, openToolkitAtQualityAudit, activeSlot, darkMode = false, onSaveCoverLetter, onGoToCoverLetters,
+  buildReport: buildReportProp,
 }) => {
   const GOLD = '#C9A84C';
   const { isAuthenticated, requireAuth, user: workerUser, isLoading: isAuthLoading } = useAuth();
@@ -950,6 +954,14 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
   const [showImportReport, setShowImportReport] = useState(false);
   const [showBuildPanel, setShowBuildPanel] = useState(false);
   const [buildReport, setBuildReport] = useState<CVBuildReport | null>(null);
+  // When the slot is restored from D1 (cross-device), the App-level lastBuildReport
+  // arrives via the buildReportProp after mount. Sync it in — but only if we don't
+  // already have a locally-generated report (generation always wins over restored).
+  React.useEffect(() => {
+    if (buildReportProp && !buildReport) {
+      setBuildReport(buildReportProp);
+    }
+  }, [buildReportProp]); // eslint-disable-line react-hooks/exhaustive-deps
   const [isFixingIssues, setIsFixingIssues] = useState(false);
   const [fixSummary, setFixSummary] = useState<{ total: number; remote: number } | null>(null);
   const [jdTier1Keywords, setJdTier1Keywords] = useLocalStorage<string[]>(`p:${profileId}:keywords`, initialJdKeywords ?? []);
@@ -3787,6 +3799,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
           initialAnnotations={buildReport?.annotations}
           onApplyBullet={(roleIndex, bulletIndex, newText) => {
             if (!currentCV) return;
+            // 1. Update the CV bullet text
             const exp = currentCV.experience.map((role, rIdx) => {
               if (rIdx !== roleIndex) return role;
               const responsibilities = role.responsibilities.map((b, bIdx) =>
@@ -3797,6 +3810,20 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
             const newCV = { ...currentCV, experience: exp };
             setCurrentCV(newCV);
             syncCurrentCVToD1(newCV);
+            // 2. Mark the matching annotation as resolved so it disappears and
+            //    persists across refresh + other devices via the build report sync.
+            if (buildReport) {
+              const updatedReport = {
+                ...buildReport,
+                annotations: buildReport.annotations.map(a =>
+                  a.roleIndex === roleIndex && a.bulletIndex === bulletIndex
+                    ? { ...a, resolved: true }
+                    : a
+                ),
+              };
+              setBuildReport(updatedReport);
+              onBuildReportReady?.(updatedReport, newCV);
+            }
           }}
           onUpdateCV={(updatedCV) => { setCurrentCV(updatedCV); syncCurrentCVToD1(updatedCV); }}
           onClose={() => setShowDoctorPanel(false)}

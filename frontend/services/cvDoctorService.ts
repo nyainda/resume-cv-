@@ -183,6 +183,9 @@ export interface BulletAnnotation {
     text:         string;
     issues:       BulletIssueType[];
     primaryIssue: BulletIssueType;
+    /** Set to true when the user applies a fix — persisted in the build report so the issue
+     *  disappears on next open/refresh and syncs across devices. */
+    resolved?:    boolean;
 }
 
 export interface CVDoctorScan {
