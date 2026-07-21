@@ -5433,6 +5433,43 @@ Preserve ALL facts and numbers.`,
 Aim for a mix where at least 30% of bullets are short and 30% are detailed.
 Extend short bullets with context or method; trim verbose ones to the core win.
 Preserve ALL facts and numbers.`,
+
+    no_metric: `Identify bullets that describe activities or outcomes WITHOUT any measurable figures (no %, no £/$, no headcount, no timeframe, no scale indicator).
+
+Rewrite each flagged bullet to include a clearly-marked placeholder — use [X%], [£X], [X users], [X months], [X engineers] etc. — showing EXACTLY where a real number belongs and in what unit. Also restructure the bullet around the placeholder so it reads naturally once a real number is filled in.
+
+Keep ALL existing specific facts and numbers unchanged.
+
+Example:
+Before: "Managed relationships with enterprise clients and improved satisfaction"
+After:  "Managed [X] enterprise accounts (£[X]M ARR), lifting client satisfaction scores by [X]% over [X] months"`,
+
+    achievement_density: `Identify bullets that describe duties/responsibilities ("responsible for", "managed the", "worked on", "oversaw", "helped") rather than outcomes or achievements.
+
+Rewrite each flagged bullet using Result → Action → Context format:
+  "[Result achieved] by [specific action], enabling [context/impact]"
+
+If the real result isn't in the bullet, add a placeholder like [X% improvement], [£X saved], [X faster].
+Do NOT invent facts — use bracketed placeholders for unknowns, keep all real numbers and company names exactly.
+Preserve bullets that already contain a clear outcome or metric — do not rewrite those.`,
+
+    tense_mismatch: `Fix verb tense consistency across all experience bullets.
+- Bullets for the FIRST (current/most recent) experience entry → present tense ("Manage", "Lead", "Build")
+- ALL other experience entries (past roles) → past tense ("Managed", "Led", "Built")
+
+Rewrite ONLY the bullets that have the wrong tense. Change the opening verb form only; preserve everything else exactly.`,
+
+    weak_verb: `Identify bullets starting with weak or vague verbs: helped, worked, assisted, supported, participated, involved, contributed, was part of, played a role.
+
+Rewrite each to start with a strong, specific ownership verb:
+• Leading/managing: Led, Directed, Oversaw, Managed, Coordinated
+• Building/engineering: Built, Engineered, Developed, Architected, Designed
+• Delivering: Delivered, Launched, Shipped, Executed, Deployed
+• Improving: Improved, Optimised, Streamlined, Accelerated, Reduced
+• Growing: Grew, Scaled, Expanded, Increased, Drove
+
+Choose the verb that best reflects what the person actually did — don't just swap in a random strong verb.
+Preserve ALL facts, numbers, and the rest of the bullet content.`,
 };
 
 const SUMMARY_FIX_INSTRUCTIONS: Record<string, string> = {
@@ -5444,6 +5481,27 @@ Rewrite ONLY the opening sentence to follow this pattern:
 [Job title] with [X] years of [specific domain] experience[, strongest concrete achievement OR key specialisation].
 Example: "Senior product manager with 9 years of B2B SaaS experience, having shipped 3 platform products reaching $12M ARR."
 Keep the rest of the summary unchanged. Return only the full rewritten summary paragraph.`,
+
+    summary_too_short: `This professional summary is too brief. Expand it to 60–90 words while preserving everything already there.
+
+Structure to follow:
+1. Open: [Current job title] with [X] years of [domain/specialty] experience
+2. Specialisation: mention 2 core strengths or domains
+3. Highlight: one concrete achievement — use [metric placeholder] if no real figure is available
+4. Direction (optional): "Seeking [type of role] in [sector]" — only add if it fits naturally
+
+Build on what is already written — do not contradict or replace existing facts.
+Return ONLY the expanded summary text with no labels or explanation.`,
+
+    summary_too_long: `This professional summary is too long. Trim it to 60–90 words.
+
+Rules:
+- Remove filler phrases that add no information: "results-driven", "passionate about", "team player", "strong communicator"
+- Cut anything that repeats information already clear from the job titles/bullets
+- Every remaining sentence must earn its place: fact, skill, or concrete achievement only
+- Keep all specific metrics, job titles, and company names
+
+Return ONLY the trimmed summary text with no labels or explanation.`,
 };
 
 /**

@@ -47,6 +47,7 @@ interface BuildReportPageProps {
   cv: CVData | null;
   jobDescription?: string;
   onGoToGenerator: () => void;
+  onGoToScoreCV?: () => void;
   onApplySuggestion: (item: ReviewItem, updatedCV: CVData) => void;
   onSkipSuggestion: (itemId: string) => void;
   onFlagAction: (flag: ManualFlag) => void;
@@ -486,6 +487,7 @@ export default function BuildReportPage({
   cv,
   jobDescription,
   onGoToGenerator,
+  onGoToScoreCV,
   onApplySuggestion,
   onSkipSuggestion,
   onFlagAction,
@@ -608,7 +610,7 @@ export default function BuildReportPage({
             {builtAt ? `Last generated ${builtAt}` : 'Run CV Generator to build a full report'}
           </p>
         </div>
-        <div className="flex items-center gap-2 self-start sm:self-auto">
+        <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
           <button
             onClick={() => setActiveTab('coach')}
             className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold border transition-colors"
@@ -617,6 +619,16 @@ export default function BuildReportPage({
             <Sparkles className="w-3.5 h-3.5" />
             Auto-Optimize
           </button>
+          {onGoToScoreCV && (
+            <button
+              onClick={onGoToScoreCV}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold border transition-colors"
+              style={{ borderColor: 'rgba(27,43,75,0.3)', color: '#1B2B4B', background: 'rgba(27,43,75,0.05)' }}
+            >
+              <BarChart3 className="w-3.5 h-3.5" />
+              Score CV
+            </button>
+          )}
           <button
             onClick={onGoToGenerator}
             className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold text-white transition-opacity hover:opacity-90"

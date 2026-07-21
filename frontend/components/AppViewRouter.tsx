@@ -279,6 +279,7 @@ const AppViewRouter: React.FC<AppViewRouterProps> = (props) => {
                   cv={currentCV}
                   jobDescription={activeSlot?.jobDescription ?? (activeSlot as any)?.currentJobDescription ?? ''}
                   onGoToGenerator={() => setCurrentView('generator')}
+                  onGoToScoreCV={() => setCurrentView('score')}
                   onApplySuggestion={(item, updatedCV) => {
                     setCurrentCV(updatedCV);
                     if (isAuthenticated && activeSlot) {
