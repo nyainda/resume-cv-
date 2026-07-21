@@ -12,6 +12,7 @@ import type { BulletAnnotation } from '../services/cvDoctorService';
 import type { FinalGuardResult } from '../services/cvFinalGuard';
 import type { AtsKeywordReport } from '../services/cvAtsKeywords';
 import type { ReconciledSkills } from '../services/skillsReconciler';
+import type { CVScore } from '../services/geminiService';
 
 // ─── Tier classification ──────────────────────────────────────────────────────
 
@@ -80,6 +81,10 @@ export interface CVBuildReport {
   annotations: BulletAnnotation[];
   /** Raw guard result (reused by QualityIssuesPanel). */
   guardResult: FinalGuardResult | null;
+  /** AI-generated CV Match Score (overall, ats, impact, relevance, clarity, verdict,
+   *  strengths, improvements, missingKeywords). Set whenever scoreCV() runs — persisted
+   *  so the Build Report Score tab shows it across sessions and devices. */
+  cvMatchScore?: CVScore | null;
   /** ISO timestamp of when this report was generated. */
   generatedAt: string;
 }

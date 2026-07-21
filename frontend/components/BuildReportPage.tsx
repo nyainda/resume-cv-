@@ -32,6 +32,7 @@ import { scoreEvidenceStrength } from '../services/cvEvidenceScore';
 import { scoreAchievementDensity } from '../services/cvAchievementDensity';
 import { scoreVerbVariety } from '../services/cvVerbVariety';
 import { fixVerbVariety, fixAiIsms } from '../services/cvAutoFixer';
+import type { CVScore } from '../services/geminiService';
 import {
   Wrench, Zap, Target, LayoutGrid, Cpu, ArrowRight,
   Stethoscope, BarChart3, GraduationCap, CheckCircle,
@@ -324,7 +325,97 @@ function gradeLabel(score: number) {
   return { grade: 'F', label: 'Poor', colour: '#C0392B' };
 }
 
-function ScoreTab({ cv, atsScore }: { cv: CVData; atsScore?: number }) {
+// ── CV Match Score card (mirrors the panel in CVGenerator) ────────────────────
+
+function CVMatchScoreCard({ cvScore }: { cvScore: CVScore }) {
+  const score = cvScore.overall;
+  const grade = score >= 85
+    ? { label: 'Excellent', ring: 'ring-green-400', text: 'text-green-700 dark:text-green-400' }
+    : score >= 70
+    ? { label: 'Good',      ring: 'ring-blue-400',  text: 'text-blue-700 dark:text-blue-400' }
+    : score >= 55
+    ? { label: 'Fair',      ring: 'ring-yellow-400', text: 'text-yellow-700 dark:text-yellow-400' }
+    : { label: 'Needs Work', ring: 'ring-red-400',  text: 'text-red-700 dark:text-red-400' };
+
+  const dim = (label: string, val: number, colour: string) => (
+    <div key={label}>
+      <div className="flex justify-between text-xs mb-1">
+        <span className="text-foreground/60">{label}</span>
+        <span className="font-semibold text-foreground">{val}</span>
+      </div>
+      <div className="h-1.5 rounded-full bg-border">
+        <div className={`h-1.5 rounded-full ${colour} transition-all duration-700`} style={{ width: `${val}%` }} />
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="rounded-2xl border border-violet-200 dark:border-violet-800 bg-background overflow-hidden shadow-sm">
+      {/* Header */}
+      <div className="flex items-center gap-3 px-5 py-4 bg-violet-50 dark:bg-violet-900/20 border-b border-violet-200 dark:border-violet-800 flex-wrap gap-y-2">
+        <div className={`w-14 h-14 rounded-full ring-4 ${grade.ring} flex items-center justify-center bg-white dark:bg-neutral-800 flex-shrink-0`}>
+          <span className={`text-xl font-extrabold ${grade.text}`}>{score}</span>
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold text-muted-foreground">CV Match Score</p>
+          <p className={`text-lg font-extrabold ${grade.text}`}>{grade.label}</p>
+        </div>
+        {cvScore.verdict && (
+          <p className="text-sm italic text-muted-foreground max-w-[200px] hidden sm:block">"{cvScore.verdict}"</p>
+        )}
+      </div>
+
+      <div className="px-5 py-4 grid grid-cols-1 sm:grid-cols-2 gap-6">
+        {/* Score breakdown bars */}
+        <div className="space-y-3">
+          <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground mb-2">Score Breakdown</p>
+          {dim('ATS Keyword Match',  cvScore.ats,       'bg-[#1B2B4B] dark:bg-[#C9A84C]')}
+          {dim('Quantified Impact',  cvScore.impact,    'bg-emerald-500')}
+          {dim('Role Relevance',     cvScore.relevance, 'bg-blue-500')}
+          {dim('Writing Clarity',    cvScore.clarity,   'bg-amber-500')}
+        </div>
+
+        {/* Insights */}
+        <div className="space-y-4">
+          {cvScore.strengths.length > 0 && (
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wide text-green-600 dark:text-green-400 mb-1.5">✓ Strengths</p>
+              <ul className="space-y-1">
+                {cvScore.strengths.map((s, i) => (
+                  <li key={i} className="text-xs text-foreground/80">• {s}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {cvScore.improvements.length > 0 && (
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wide text-red-600 dark:text-red-400 mb-1.5">→ Quick Wins</p>
+              <ul className="space-y-1">
+                {cvScore.improvements.map((s, i) => (
+                  <li key={i} className="text-xs text-foreground/80">• {s}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {cvScore.missingKeywords.length > 0 && (
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wide text-orange-600 dark:text-orange-400 mb-1.5">⚠ Missing Keywords</p>
+              <div className="flex flex-wrap gap-1">
+                {cvScore.missingKeywords.map((kw, i) => (
+                  <span key={i} className="px-2 py-0.5 text-[11px] font-medium rounded-full bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 border border-orange-200 dark:border-orange-800">
+                    {kw}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ScoreTab({ cv, atsScore, cvMatchScore }: { cv: CVData; atsScore?: number; cvMatchScore?: CVScore | null }) {
   const scores = useMemo(() => computeScores(cv), [cv]);
   const { grade, label, colour } = gradeLabel(scores.composite);
 
@@ -340,7 +431,10 @@ function ScoreTab({ cv, atsScore }: { cv: CVData; atsScore?: number }) {
 
   return (
     <div className="space-y-5">
-      {/* Composite score hero */}
+      {/* CV Match Score — AI-scored panel, shown when available */}
+      {cvMatchScore && <CVMatchScoreCard cvScore={cvMatchScore} />}
+
+      {/* Composite quality score hero */}
       <div className="flex items-center gap-5 p-4 rounded-xl border border-border bg-background/60">
         <CircularScore score={scores.composite} />
         <div className="flex-1 min-w-0">
@@ -363,7 +457,7 @@ function ScoreTab({ cv, atsScore }: { cv: CVData; atsScore?: number }) {
 
       {/* Dimension bars */}
       <div className="rounded-xl border border-border bg-background/60 p-4 space-y-4">
-        <p className="text-xs font-semibold text-foreground/70 uppercase tracking-wide">Score Breakdown</p>
+        <p className="text-xs font-semibold text-foreground/70 uppercase tracking-wide">Writing Quality Breakdown</p>
         {dims.map(d => <ScoreBar key={d.label} {...d} />)}
       </div>
 
@@ -381,6 +475,12 @@ function ScoreTab({ cv, atsScore }: { cv: CVData; atsScore?: number }) {
           </div>
         ))}
       </div>
+
+      {!cvMatchScore && (
+        <p className="text-xs text-muted-foreground text-center italic">
+          💡 Generate a CV with a job description pasted to unlock the AI CV Match Score here.
+        </p>
+      )}
     </div>
   );
 }
@@ -738,7 +838,7 @@ export default function BuildReportPage({
           {activeTab === 'ats'    && report && <ATSTab report={report} />}
           {activeTab === 'skills' && report && <SkillsTab report={report} />}
           {activeTab === 'doctor' && <DoctorTab cv={cv} />}
-          {activeTab === 'score'  && <ScoreTab cv={cv} atsScore={atsScore} />}
+          {activeTab === 'score'  && <ScoreTab cv={cv} atsScore={atsScore} cvMatchScore={report?.cvMatchScore} />}
           {activeTab === 'coach'  && (
             <CoachTab
               cv={cv}

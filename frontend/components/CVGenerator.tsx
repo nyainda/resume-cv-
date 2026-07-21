@@ -1425,6 +1425,14 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
         advanceStage('scoring', 'Scoring CV against the job description…');
         const score = await scoreCV(generatedData, jobDescription);
         setCvScore(score);
+        // Persist into the build report so the Score tab shows it after navigation
+        // and across devices without re-running the AI scorer.
+        setBuildReport(prev => {
+          if (!prev) return prev;
+          const updated = { ...prev, cvMatchScore: score };
+          onBuildReportReady?.(updated, generatedData);
+          return updated;
+        });
       } catch {
         // silent — score card just won't appear
       }
@@ -1558,9 +1566,17 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
           setOptimizeStage('scoring');
           const newScore = await scoreCV(improved, jobDescription);
           setCvScore(newScore);
+          // Persist re-score into build report for cross-device and Build Report tab
+          setBuildReport(prev => {
+            if (!prev) return prev;
+            const updated = { ...prev, cvMatchScore: newScore };
+            onBuildReportReady?.(updated, improved);
+            return updated;
+          });
         } catch { /* silent — old score stays */ }
       } else {
         setCvScore(null);
+        setBuildReport(prev => prev ? { ...prev, cvMatchScore: null } : prev);
       }
 
       setJustGenerated(true); // scroll back to preview
@@ -1657,6 +1673,13 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
     try {
       const score = await scoreCV(currentCV, jobDescription);
       setCvScore(score);
+      // Persist into build report so Build Report Score tab shows it without re-scoring
+      setBuildReport(prev => {
+        if (!prev) return prev;
+        const updated = { ...prev, cvMatchScore: score };
+        onBuildReportReady?.(updated, currentCV);
+        return updated;
+      });
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'Scoring failed — please try again.';
       setScoreError(msg);
