@@ -1,11 +1,15 @@
 /**
  * CoachingRecommendations.tsx
  *
- * Every coaching tip ships with an automatic fix:
- *   — Deterministic (instant, no LLM): AI-isms, verb variety
- *   — LLM bullet fix: passive voice, no metrics, weak verbs, duty→achievement, tense
- *   — LLM summary fix: too short, too long
- *   — Navigate: ATS keyword gaps → generate tailored CV
+ * Every tip has a full review-before-apply flow:
+ *   1. User clicks "Fix with AI" (or "Fix Now" for instant fixes)
+ *   2. AI runs — for LLM fixes a diff panel opens showing every changed line
+ *   3. Each change shows BEFORE (read-only) and AFTER (editable — user can rewrite)
+ *   4. Per-change accept/reject toggles + Accept All / Reject All
+ *   5. "Apply N changes" commits only accepted edits to the live CV
+ *
+ * Instant fixes (aiisms / verb variety) apply immediately — no diff needed
+ * because they're deterministic and fast to re-run.
  */
 
 import React, { useState, useMemo } from 'react';
@@ -24,6 +28,7 @@ import {
 import {
   Shield, Award, Zap, TrendingUp, Lightbulb, Sparkles,
   BarChart3, Target, AlertTriangle, CheckCircle, ArrowRight, Wrench,
+  ChevronDown, ChevronUp, Check, X,
 } from 'lucide-react';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -42,7 +47,33 @@ export interface CoachTip {
   fix:        FixAction;
 }
 
-// ── Builder ───────────────────────────────────────────────────────────────────
+interface BulletChange {
+  roleIdx:    number;
+  roleTitle:  string;
+  bulletIdx:  number;   // within that role's responsibilities[]
+  globalIdx:  number;   // flat index across all roles
+  before:     string;
+  after:      string;   // AI suggestion
+  custom:     string;   // user-editable — starts same as `after`
+  accepted:   boolean;
+}
+
+interface SummaryChange {
+  before:   string;
+  after:    string;
+  custom:   string;
+  accepted: boolean;
+}
+
+type ReviewState =
+  | { phase: 'idle' }
+  | { phase: 'loading' }
+  | { phase: 'review_bullets';  changes: BulletChange[] }
+  | { phase: 'review_summary';  change:  SummaryChange }
+  | { phase: 'applied';         count:   number }
+  | { phase: 'error';           message: string };
+
+// ── Tip builder ───────────────────────────────────────────────────────────────
 
 export function buildCoachingTips(cv: CVData, report: CVBuildReport | null): CoachTip[] {
   const tips: CoachTip[] = [];
@@ -71,7 +102,7 @@ export function buildCoachingTips(cv: CVData, report: CVBuildReport | null): Coa
       priority: 'high',
       icon: <Shield className="w-4 h-4" />,
       title: 'Remove AI-sounding language',
-      detail: `${(issueMap['ai_language'] ?? 0) + (issueMap['pronoun'] ?? 0)} bullets contain AI buzzwords or first-person pronouns. Auto-Fix removes them instantly.`,
+      detail: `${(issueMap['ai_language'] ?? 0) + (issueMap['pronoun'] ?? 0)} bullets contain AI buzzwords or first-person pronouns that recruiters flag instantly.`,
       fix: { kind: 'auto', fixerId: 'aiisms' },
     });
   }
@@ -81,7 +112,7 @@ export function buildCoachingTips(cv: CVData, report: CVBuildReport | null): Coa
       priority: 'high',
       icon: <Award className="w-4 h-4" />,
       title: 'Add numbers to your bullets',
-      detail: `${issueMap['no_metric']} bullets have no measurable outcome. AI will rewrite them with [placeholder] metrics showing exactly where a number belongs.`,
+      detail: `${issueMap['no_metric']} bullets have no measurable outcome. AI rewrites them with [placeholder] metrics showing exactly where a number belongs.`,
       fix: { kind: 'llm_bullets', signalId: 'no_metric' },
     });
   }
@@ -91,7 +122,7 @@ export function buildCoachingTips(cv: CVData, report: CVBuildReport | null): Coa
       priority: 'high',
       icon: <Zap className="w-4 h-4" />,
       title: 'Fix passive voice',
-      detail: `${issueMap['passive_voice']} bullets use passive voice ("was responsible for", "was tasked with"). AI rewrites them as active, ownership-showing bullets.`,
+      detail: `${issueMap['passive_voice']} bullets use passive constructions ("was responsible for", "was tasked with"). AI converts them to active ownership bullets.`,
       fix: { kind: 'llm_bullets', signalId: 'passive_voice' },
     });
   }
@@ -111,7 +142,7 @@ export function buildCoachingTips(cv: CVData, report: CVBuildReport | null): Coa
       priority: 'medium',
       icon: <Lightbulb className="w-4 h-4" />,
       title: 'Fix tense consistency',
-      detail: `${issueMap['tense_mismatch']} bullet${issueMap['tense_mismatch'] !== 1 ? 's have' : ' has'} the wrong tense. AI corrects them — current role to present tense, past roles to past tense.`,
+      detail: `${issueMap['tense_mismatch']} bullet${issueMap['tense_mismatch'] !== 1 ? 's have' : ' has'} the wrong tense. AI corrects them — current role in present tense, past roles in past tense.`,
       fix: { kind: 'llm_bullets', signalId: 'tense_mismatch' },
     });
   }
@@ -121,7 +152,7 @@ export function buildCoachingTips(cv: CVData, report: CVBuildReport | null): Coa
       priority: 'medium',
       icon: <Sparkles className="w-4 h-4" />,
       title: 'Diversify your action verbs',
-      detail: 'Several verbs repeat too many times across roles — a pattern that signals low effort. Auto-Fix rotates overused verbs to varied synonyms instantly.',
+      detail: 'Several verbs appear too many times across roles — a pattern that signals low effort to ATS and reviewers. Auto-Fix rotates overused verbs instantly.',
       fix: { kind: 'auto', fixerId: 'verbs' },
     });
   }
@@ -142,7 +173,7 @@ export function buildCoachingTips(cv: CVData, report: CVBuildReport | null): Coa
       priority: 'high',
       icon: <Target className="w-4 h-4" />,
       title: `Add ${Math.min(missing.length, 5)} missing ATS keywords`,
-      detail: `Top missing: ${missing.slice(0, 5).join(', ')}. Generate a fresh tailored CV to automatically weave these into the right places.`,
+      detail: `Top missing: ${missing.slice(0, 5).join(', ')}. Generate a fresh tailored CV to weave these into the right places automatically.`,
       fix: { kind: 'navigate', label: 'Generate Tailored CV' },
     });
   }
@@ -170,7 +201,7 @@ export function buildCoachingTips(cv: CVData, report: CVBuildReport | null): Coa
     tips.push({
       priority: 'low',
       icon: <Lightbulb className="w-4 h-4" />,
-      title: 'Tighten your summary',
+      title: 'Tighten your professional summary',
       detail: `Your summary is ${summaryLen} words — aim for 90 max. AI strips filler phrases and repetition, keeping all real facts.`,
       fix: { kind: 'llm_summary', signalId: 'summary_too_long' },
     });
@@ -180,7 +211,7 @@ export function buildCoachingTips(cv: CVData, report: CVBuildReport | null): Coa
     tips.push({
       priority: 'low',
       icon: <CheckCircle className="w-4 h-4" />,
-      title: 'Your CV is in strong shape',
+      title: 'CV is in strong shape',
       detail: 'No major coaching issues found. Keep generating role-specific versions for each job description to maximise ATS match.',
       fix: { kind: 'navigate', label: 'Generate Tailored CV' },
     });
@@ -190,107 +221,367 @@ export function buildCoachingTips(cv: CVData, report: CVBuildReport | null): Coa
   return tips.sort((a, b) => ORDER[a.priority] - ORDER[b.priority]).slice(0, 8);
 }
 
-// ── Apply helpers ─────────────────────────────────────────────────────────────
-
-async function applyLLMBulletFix(cv: CVData, signalId: string): Promise<{ cv: CVData; count: number }> {
-  const allBullets = cv.experience.flatMap(r => r.responsibilities ?? []);
-  if (allBullets.length === 0) return { cv, count: 0 };
-
-  const fixed = await fixBulletsForSignal(allBullets, signalId);
-
-  let idx = 0;
-  const updatedExperience = cv.experience.map(role => ({
-    ...role,
-    responsibilities: (role.responsibilities ?? []).map(() => fixed[idx++]),
-  }));
-
-  const changed = fixed.filter((b, i) => b !== allBullets[i]).length;
-  return { cv: { ...cv, experience: updatedExperience }, count: changed };
-}
-
-async function applyLLMSummaryFix(cv: CVData, signalId: string): Promise<{ cv: CVData; count: number }> {
-  const fixed = await fixSummaryForSignal(cv.summary ?? '', signalId);
-  const changed = fixed !== (cv.summary ?? '') ? 1 : 0;
-  return { cv: { ...cv, summary: fixed }, count: changed };
-}
-
 // ── Priority styles ───────────────────────────────────────────────────────────
 
 const PRIORITY_STYLES = {
-  high:   { dot: 'bg-[#C0392B]', badge: 'bg-rose-50 text-rose-700 dark:bg-rose-950/30 dark:text-rose-300',   label: 'High priority' },
-  medium: { dot: 'bg-[#C9A84C]', badge: 'bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-300', label: 'Medium' },
+  high:   { dot: 'bg-[#C0392B]', badge: 'bg-rose-50   text-rose-700   dark:bg-rose-950/30   dark:text-rose-300',   label: 'High priority' },
+  medium: { dot: 'bg-[#C9A84C]', badge: 'bg-amber-50  text-amber-700  dark:bg-amber-950/30  dark:text-amber-300',  label: 'Medium' },
   low:    { dot: 'bg-[#2D6A4F]', badge: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300', label: 'Low' },
 };
 
-const FIX_LABELS: Record<FixAction['kind'], string> = {
-  auto:        'Fix Now',
-  llm_bullets: 'Auto-Fix with AI',
-  llm_summary: 'Auto-Fix with AI',
-  navigate:    '',  // label comes from tip
-};
+// ── Diff panels ───────────────────────────────────────────────────────────────
+
+interface BulletDiffPanelProps {
+  changes:   BulletChange[];
+  onUpdate:  (changes: BulletChange[]) => void;
+  onApply:   () => void;
+  onDiscard: () => void;
+}
+
+function BulletDiffPanel({ changes, onUpdate, onApply, onDiscard }: BulletDiffPanelProps) {
+  const accepted = changes.filter(c => c.accepted);
+  const [expanded, setExpanded] = useState<Set<number>>(new Set(changes.map((_, i) => i)));
+
+  function toggle(idx: number, value: boolean) {
+    onUpdate(changes.map((c, i) => i === idx ? { ...c, accepted: value } : c));
+  }
+  function acceptAll()  { onUpdate(changes.map(c => ({ ...c, accepted: true }))); }
+  function rejectAll()  { onUpdate(changes.map(c => ({ ...c, accepted: false }))); }
+  function setCustom(idx: number, value: string) {
+    onUpdate(changes.map((c, i) => i === idx ? { ...c, custom: value } : c));
+  }
+  function toggleExpand(idx: number) {
+    setExpanded(prev => {
+      const next = new Set(prev);
+      next.has(idx) ? next.delete(idx) : next.add(idx);
+      return next;
+    });
+  }
+
+  return (
+    <div className="mt-3 rounded-xl border border-zinc-200 dark:border-neutral-700 overflow-hidden text-sm">
+      {/* Header */}
+      <div className="flex items-center justify-between px-3 py-2.5 bg-zinc-50 dark:bg-neutral-800/60 border-b border-zinc-200 dark:border-neutral-700">
+        <span className="text-xs font-bold text-foreground">
+          AI found <span className="text-[#C9A84C]">{changes.length}</span> change{changes.length !== 1 ? 's' : ''} — review before applying
+        </span>
+        <div className="flex items-center gap-2">
+          <button onClick={acceptAll}  className="text-[10px] font-semibold px-2 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 hover:opacity-80">Accept all</button>
+          <button onClick={rejectAll}  className="text-[10px] font-semibold px-2 py-0.5 rounded bg-rose-100    dark:bg-rose-950/40    text-rose-700    dark:text-rose-400    hover:opacity-80">Reject all</button>
+        </div>
+      </div>
+
+      {/* Change list */}
+      <div className="divide-y divide-zinc-100 dark:divide-neutral-800 max-h-[420px] overflow-y-auto">
+        {changes.map((ch, i) => {
+          const open = expanded.has(i);
+          return (
+            <div key={i} className={`transition-colors ${ch.accepted ? 'bg-white dark:bg-neutral-900' : 'bg-zinc-50/80 dark:bg-neutral-800/40 opacity-60'}`}>
+              {/* Row header */}
+              <div className="flex items-center gap-2 px-3 py-2">
+                {/* Accept toggle */}
+                <button
+                  onClick={() => toggle(i, !ch.accepted)}
+                  className={`flex-shrink-0 w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
+                    ch.accepted
+                      ? 'bg-emerald-500 border-emerald-500 text-white'
+                      : 'border-zinc-300 dark:border-neutral-600 bg-transparent'
+                  }`}
+                >
+                  {ch.accepted && <Check className="w-3 h-3" />}
+                </button>
+
+                {/* Role badge */}
+                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-neutral-800 text-zinc-500 dark:text-zinc-400 flex-shrink-0">
+                  {ch.roleTitle}
+                </span>
+
+                {/* Before text preview */}
+                <span className="flex-1 text-xs text-zinc-400 dark:text-zinc-500 truncate line-through">
+                  {ch.before}
+                </span>
+
+                {/* Expand toggle */}
+                <button onClick={() => toggleExpand(i)} className="flex-shrink-0 text-muted-foreground hover:text-foreground">
+                  {open ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                </button>
+              </div>
+
+              {/* Expanded detail — before + editable after */}
+              {open && (
+                <div className="px-3 pb-3 space-y-2">
+                  {/* Before */}
+                  <div>
+                    <p className="text-[9px] font-bold uppercase tracking-widest text-zinc-400 dark:text-zinc-500 mb-1">Before</p>
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400 bg-zinc-50 dark:bg-neutral-800 rounded-lg px-3 py-2 leading-relaxed line-through">
+                      {ch.before}
+                    </p>
+                  </div>
+                  {/* After — editable */}
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <p className="text-[9px] font-bold uppercase tracking-widest text-emerald-600 dark:text-emerald-400">After (editable)</p>
+                      {ch.custom !== ch.after && (
+                        <button
+                          onClick={() => setCustom(i, ch.after)}
+                          className="text-[9px] text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 underline"
+                        >
+                          Reset to AI suggestion
+                        </button>
+                      )}
+                    </div>
+                    <textarea
+                      value={ch.custom}
+                      onChange={e => setCustom(i, e.target.value)}
+                      rows={Math.max(2, Math.ceil(ch.custom.length / 80))}
+                      className="w-full text-xs rounded-lg border border-emerald-200 dark:border-emerald-800/50 bg-emerald-50/50 dark:bg-emerald-950/20 text-foreground px-3 py-2 leading-relaxed resize-none focus:outline-none focus:ring-1 focus:ring-emerald-400"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Footer */}
+      <div className="flex items-center justify-between px-3 py-2.5 bg-zinc-50 dark:bg-neutral-800/60 border-t border-zinc-200 dark:border-neutral-700">
+        <button onClick={onDiscard} className="text-xs text-muted-foreground hover:text-foreground underline">
+          Discard all
+        </button>
+        <button
+          onClick={onApply}
+          disabled={accepted.length === 0}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-white transition-opacity hover:opacity-90 disabled:opacity-40"
+          style={{ background: '#2D6A4F' }}
+        >
+          <Check className="w-3 h-3" />
+          Apply {accepted.length} change{accepted.length !== 1 ? 's' : ''} to CV
+        </button>
+      </div>
+    </div>
+  );
+}
+
+interface SummaryDiffPanelProps {
+  change:    SummaryChange;
+  onUpdate:  (change: SummaryChange) => void;
+  onApply:   () => void;
+  onDiscard: () => void;
+}
+
+function SummaryDiffPanel({ change, onUpdate, onApply, onDiscard }: SummaryDiffPanelProps) {
+  return (
+    <div className="mt-3 rounded-xl border border-zinc-200 dark:border-neutral-700 overflow-hidden text-sm">
+      {/* Header */}
+      <div className="flex items-center justify-between px-3 py-2.5 bg-zinc-50 dark:bg-neutral-800/60 border-b border-zinc-200 dark:border-neutral-700">
+        <span className="text-xs font-bold text-foreground">
+          AI rewrote your summary — review before applying
+        </span>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => onUpdate({ ...change, accepted: !change.accepted })}
+            className={`text-[10px] font-semibold px-2 py-0.5 rounded transition-colors ${
+              change.accepted
+                ? 'bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400'
+                : 'bg-zinc-100 dark:bg-neutral-800 text-zinc-500'
+            }`}
+          >
+            {change.accepted ? '✓ Accepted' : 'Rejected'}
+          </button>
+        </div>
+      </div>
+
+      <div className="p-3 space-y-3">
+        {/* Before */}
+        <div>
+          <p className="text-[9px] font-bold uppercase tracking-widest text-zinc-400 dark:text-zinc-500 mb-1">Before</p>
+          <p className="text-xs text-zinc-500 dark:text-zinc-400 bg-zinc-50 dark:bg-neutral-800 rounded-lg px-3 py-2 leading-relaxed line-through">
+            {change.before || '(no summary)'}
+          </p>
+        </div>
+
+        {/* After — editable */}
+        <div>
+          <div className="flex items-center justify-between mb-1">
+            <p className="text-[9px] font-bold uppercase tracking-widest text-emerald-600 dark:text-emerald-400">After (editable)</p>
+            {change.custom !== change.after && (
+              <button
+                onClick={() => onUpdate({ ...change, custom: change.after })}
+                className="text-[9px] text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 underline"
+              >
+                Reset to AI suggestion
+              </button>
+            )}
+          </div>
+          <textarea
+            value={change.custom}
+            onChange={e => onUpdate({ ...change, custom: e.target.value })}
+            rows={Math.max(3, Math.ceil(change.custom.length / 80))}
+            className="w-full text-xs rounded-lg border border-emerald-200 dark:border-emerald-800/50 bg-emerald-50/50 dark:bg-emerald-950/20 text-foreground px-3 py-2 leading-relaxed resize-none focus:outline-none focus:ring-1 focus:ring-emerald-400"
+          />
+        </div>
+      </div>
+
+      {/* Footer */}
+      <div className="flex items-center justify-between px-3 py-2.5 bg-zinc-50 dark:bg-neutral-800/60 border-t border-zinc-200 dark:border-neutral-700">
+        <button onClick={onDiscard} className="text-xs text-muted-foreground hover:text-foreground underline">
+          Discard
+        </button>
+        <button
+          onClick={onApply}
+          disabled={!change.accepted}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-white transition-opacity hover:opacity-90 disabled:opacity-40"
+          style={{ background: '#2D6A4F' }}
+        >
+          <Check className="w-3 h-3" />
+          Apply to CV
+        </button>
+      </div>
+    </div>
+  );
+}
 
 // ── TipCard ───────────────────────────────────────────────────────────────────
 
 interface TipCardProps {
-  tip:             CoachTip;
-  cv:              CVData;
-  onUpdateCV?:     (cv: CVData) => void;
+  tip:              CoachTip;
+  cv:               CVData;
+  onUpdateCV?:      (cv: CVData) => void;
   onGoToGenerator?: () => void;
 }
 
 function TipCard({ tip, cv, onUpdateCV, onGoToGenerator }: TipCardProps) {
-  const [fixing,   setFixing]   = useState(false);
-  const [fixed,    setFixed]    = useState(false);
-  const [fixCount, setFixCount] = useState(0);
-  const [error,    setError]    = useState<string | null>(null);
+  const [state, setState] = useState<ReviewState>({ phase: 'idle' });
 
-  const styles   = PRIORITY_STYLES[tip.priority];
-  const canFix   = tip.fix.kind !== 'navigate' && !!onUpdateCV;
-  const isLLM    = tip.fix.kind === 'llm_bullets' || tip.fix.kind === 'llm_summary';
+  const styles = PRIORITY_STYLES[tip.priority];
+  const isLLM  = tip.fix.kind === 'llm_bullets' || tip.fix.kind === 'llm_summary';
 
-  async function handleFix() {
-    if (!onUpdateCV || fixing || fixed) return;
-    setFixing(true);
-    setError(null);
+  // ── Run fix ────────────────────────────────────────────────────────────────
+  async function runFix() {
+    if (!onUpdateCV) return;
+    setState({ phase: 'loading' });
+
     try {
-      let result: { cv: CVData; count: number };
-
+      // ── Instant / deterministic ────────────────────────────────────────────
       if (tip.fix.kind === 'auto') {
-        if (tip.fix.fixerId === 'aiisms') {
-          const r = fixAiIsms(cv);
-          result = { cv: r.updatedCV, count: r.fixCount };
-        } else {
-          const verbReport = scoreVerbVariety(cv);
-          const r = fixVerbVarietyFn(cv, verbReport.overusedVerbs);
-          result = { cv: r.updatedCV, count: r.fixCount };
-        }
-      } else if (tip.fix.kind === 'llm_bullets') {
-        result = await applyLLMBulletFix(cv, tip.fix.signalId);
-      } else if (tip.fix.kind === 'llm_summary') {
-        result = await applyLLMSummaryFix(cv, tip.fix.signalId);
-      } else {
+        const r = tip.fix.fixerId === 'aiisms'
+          ? fixAiIsms(cv)
+          : (() => {
+              const verbReport = scoreVerbVariety(cv);
+              return fixVerbVarietyFn(cv, verbReport.overusedVerbs);
+            })();
+        onUpdateCV(r.updatedCV);
+        setState({ phase: 'applied', count: r.fixCount });
         return;
       }
 
-      onUpdateCV(result.cv);
-      setFixCount(result.count);
-      setFixed(true);
+      // ── LLM bullets ────────────────────────────────────────────────────────
+      if (tip.fix.kind === 'llm_bullets') {
+        // Build flat bullet list with position metadata
+        const allBullets: { roleIdx: number; roleTitle: string; bulletIdx: number; text: string }[] = [];
+        cv.experience.forEach((role, ri) => {
+          (role.responsibilities ?? []).forEach((b, bi) => {
+            allBullets.push({
+              roleIdx:   ri,
+              roleTitle: role.jobTitle || `Role ${ri + 1}`,
+              bulletIdx: bi,
+              text:      b,
+            });
+          });
+        });
+
+        const flatTexts = allBullets.map(b => b.text);
+        const fixed     = await fixBulletsForSignal(flatTexts, tip.fix.signalId);
+
+        const changes: BulletChange[] = [];
+        fixed.forEach((fixedText, globalIdx) => {
+          const orig = allBullets[globalIdx];
+          if (fixedText !== orig.text) {
+            changes.push({
+              roleIdx:   orig.roleIdx,
+              roleTitle: orig.roleTitle,
+              bulletIdx: orig.bulletIdx,
+              globalIdx,
+              before:    orig.text,
+              after:     fixedText,
+              custom:    fixedText,
+              accepted:  true,
+            });
+          }
+        });
+
+        if (changes.length === 0) {
+          setState({ phase: 'applied', count: 0 });
+          return;
+        }
+        setState({ phase: 'review_bullets', changes });
+        return;
+      }
+
+      // ── LLM summary ────────────────────────────────────────────────────────
+      if (tip.fix.kind === 'llm_summary') {
+        const before = cv.summary ?? '';
+        const after  = await fixSummaryForSignal(before, tip.fix.signalId);
+
+        if (!after || after === before) {
+          setState({ phase: 'applied', count: 0 });
+          return;
+        }
+        setState({
+          phase: 'review_summary',
+          change: { before, after, custom: after, accepted: true },
+        });
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Fix failed — check your API key in Settings');
-    } finally {
-      setFixing(false);
+      setState({ phase: 'error', message: err instanceof Error ? err.message : 'AI fix failed — check API key in Settings' });
     }
   }
 
+  // ── Apply accepted bullet changes ──────────────────────────────────────────
+  function applyBulletChanges() {
+    if (state.phase !== 'review_bullets' || !onUpdateCV) return;
+    const { changes } = state;
+
+    // Map: "roleIdx:bulletIdx" → custom text (only accepted)
+    const changeMap = new Map<string, string>();
+    for (const c of changes) {
+      if (c.accepted) changeMap.set(`${c.roleIdx}:${c.bulletIdx}`, c.custom.trim() || c.after);
+    }
+
+    const updatedCV: CVData = {
+      ...cv,
+      experience: cv.experience.map((role, ri) => ({
+        ...role,
+        responsibilities: (role.responsibilities ?? []).map((bullet, bi) =>
+          changeMap.get(`${ri}:${bi}`) ?? bullet,
+        ),
+      })),
+    };
+    onUpdateCV(updatedCV);
+    setState({ phase: 'applied', count: changeMap.size });
+  }
+
+  // ── Apply summary change ───────────────────────────────────────────────────
+  function applySummaryChange() {
+    if (state.phase !== 'review_summary' || !onUpdateCV) return;
+    const { change } = state;
+    if (!change.accepted) { setState({ phase: 'idle' }); return; }
+    onUpdateCV({ ...cv, summary: change.custom.trim() || change.after });
+    setState({ phase: 'applied', count: 1 });
+  }
+
+  const isDone = state.phase === 'applied';
+
   return (
-    <div className={`rounded-xl border border-border overflow-hidden transition-opacity ${fixed ? 'opacity-70' : 'bg-background/60'}`}>
+    <div className={`rounded-xl border border-border overflow-hidden transition-opacity ${isDone ? 'opacity-60' : 'bg-background/60'}`}>
       <div className="flex items-start gap-3 p-3.5">
         <div className={`mt-1 w-2 h-2 rounded-full flex-shrink-0 ${styles.dot}`} />
 
         <div className="flex-1 min-w-0">
           {/* Title + badge */}
           <div className="flex items-start justify-between gap-2 flex-wrap mb-1">
-            <p className={`text-sm font-semibold leading-snug ${fixed ? 'line-through text-muted-foreground' : 'text-foreground'}`}>
+            <p className={`text-sm font-semibold leading-snug ${isDone ? 'line-through text-muted-foreground' : 'text-foreground'}`}>
               {tip.title}
             </p>
             <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded flex-shrink-0 ${styles.badge}`}>
@@ -301,44 +592,44 @@ function TipCard({ tip, cv, onUpdateCV, onGoToGenerator }: TipCardProps) {
           {/* Detail */}
           <p className="text-xs text-muted-foreground leading-relaxed">{tip.detail}</p>
 
-          {/* Fixed confirmation */}
-          {fixed && (
+          {/* ── Status ── */}
+          {isDone && state.phase === 'applied' && (
             <div className="mt-2 flex items-center gap-1.5 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
               <CheckCircle className="w-3.5 h-3.5" />
-              {fixCount > 0
-                ? `${fixCount} change${fixCount !== 1 ? 's' : ''} applied to your CV`
-                : 'CV already clean — no changes needed'}
+              {state.count > 0
+                ? `${state.count} change${state.count !== 1 ? 's' : ''} applied to your CV`
+                : 'Already clean — no changes needed'}
             </div>
           )}
 
-          {/* Error */}
-          {error && (
-            <p className="mt-1.5 text-[11px] text-rose-500 leading-snug">{error}</p>
+          {state.phase === 'error' && (
+            <p className="mt-1.5 text-[11px] text-rose-500 leading-snug">{state.message}</p>
           )}
 
-          {/* Action button */}
-          {!fixed && (
+          {/* ── Primary action button ── */}
+          {state.phase === 'idle' && (
             <div className="mt-2.5">
-              {canFix ? (
+              {tip.fix.kind === 'auto' && onUpdateCV && (
                 <button
-                  onClick={handleFix}
-                  disabled={fixing}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
-                  style={{ background: isLLM ? '#C9A84C' : '#1B2B4B', color: isLLM ? '#1B2B4B' : 'white' }}
+                  onClick={runFix}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-white transition-opacity hover:opacity-90"
+                  style={{ background: '#1B2B4B' }}
                 >
-                  {fixing ? (
-                    <>
-                      <span className="w-3 h-3 rounded-full border-2 border-current border-t-transparent animate-spin" />
-                      {isLLM ? 'AI fixing…' : 'Fixing…'}
-                    </>
-                  ) : (
-                    <>
-                      {isLLM ? <Sparkles className="w-3 h-3" /> : <Wrench className="w-3 h-3" />}
-                      {FIX_LABELS[tip.fix.kind]}
-                    </>
-                  )}
+                  <Wrench className="w-3 h-3" />
+                  Fix Now
                 </button>
-              ) : tip.fix.kind === 'navigate' && onGoToGenerator ? (
+              )}
+              {(tip.fix.kind === 'llm_bullets' || tip.fix.kind === 'llm_summary') && onUpdateCV && (
+                <button
+                  onClick={runFix}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-opacity hover:opacity-90"
+                  style={{ background: '#C9A84C', color: '#1B2B4B' }}
+                >
+                  <Sparkles className="w-3 h-3" />
+                  Fix with AI
+                </button>
+              )}
+              {tip.fix.kind === 'navigate' && onGoToGenerator && (
                 <button
                   onClick={onGoToGenerator}
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-white transition-opacity hover:opacity-90"
@@ -347,8 +638,35 @@ function TipCard({ tip, cv, onUpdateCV, onGoToGenerator }: TipCardProps) {
                   {tip.fix.label}
                   <ArrowRight className="w-3 h-3" />
                 </button>
-              ) : null}
+              )}
             </div>
+          )}
+
+          {/* Loading spinner */}
+          {state.phase === 'loading' && (
+            <div className="mt-2.5 flex items-center gap-2 text-xs text-muted-foreground">
+              <span className="w-3.5 h-3.5 rounded-full border-2 border-[#C9A84C] border-t-transparent animate-spin flex-shrink-0" />
+              {isLLM ? 'AI is analysing and rewriting…' : 'Fixing…'}
+            </div>
+          )}
+
+          {/* ── Diff review panels ── */}
+          {state.phase === 'review_bullets' && (
+            <BulletDiffPanel
+              changes={state.changes}
+              onUpdate={changes => setState({ phase: 'review_bullets', changes })}
+              onApply={applyBulletChanges}
+              onDiscard={() => setState({ phase: 'idle' })}
+            />
+          )}
+
+          {state.phase === 'review_summary' && (
+            <SummaryDiffPanel
+              change={state.change}
+              onUpdate={change => setState({ phase: 'review_summary', change })}
+              onApply={applySummaryChange}
+              onDiscard={() => setState({ phase: 'idle' })}
+            />
           )}
         </div>
       </div>
