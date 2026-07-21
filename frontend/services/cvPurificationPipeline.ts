@@ -254,6 +254,69 @@ export async function cleanImportedTextRemote(input: string): Promise<{ cleaned:
     return { cleaned: out, changes };
 }
 
+/**
+ * Applies KV-managed remote banned phrases to every text field of a generated
+ * CVData. This is the post-generation complement to `cleanImportedTextRemote`
+ * (which runs on inbound import text). Calling it after `purifyCV()` closes the
+ * gap between prompt-instruction enforcement (LLM is told to avoid the phrases)
+ * and deterministic cleanup (guaranteed strip regardless of LLM compliance).
+ *
+ * Skips entries already covered by the static SUBSTITUTIONS table to avoid
+ * duplicate change entries. Safe to call with an empty or null entries list —
+ * returns cv unchanged. Designed to be non-fatal: caller should wrap in
+ * try/catch and keep the original cv on any error.
+ */
+export function applyRemoteBannedPhrasesToCV(
+    cv: CVData,
+    entries: BannedEntry[],
+): CVData {
+    if (!entries || entries.length === 0) return cv;
+
+    // Only process entries not already handled by the static SUBSTITUTIONS table.
+    const remoteOnly = entries.filter(e => {
+        if (!e.phrase || typeof e.phrase !== 'string') return false;
+        const key = `\\b${escapeRegexLiteral(e.phrase.toLowerCase())}\\b`;
+        return !LOCAL_BANNED_KEYS.has(key);
+    });
+    if (remoteOnly.length === 0) return cv;
+
+    const applyToText = (text: string): string => {
+        if (!text) return text || '';
+        let out = text;
+        for (const { phrase, replacement } of remoteOnly) {
+            const re = new RegExp(`\\b${escapeRegexLiteral(phrase)}\\b`, 'gi');
+            if (re.test(out)) {
+                out = out.replace(re, replacement ?? '');
+            }
+        }
+        // Collapse whitespace artefacts left by deletions — same newline-preserving
+        // rule as cleanImportedText (never collapse \n so multi-bullet strings stay intact).
+        out = out.replace(/[ \t]*\n[ \t]*(?:\n[ \t]*)+/g, '\n').replace(/[ \t]{2,}/g, ' ');
+        out = out.replace(/[ \t]+([.,;:!?])/g, '$1');
+        return removeDuplicateWords(out);
+    };
+
+    return {
+        ...cv,
+        summary: applyToText(cv.summary || ''),
+        experience: (cv.experience || []).map(e => ({
+            ...e,
+            responsibilities: (e.responsibilities || []).map((b: string) => applyToText(b)),
+        })),
+        projects: (cv.projects || []).map(p => ({
+            ...p,
+            description: applyToText(p.description || ''),
+            bullets: Array.isArray((p as any).bullets)
+                ? (p as any).bullets.map((b: string) => applyToText(b))
+                : (p as any).bullets,
+        })),
+        education: (cv.education || []).map(e => ({
+            ...e,
+            description: applyToText(e.description || ''),
+        })),
+    };
+}
+
 // ────────────────────────────────────────────────────────────────────────────
 // 2. PHRASE-REPETITION DETECTOR — flags any 4+ word phrase that appears 2+
 //    times across the entire CV text. These are the "AI comfort phrases" that

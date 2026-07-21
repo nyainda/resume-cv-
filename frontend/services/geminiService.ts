@@ -2,7 +2,7 @@ import { GoogleGenAI, GenerateContentResponse } from '@google/genai';
 import { truncate } from '../utils/textTruncate';
 import { UserProfile, CVData, PersonalInfo, JobAnalysisResult, CVGenerationMode, ScholarshipFormat, EnhancedJobAnalysis } from '../types';
 import { groqChat, groqChatStream, GROQ_LARGE, GROQ_FAST, getLastAiEngine, getSelectedProvider, getClaudeModel, getGroqApiKey } from './groqService';
-import { purifyCV, purifyText, cleanImportedText, purifyProfile, purifyInboundCV, revertCorruptedMetrics, enforceOpenerDiversity, type PurifyReport } from './cvPurificationPipeline';
+import { purifyCV, purifyText, cleanImportedText, purifyProfile, purifyInboundCV, revertCorruptedMetrics, enforceOpenerDiversity, applyRemoteBannedPhrasesToCV, type PurifyReport } from './cvPurificationPipeline';
 import { remotePrePurify } from './cvPurifyClient';
 import { detectField, detectFieldWithSource, lockRealNumbers, buildPromptAnchorBlock, fixPronounsInCV } from './cvPromptHelpers';
 import { logGeneration, quickHash } from './telemetryService';
@@ -6067,6 +6067,22 @@ async function runQualityPolishPasses(
         out = finalizeCvData(out, { profile: finalize.profile, runPurify: false, purifierWarnings: _purifyWarnings, reconciledSkills });
     } else {
         out = finalizeCvData(out, { sourceCv: finalize.sourceCv, runPurify: false, purifierWarnings: _purifyWarnings });
+    }
+
+    // 9.1. Remote KV banned-phrase deterministic strip.
+    // Closes the gap between prompt-instruction enforcement (LLM is told to avoid
+    // these phrases) and guaranteed cleanup (deterministic strip regardless of LLM
+    // compliance). getCachedBannedPhrases() is already warm from the humanizer pass
+    // so this adds ~0 ms latency. Wrapped in try/catch — never blocks generation.
+    try {
+        const remoteBanned = await getCachedBannedPhrases();
+        if (remoteBanned && remoteBanned.length > 0) {
+            const stripped = applyRemoteBannedPhrasesToCV(out, remoteBanned);
+            out = stripped;
+            console.debug(`[Polish 9.1] Remote banned-phrase strip applied (${remoteBanned.length} entries).`);
+        }
+    } catch (e) {
+        console.debug('[Polish 9.1] Remote banned-phrase strip skipped (non-fatal):', e);
     }
 
     // 9.5. Universal AI summary repair — runs ONLY when the deterministic
