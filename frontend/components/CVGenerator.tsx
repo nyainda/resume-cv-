@@ -183,6 +183,8 @@ interface CVGeneratorProps {
   onBuildReportReady?: (report: CVBuildReport, cv: CVData) => void;
   /** Called when user clicks "Save" on the cover letter — passes enough metadata for the history view. */
   onSaveCoverLetter?: (letter: import('../types').SavedCoverLetter) => void;
+  /** When provided, cover letter generation auto-saves and navigates to the standalone page instead of showing inline. */
+  onGoToCoverLetters?: (letterId: string) => void;
 }
 
 const fileToBase64 = (file: File): Promise<{ base64: string, mimeType: string }> => {
@@ -270,7 +272,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
   onSaveStories, onGoToInterviewPrep, onRestoreProfileBullets, importedFromJson,
   profileId, initialJobDescription, initialTargetCompany, initialTargetJobTitle,
   initialCvPurpose, initialGenerationMode, initialJdKeywords, onSlotUpdate, onPinField, onUnpinField, onShareLinkAdded,
-  onUpgrade, openToolkitAtQualityAudit, activeSlot, darkMode = false, onSaveCoverLetter,
+  onUpgrade, openToolkitAtQualityAudit, activeSlot, darkMode = false, onSaveCoverLetter, onGoToCoverLetters,
 }) => {
   const GOLD = '#C9A84C';
   const { isAuthenticated, requireAuth, user: workerUser, isLoading: isAuthLoading } = useAuth();
@@ -1575,17 +1577,32 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
       const letter = await generateCoverLetter(
         userProfile,
         jobDescription,
-        (delta) => setStreamingLetter(prev => prev + delta),
+        onGoToCoverLetters ? undefined : (delta) => setStreamingLetter(prev => prev + delta),
       );
       setCoverLetter(letter);
       setStreamingLetter('');
+      // If standalone navigation is wired up, auto-save the letter and go there
+      if (onGoToCoverLetters) {
+        const letterId = `cl-${Date.now()}`;
+        onSaveCoverLetter?.({
+          id: letterId,
+          name: targetCompany || targetJobTitle || 'Cover Letter',
+          createdAt: new Date().toISOString(),
+          text: letter,
+          company: targetCompany || undefined,
+          jobTitle: targetJobTitle || undefined,
+          wordCount: letter.trim().split(/\s+/).filter(Boolean).length,
+          issueCount: 0,
+        });
+        onGoToCoverLetters(letterId);
+      }
     } catch (err) {
       setStreamingLetter('');
       setCoverLetterError(friendlyError(err, 'generate your cover letter'));
     } finally {
       setIsGeneratingCoverLetter(false);
     }
-  }, [jobDescription, userProfile, setCoverLetter, apiKeySet, openSettings]);
+  }, [jobDescription, userProfile, setCoverLetter, apiKeySet, openSettings, onGoToCoverLetters, onSaveCoverLetter, targetCompany, targetJobTitle]);
 
   const handleFileUploads = async (event: ChangeEvent<HTMLInputElement>) => {
     if (!apiKeySet) {

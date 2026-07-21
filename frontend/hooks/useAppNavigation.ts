@@ -185,13 +185,14 @@ export function useAppNavigation({
   }, []);
 
   const primaryNav = [
-    { id: 'dashboard', label: 'Home',           icon: HomeNavIcon },
-    { id: 'rooms',     label: 'Career Rooms',   icon: RoomsNavIcon },
-    { id: 'generator', label: 'CV Generator',   icon: CVGenNavIcon },
-    { id: 'build',     label: 'Build Report',   icon: BuildNavIcon },
-    { id: 'score',     label: 'Score My CV',    icon: ScoreNavIcon },
-    { id: 'interview', label: 'Interview Prep', icon: InterviewNavIcon },
-    { id: 'tracker',   label: 'Job Tracker',    icon: Target },
+    { id: 'dashboard',     label: 'Home',           icon: HomeNavIcon },
+    { id: 'rooms',         label: 'Career Rooms',   icon: RoomsNavIcon },
+    { id: 'generator',     label: 'CV Generator',   icon: CVGenNavIcon },
+    { id: 'cover-letters', label: 'Cover Letters',  icon: FileText },
+    { id: 'build',         label: 'Build Report',   icon: BuildNavIcon },
+    { id: 'score',         label: 'Score My CV',    icon: ScoreNavIcon },
+    { id: 'interview',     label: 'Interview Prep', icon: InterviewNavIcon },
+    { id: 'tracker',       label: 'Job Tracker',    icon: Target },
   ];
 
   const moreNavGroups = [
@@ -213,9 +214,8 @@ export function useAppNavigation({
     {
       label: 'Track',
       items: [
-        { id: 'history',        label: 'CV History',      icon: List },
-        { id: 'cover-letters',  label: 'Cover Letters',   icon: FileText },
-        { id: 'analytics',      label: 'Analytics',       icon: AnalyticsNavIcon },
+        { id: 'history',   label: 'CV History', icon: List },
+        { id: 'analytics', label: 'Analytics',  icon: AnalyticsNavIcon },
       ],
     },
     {

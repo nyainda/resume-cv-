@@ -3,14 +3,19 @@
 // Letters are stored in the slot's savedCoverLetters array which syncs to D1,
 // so they appear on every device automatically.
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { SavedCoverLetter } from '../types';
+import type { PersonalInfo } from '../types';
 import CoverLetterPreview from './CoverLetterPreview';
 
 interface CoverLettersPageProps {
   savedCoverLetters: SavedCoverLetter[];
   onSaveCoverLetter: (letter: SavedCoverLetter) => void;
   onGoToGenerator: () => void;
+  /** If set, automatically opens this letter ID on mount (used when navigating from CVGenerator after generation). */
+  initialOpenId?: string | null;
+  /** Personal info for the cover letter header template. */
+  personalInfo?: PersonalInfo;
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -47,8 +52,15 @@ const CoverLettersPage: React.FC<CoverLettersPageProps> = ({
   savedCoverLetters,
   onSaveCoverLetter,
   onGoToGenerator,
+  initialOpenId,
+  personalInfo,
 }) => {
-  const [openId, setOpenId] = useState<string | null>(null);
+  const [openId, setOpenId] = useState<string | null>(initialOpenId ?? null);
+
+  // When navigated here after generation, auto-open the new letter
+  useEffect(() => {
+    if (initialOpenId) setOpenId(initialOpenId);
+  }, [initialOpenId]);
 
   // Sort newest first
   const sorted = [...savedCoverLetters].sort(
@@ -97,17 +109,21 @@ const CoverLettersPage: React.FC<CoverLettersPageProps> = ({
           <CoverLetterPreview
             letterText={openLetter.text}
             onTextChange={(newText) => {
-              // Update in-memory only (re-save to persist)
-              // We don't mutate savedCoverLetters here; user can re-save if needed
-              void newText;
+              // Persist edits immediately — syncs to D1 via onSaveCoverLetter
+              onSaveCoverLetter({
+                ...openLetter,
+                text: newText,
+                wordCount: newText.trim().split(/\s+/).filter(Boolean).length,
+              });
             }}
             fileName={`${openLetter.name.replace(/\s+/g, '_')}_Cover_Letter.pdf`}
+            personalInfo={personalInfo}
             onSave={({ wordCount, issueCount }) => {
               onSaveCoverLetter({
                 ...openLetter,
                 wordCount,
                 issueCount,
-                createdAt: new Date().toISOString(), // update timestamp on re-save
+                createdAt: new Date().toISOString(),
               });
             }}
           />

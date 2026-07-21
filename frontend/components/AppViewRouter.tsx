@@ -1,5 +1,5 @@
 // Routes the main content area to the correct view component based on currentView.
-import React, { lazy, Suspense } from 'react';
+import React, { lazy, Suspense, useState } from 'react';
 import { CVData, UserProfile, UserProfileSlot, SavedCV, SavedCoverLetter, TrackedApplication, STARStory } from '../types';
 import type { WorkerUser } from '../services/authService';
 import type { CVBuildReport, ReviewItem, ManualFlag } from '../types/buildReport';
@@ -112,7 +112,10 @@ interface AppViewRouterProps {
   onOpenOnboarding?: () => void;
 }
 
-const AppViewRouter: React.FC<AppViewRouterProps> = ({
+const AppViewRouter: React.FC<AppViewRouterProps> = (props) => {
+  // Cover letter standalone open-on-arrival state
+  const [clOpenId, setClOpenId] = useState<string | null>(null);
+  const {
   currentView,
   setCurrentView,
   profileExists,
@@ -177,7 +180,7 @@ const AppViewRouter: React.FC<AppViewRouterProps> = ({
   currentApiSettings,
   onSaveApiSettings,
   onOpenOnboarding,
-}) => {
+} = props;
   return (
     <main className="px-4 pt-4 pb-24 sm:px-6 sm:pt-6 sm:pb-10 lg:px-8 lg:pt-8">
       <div>
@@ -262,6 +265,11 @@ const AppViewRouter: React.FC<AppViewRouterProps> = ({
                   activeSlot={activeSlot}
                   darkMode={darkMode}
                   onBuildReportReady={onBuildReportReady}
+                  onSaveCoverLetter={onSaveCoverLetter}
+                  onGoToCoverLetters={(letterId) => {
+                    setClOpenId(letterId);
+                    setCurrentView('cover-letters');
+                  }}
                 />
               )}
 
@@ -349,6 +357,8 @@ const AppViewRouter: React.FC<AppViewRouterProps> = ({
                   savedCoverLetters={savedCoverLetters}
                   onSaveCoverLetter={onSaveCoverLetter}
                   onGoToGenerator={() => setCurrentView('generator')}
+                  initialOpenId={clOpenId}
+                  personalInfo={userProfile?.personalInfo}
                 />
               )}
 
