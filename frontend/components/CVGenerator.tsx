@@ -278,11 +278,12 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
   const { isAuthenticated, requireAuth, user: workerUser, isLoading: isAuthLoading } = useAuth();
 
   // Shared helper: push the latest CV to D1 so changes persist across all devices.
-  // The syncQueue is rate-limited (max 1 flush per 30 s) and deduplicates by payload
-  // hash, so calling this on every user action is safe and will never flood the server.
+  // Uses immediate=true to bypass the 30-second rate-limit throttle — CV generation
+  // is a high-value, explicit user action and other devices should see the result
+  // within seconds, not up to 30 s later.
   const syncCurrentCVToD1 = useCallback((cv: CVData) => {
     if (isAuthenticated && activeSlot) {
-      enqueueSlotSync({ ...activeSlot, currentCV: cv }).catch(() => {});
+      enqueueSlotSync({ ...activeSlot, currentCV: cv }, { immediate: true }).catch(() => {});
     }
   }, [isAuthenticated, activeSlot]);
 
@@ -841,7 +842,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
       setPurifyLeaks(report.leaks ?? []);
       setFixSummary({ total: totalFixed, remote: remoteFixes });
       if (isAuthenticated && activeSlot) {
-        enqueueSlotSync({ ...activeSlot, currentCV: cvAfterRemote }).catch(() => {});
+        enqueueSlotSync({ ...activeSlot, currentCV: cvAfterRemote }, { immediate: true }).catch(() => {});
       }
     } finally {
       setIsFixingIssues(false);
@@ -3743,9 +3744,9 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
             // Surface which provider just produced the rewrite, so the engine
             // badge stays in sync with reality.
             setLastEngine(getLastAiEngine());
-            // Push the fixed CV to D1 so the fix persists across all devices.
+            // Push the fixed CV to D1 immediately so other devices see it right away.
             if (isAuthenticated && activeSlot) {
-              enqueueSlotSync({ ...activeSlot, currentCV: newCv }).catch(() => {});
+              enqueueSlotSync({ ...activeSlot, currentCV: newCv }, { immediate: true }).catch(() => {});
             }
           }}
           onDownloadJson={handleDownloadQualityReport}

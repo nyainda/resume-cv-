@@ -192,10 +192,10 @@ export function useProfileManager({
           mergedSlots.push(local);
         }
       } else {
-        // Local wins on profile/CV data — but union-merge additive collections
-        // (trackedApps, starStories) so items added on another device since the
-        // last push aren't silently discarded. Only entries absent from local
-        // (by id) are pulled in from D1; existing local entries are untouched.
+        // Local wins on profile data — but still union-merge additive collections
+        // (trackedApps, starStories) and pull currentCV from D1 when remote has
+        // one that the local device is missing. A local profile edit should never
+        // block a newly generated CV from appearing on this device.
         let slotToUse = local;
         if (remoteChangedSinceOurLastPush) {
           const d1Parsed = parseSlotData(d1Slot);
@@ -204,13 +204,20 @@ export function useProfileManager({
             const localStoryIds = new Set((local.starStories  ?? []).map(s => s.id));
             const d1OnlyApps    = (d1Parsed.trackedApps ?? []).filter(a => !localAppIds.has(a.id));
             const d1OnlyStories = (d1Parsed.starStories  ?? []).filter(s => !localStoryIds.has(s.id));
-            if (d1OnlyApps.length > 0 || d1OnlyStories.length > 0) {
+
+            // Pull currentCV from D1 when this device has none — a pending local
+            // profile edit is not a CV edit; don't let it block the generated CV
+            // from another device from appearing here.
+            const shouldPullCV = !local.currentCV && !!d1Parsed.currentCV;
+
+            if (d1OnlyApps.length > 0 || d1OnlyStories.length > 0 || shouldPullCV) {
               slotToUse = {
                 ...local,
+                ...(shouldPullCV ? { currentCV: d1Parsed.currentCV } : {}),
                 trackedApps: [...(local.trackedApps ?? []), ...d1OnlyApps],
                 starStories:  [...(local.starStories  ?? []), ...d1OnlyStories],
               };
-              anyD1Newer = true; // trigger setProfiles so the UI reflects the merged list
+              anyD1Newer = true; // trigger setProfiles so the UI reflects the merged state
             }
           }
         }

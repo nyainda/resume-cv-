@@ -279,7 +279,10 @@ let _devLastSlotSyncAt = 0;
 /** @internal — dev mode only. Returns the timestamp of the last enqueueSlotSync call. */
 export function _devGetLastSlotSyncAt(): number { return _devLastSlotSyncAt; }
 
-export async function enqueueSlotSync(slot: UserProfileSlot): Promise<void> {
+export async function enqueueSlotSync(
+    slot: UserProfileSlot,
+    opts?: { immediate?: boolean },
+): Promise<void> {
     if (import.meta.env.DEV) _devLastSlotSyncAt = Date.now();
     // Mark the edit SYNCHRONOUSLY, before the 30s throttle/IDB write below —
     // this is what runD1MergeSync checks so the poller/visibility-sync never
@@ -297,7 +300,14 @@ export async function enqueueSlotSync(slot: UserProfileSlot): Promise<void> {
             retryCount:  0,
             nextRetryAt: 0,
         });
-        scheduleFlush();
+        if (opts?.immediate) {
+            // High-priority path (e.g. CV generation completed): bypass the 30-second
+            // rate-limit timer and push to D1 right now so other devices see the
+            // result within seconds rather than up to 30 s later.
+            void flushSyncQueue('force');
+        } else {
+            scheduleFlush();
+        }
     } catch { /* silent — never block caller */ }
 }
 

@@ -281,7 +281,7 @@ const AppViewRouter: React.FC<AppViewRouterProps> = (props) => {
                   onApplySuggestion={(item, updatedCV) => {
                     setCurrentCV(updatedCV);
                     if (isAuthenticated && activeSlot) {
-                      enqueueSlotSync({ ...activeSlot, currentCV: updatedCV }).catch(() => {});
+                      enqueueSlotSync({ ...activeSlot, currentCV: updatedCV }, { immediate: true }).catch(() => {});
                     }
                   }}
                   onSkipSuggestion={() => {}}
@@ -388,7 +388,7 @@ const AppViewRouter: React.FC<AppViewRouterProps> = (props) => {
                     currentCV={currentCV}
                     onCurrentCVUpdated={(cv) => {
                       setCurrentCV(cv);
-                      if (isAuthenticated && activeSlot) enqueueSlotSync({ ...activeSlot, currentCV: cv }).catch(() => {});
+                      if (isAuthenticated && activeSlot) enqueueSlotSync({ ...activeSlot, currentCV: cv }, { immediate: true }).catch(() => {});
                     }}
                     forceTab={toolkitForceTab as any}
                   />
@@ -452,7 +452,7 @@ const AppViewRouter: React.FC<AppViewRouterProps> = (props) => {
                   buildReport={buildReport}
                   onCVUpdate={(cv) => {
                     setCurrentCV(cv);
-                    if (isAuthenticated && activeSlot) enqueueSlotSync({ ...activeSlot, currentCV: cv }).catch(() => {});
+                    if (isAuthenticated && activeSlot) enqueueSlotSync({ ...activeSlot, currentCV: cv }, { immediate: true }).catch(() => {});
                   }}
                 />
               )}

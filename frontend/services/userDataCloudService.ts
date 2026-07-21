@@ -274,41 +274,77 @@ export async function syncSlot(slot: UserProfileSlot): Promise<void> {
 
         let slotJsonToSend = JSON.stringify(slotPayload);
 
-        // Progressive trimming when payload is too large — never silently drop everything.
-        // Tier 0.5 (>512KB): drop currentCV (largest field) — keep collections intact.
-        // Tier 1   (still >512KB): drop all collections — keep profile + no CV.
-        // Tier 2   (still >512KB, e.g. extremely long work history): profile-only plain JSON.
+        // Progressive trimming when payload is too large — currentCV is always protected
+        // until the absolute last resort, because losing the generated CV across devices
+        // is more disruptive than losing history/collections.
+        //
+        // Tier 1 (>512 KB): aggressively slim history/collections — keep currentCV intact.
+        // Tier 2 (still >512 KB): drop ALL collections — keep currentCV.
+        // Tier 3 (still >512 KB, extremely long profile): profile + currentCV, no collections.
+        // Tier 4 (still >512 KB, profile alone is huge): profile-only plain JSON (last resort).
         if (slotJsonToSend.length > MAX_SLOT_BYTES) {
-            const withoutCVPayload = JSON.stringify({
+            // Tier 1: trim history aggressively, keep currentCV
+            const tier1Payload = JSON.stringify({
                 profile: profileWithoutPhoto,
-                currentCV: null,
-                savedCVs: (slot.savedCVs ?? []).slice(0, 50),
-                savedCoverLetters: (slot.savedCoverLetters ?? []).slice(0, 50),
-                trackedApps: (slot.trackedApps ?? []).slice(0, 200),
-                starStories: (slot.starStories ?? []).slice(0, 100),
+                currentCV: currentCVForD1,
+                savedCVs: (slot.savedCVs ?? []).slice(0, 5),
+                savedCoverLetters: (slot.savedCoverLetters ?? []).slice(0, 5),
+                trackedApps: (slot.trackedApps ?? []).slice(0, 50),
+                starStories: (slot.starStories ?? []).slice(0, 20),
             });
-            if (withoutCVPayload.length <= MAX_SLOT_BYTES) {
-                slotJsonToSend = withoutCVPayload;
+            if (tier1Payload.length <= MAX_SLOT_BYTES) {
+                slotJsonToSend = tier1Payload;
             } else {
-                const profileOnlyPayload = JSON.stringify({
+                // Tier 2: drop all collections, keep currentCV
+                const tier2Payload = JSON.stringify({
                     profile: profileWithoutPhoto,
-                    currentCV: null,
+                    currentCV: currentCVForD1,
                     savedCVs: [],
                     savedCoverLetters: [],
                     trackedApps: [],
                     starStories: [],
-                    _truncated: true, // sentinel so restore code can warn
                 });
-                if (profileOnlyPayload.length <= MAX_SLOT_BYTES) {
+                if (tier2Payload.length <= MAX_SLOT_BYTES) {
                     console.warn(
-                        `[D1 sync] Slot "${slot.name}" (${slot.id}) exceeds 512 KB — ` +
-                        `currentCV/savedCVs/coverLetters/trackedApps/starStories omitted from D1 backup this sync. ` +
-                        `They are still stored locally in IndexedDB and localStorage.`
+                        `[D1 sync] Slot "${slot.name}" (${slot.id}) exceeds 512 KB even after trimming — ` +
+                        `savedCVs/coverLetters/trackedApps/starStories omitted. currentCV preserved.`
                     );
-                    slotJsonToSend = profileOnlyPayload;
+                    slotJsonToSend = tier2Payload;
                 } else {
-                    // Absolute fallback: raw profile JSON (no photo, no collections, no CV)
-                    slotJsonToSend = profileJson;
+                    // Tier 3: profile + currentCV only (no collections at all)
+                    const tier3Payload = JSON.stringify({
+                        profile: profileWithoutPhoto,
+                        currentCV: currentCVForD1,
+                        savedCVs: [],
+                        savedCoverLetters: [],
+                        trackedApps: [],
+                        starStories: [],
+                        _truncated: true,
+                    });
+                    if (tier3Payload.length <= MAX_SLOT_BYTES) {
+                        console.warn(
+                            `[D1 sync] Slot "${slot.name}" (${slot.id}) exceeds 512 KB — ` +
+                            `all collections dropped. currentCV still included.`
+                        );
+                        slotJsonToSend = tier3Payload;
+                    } else {
+                        // Tier 4 (last resort): profile only — drop currentCV too
+                        const tier4Payload = JSON.stringify({
+                            profile: profileWithoutPhoto,
+                            currentCV: null,
+                            savedCVs: [],
+                            savedCoverLetters: [],
+                            trackedApps: [],
+                            starStories: [],
+                            _truncated: true,
+                        });
+                        console.warn(
+                            `[D1 sync] Slot "${slot.name}" (${slot.id}) exceeds 512 KB even without collections — ` +
+                            `currentCV also omitted. Profile only. Stored locally in IndexedDB.`
+                        );
+                        // Absolute fallback: raw profile JSON if even tier4 is somehow too large
+                        slotJsonToSend = tier4Payload.length <= MAX_SLOT_BYTES ? tier4Payload : profileJson;
+                    }
                 }
             }
         }
