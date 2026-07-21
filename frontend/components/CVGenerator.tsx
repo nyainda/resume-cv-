@@ -26,7 +26,6 @@ import { downloadCV } from '../services/cvDownloadService';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import CVPreview from './CVPreview';
 import TemplateThumbnail from './TemplateThumbnail';
-import CoverLetterPreview from './CoverLetterPreview';
 import TemplateGallery, { GALLERY_TEMPLATES } from './TemplateGallery';
 import JobAnalysis from './JobAnalysis';
 import ShareCVModal from './ShareCVModal';
@@ -3699,39 +3698,6 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
       </div>{/* ── end 2-column layout ──────────────────────────────────── */}
 
       {coverLetterError && <p className="text-red-500 text-sm mt-2 p-4 bg-red-50 dark:bg-red-900/20 rounded-lg">{coverLetterError}</p>}
-      {(streamingLetter || coverLetter) && (
-        <div className="bg-white dark:bg-neutral-800/50 p-8 rounded-xl shadow-sm border border-zinc-200 dark:border-neutral-800">
-          {streamingLetter ? (
-            <div>
-              <div className="flex items-center gap-2 mb-4">
-                <span className="w-2 h-2 rounded-full bg-[#C9A84C] animate-pulse inline-block" />
-                <span className="text-xs font-semibold text-[#C9A84C]">Writing your cover letter…</span>
-              </div>
-              <pre className="whitespace-pre-wrap text-sm text-zinc-800 dark:text-zinc-200 font-sans leading-relaxed">{streamingLetter}</pre>
-            </div>
-          ) : (
-            <CoverLetterPreview
-              letterText={coverLetter ?? ''}
-              onTextChange={setCoverLetter}
-              fileName={`${userProfile.personalInfo.name.replace(/\s+/g, '_')}_Cover_Letter.pdf`}
-              personalInfo={userProfile.personalInfo}
-              onSave={onSaveCoverLetter ? ({ wordCount, issueCount }) => {
-                const text = coverLetter ?? '';
-                onSaveCoverLetter({
-                  id: `cl-${Date.now()}`,
-                  name: targetCompany || targetJobTitle || 'Cover Letter',
-                  createdAt: new Date().toISOString(),
-                  text,
-                  company: targetCompany || undefined,
-                  jobTitle: targetJobTitle || undefined,
-                  wordCount,
-                  issueCount,
-                });
-              } : undefined}
-            />
-          )}
-        </div>
-      )}
 
       {showShareModal && currentCV && (
         <ShareCVModal
