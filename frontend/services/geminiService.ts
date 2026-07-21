@@ -5525,7 +5525,9 @@ PROCV VOICE RULES (non-negotiable — same rules as the main CV generation pipel
 
 /**
  * Fix bullet points for a given signal — returns the full corrected array.
- * The prompt enforces the full ProCV pipeline voice rules, not just task-specific instructions.
+ * Uses the full Worker-fetched HUMANIZATION_RULES (same as CV generation) with
+ * _COACHING_VOICE_RULES as a static fallback. Each rewrite passes through
+ * purifiedCompletion so banned phrases are scrubbed before reaching the user.
  */
 export const fixBulletsForSignal = async (
     bullets: string[],
@@ -5537,17 +5539,20 @@ export const fixBulletsForSignal = async (
     const banned = await _getBannedPhrasesForPrompt();
     const numbered = bullets.map((b, i) => `[${i}] ${b}`).join('\n');
 
+    // Prefer the full Worker-fetched rules; fall back to the static subset
+    const activeRules = HUMANIZATION_RULES || _COACHING_VOICE_RULES;
+
     const systemInstruction = SYSTEM_INSTRUCTION_HUMANIZER
-        ? `${SYSTEM_INSTRUCTION_HUMANIZER}\n\n${_COACHING_VOICE_RULES}`
-        : _COACHING_VOICE_RULES;
+        ? `${SYSTEM_INSTRUCTION_HUMANIZER}\n\n${activeRules}`
+        : activeRules;
 
     const prompt = `You are a senior CV editor applying a targeted fix to a set of CV bullet points.
 
 TASK:
 ${instruction}
 
-PIPELINE RULES (enforce strictly):
-${_COACHING_VOICE_RULES}
+PROCV WRITING RULES — follow these exactly, same as during CV generation:
+${activeRules}
 - Do NOT use these additionally banned phrases: ${banned.slice(0, 80)}
 - Do NOT invent new metrics or facts — only change wording or structure
 - Return ONLY a valid JSON object: { "rewrites": { "<index>": "<rewritten bullet>", ... } }
@@ -5558,17 +5563,22 @@ BULLETS:
 ${numbered}`;
 
     try {
+        const { purifiedCompletion } = await import('./purifiedLLMGateway');
         const raw = await groqChat(GROQ_FAST, systemInstruction, prompt, { temperature: 0.45, json: true, maxTokens: 2400 });
         const _stripped = (raw ?? '{}').trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
         const parsed = JSON.parse(_stripped || '{}') as { rewrites?: Record<string, string> };
         const rewrites = parsed.rewrites ?? {};
         const result = [...bullets];
-        for (const [idxStr, text] of Object.entries(rewrites)) {
-            const idx = parseInt(idxStr, 10);
-            if (!isNaN(idx) && idx >= 0 && idx < result.length && typeof text === 'string' && text.trim()) {
-                result[idx] = text.trim();
-            }
-        }
+        // Run each rewrite through purifiedCompletion to strip any surviving banned phrases
+        await Promise.all(
+            Object.entries(rewrites).map(async ([idxStr, text]) => {
+                const idx = parseInt(idxStr, 10);
+                if (!isNaN(idx) && idx >= 0 && idx < result.length && typeof text === 'string' && text.trim()) {
+                    const { text: clean } = await purifiedCompletion(() => Promise.resolve(text.trim()));
+                    result[idx] = clean;
+                }
+            })
+        );
         return result;
     } catch {
         return bullets;
@@ -5577,7 +5587,8 @@ ${numbered}`;
 
 /**
  * Fix summary for a given signal — returns the corrected summary string.
- * The prompt enforces the full ProCV pipeline voice rules.
+ * Uses the full Worker-fetched HUMANIZATION_RULES (same as CV generation) and
+ * passes the result through purifiedCompletion so banned phrases are scrubbed.
  */
 export const fixSummaryForSignal = async (
     summary: string,
@@ -5588,17 +5599,20 @@ export const fixSummaryForSignal = async (
 
     const banned = await _getBannedPhrasesForPrompt();
 
+    // Prefer the full Worker-fetched rules; fall back to the static subset
+    const activeRules = HUMANIZATION_RULES || _COACHING_VOICE_RULES;
+
     const systemInstruction = SYSTEM_INSTRUCTION_HUMANIZER
-        ? `${SYSTEM_INSTRUCTION_HUMANIZER}\n\n${_COACHING_VOICE_RULES}`
-        : _COACHING_VOICE_RULES;
+        ? `${SYSTEM_INSTRUCTION_HUMANIZER}\n\n${activeRules}`
+        : activeRules;
 
     const prompt = `You are a senior CV editor improving a professional summary section.
 
 TASK:
 ${instruction}
 
-PIPELINE RULES (enforce strictly):
-${_COACHING_VOICE_RULES}
+PROCV WRITING RULES — follow these exactly, same as during CV generation:
+${activeRules}
 - Do NOT use these additionally banned phrases: ${banned.slice(0, 60)}
 - Do NOT invent new facts or metrics
 - Return ONLY a valid JSON object: { "summary": "<rewritten summary>" }
@@ -5607,10 +5621,14 @@ SUMMARY TO FIX:
 ${summary}`;
 
     try {
+        const { purifiedCompletion } = await import('./purifiedLLMGateway');
         const raw = await groqChat(GROQ_FAST, systemInstruction, prompt, { temperature: 0.45, json: true, maxTokens: 600 });
         const _stripped = (raw ?? '{}').trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
         const parsed = JSON.parse(_stripped || '{}') as { summary?: string };
-        return parsed.summary?.trim() || summary;
+        const rawSummary = parsed.summary?.trim();
+        if (!rawSummary) return summary;
+        const { text: clean } = await purifiedCompletion(() => Promise.resolve(rawSummary));
+        return clean;
     } catch {
         return summary;
     }
