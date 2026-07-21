@@ -3174,7 +3174,7 @@ If 15 slots remain unfilled after this list, draw from the general profile skill
                 })
                 .join('\n');
             _skillDemonstrationBlock = `\n\n=== JD SKILL-DEMONSTRATION DIRECTIVES ===
-For the roles listed below, where NATURAL, write bullets that DEMONSTRATE these skills in action — not merely list them. Demonstrating a skill inside an achievement bullet is stronger than naming it in the skills section alone.
+For the roles listed below, where NATURAL, write bullets that DEMONSTRATE these skills in action — not merely list them. A skill-demonstration bullet MUST include a measurable outcome, scope, or result alongside the skill (e.g. "Built X using [Skill], reducing Y by Z%" or "Designed X with [Skill] across N clients"). A bullet that only names the skill without an outcome is no stronger than the skills list itself.
 GUARDRAIL: Do NOT force a skill into a bullet if it distorts the achievement or requires inventing facts. When in doubt, leave it out.
 ${lines}
 === END SKILL-DEMONSTRATION DIRECTIVES ===`;

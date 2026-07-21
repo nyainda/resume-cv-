@@ -41,14 +41,32 @@ export interface EvidenceScoreReport {
 /** Matches any concrete metric: 40%, 3K, 2M, 10x, 5+ */
 const METRIC_RX = /\b\d[\d,.]*\s*(%|K|M|B|x|×|\+\s*(?:years?|hrs?|hours?|days?|months?)?)\b|\d[\d,.]*\s*percent/i;
 
-/** Words that signal a measurable outcome or business result */
+/** Words that signal a measurable outcome or business result.
+ *  Includes past tense, gerunds (-ing), and noun forms so that bullets like
+ *  "Built X using React, improving throughput by 3×" correctly reach 'result'.
+ */
 const OUTCOME_VERBS = new Set([
-  'reduced', 'reduction', 'increased', 'increase', 'improved', 'improvement',
-  'saved', 'saving', 'savings', 'grew', 'grown', 'growth', 'achieved', 'achievement',
-  'delivered', 'won', 'secured', 'raised', 'boosted', 'accelerated',
-  'cut', 'eliminated', 'generated', 'drove', 'streamlined', 'optimized', 'optimised',
-  'expanded', 'scaled', 'doubled', 'tripled', 'halved', 'exceeded', 'surpassed',
-  'outperformed', 'recovered', 'deployed', 'released', 'shipped',
+  // Past tense
+  'reduced', 'increased', 'improved', 'saved', 'grew', 'achieved', 'delivered',
+  'won', 'secured', 'raised', 'boosted', 'accelerated', 'cut', 'eliminated',
+  'generated', 'drove', 'streamlined', 'optimized', 'optimised', 'expanded',
+  'scaled', 'doubled', 'tripled', 'halved', 'exceeded', 'surpassed',
+  'outperformed', 'recovered', 'deployed', 'released', 'shipped', 'launched',
+  'automated', 'migrated', 'consolidated', 'standardised', 'standardized',
+  'restructured', 'overhauled', 'transformed', 'enabled', 'accelerated',
+  // Gerunds / present participles (-ing) — critical for result clauses
+  'reducing', 'increasing', 'improving', 'saving', 'growing', 'achieving',
+  'delivering', 'winning', 'generating', 'driving', 'streamlining', 'optimizing',
+  'optimising', 'expanding', 'scaling', 'exceeding', 'surpassing', 'recovering',
+  'deploying', 'releasing', 'shipping', 'launching', 'enabling', 'eliminating',
+  'cutting', 'boosting', 'accelerating', 'automating', 'migrating',
+  'consolidating', 'transforming', 'restructuring', 'overhauling',
+  // Noun forms
+  'reduction', 'increase', 'improvement', 'saving', 'savings', 'growth',
+  'achievement', 'delivery', 'efficiency', 'performance', 'productivity',
+  'reliability', 'accuracy', 'compliance', 'security', 'retention',
+  'adoption', 'conversion', 'engagement', 'throughput', 'uptime', 'revenue',
+  'profit', 'ROI', 'roi', 'cost', 'latency', 'coverage', 'capacity',
 ]);
 
 /** Structural before/after and causal patterns that prove a result */
