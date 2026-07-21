@@ -3494,19 +3494,43 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
                 <p className="text-xs font-semibold text-zinc-700 dark:text-zinc-200">CV Coach</p>
               </button>
 
-              {/* Cover Letter */}
-              <button
-                onClick={handleGenerateCoverLetter}
-                disabled={isGeneratingCoverLetter || isEditing || !apiKeySet}
-                className="flex items-center gap-2 p-2.5 rounded-xl border border-zinc-200 dark:border-neutral-700 bg-zinc-50 dark:bg-neutral-800 hover:border-sky-300 dark:hover:border-sky-700 hover:bg-sky-50/50 dark:hover:bg-sky-900/10 transition-colors text-left disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                <div className="w-7 h-7 rounded-lg flex items-center justify-center bg-sky-100 dark:bg-sky-900/40 flex-shrink-0">
-                  <FileText className="h-3.5 w-3.5 text-sky-600 dark:text-sky-400" />
-                </div>
-                <p className="text-xs font-semibold text-zinc-700 dark:text-zinc-200">
-                  {isGeneratingCoverLetter ? 'Writing…' : 'Cover Letter'}
-                </p>
-              </button>
+              {/* Cover Letter — shows status card when generated */}
+              {coverLetter ? (
+                <button
+                  onClick={handleGenerateCoverLetter}
+                  disabled={isGeneratingCoverLetter || isEditing || !apiKeySet}
+                  className="flex items-start gap-2 p-2.5 rounded-xl border border-emerald-200 dark:border-emerald-800 bg-emerald-50/60 dark:bg-emerald-900/20 hover:border-emerald-300 dark:hover:border-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-colors text-left disabled:opacity-40 disabled:cursor-not-allowed"
+                  title="Regenerate cover letter"
+                >
+                  <div className="w-7 h-7 rounded-lg flex items-center justify-center bg-emerald-100 dark:bg-emerald-900/50 flex-shrink-0 mt-0.5">
+                    <FileText className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <p className="text-xs font-semibold text-zinc-700 dark:text-zinc-200">Cover Letter</p>
+                      <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300">
+                        ✓ Good
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-zinc-400 dark:text-zinc-500 leading-snug mt-0.5">
+                      AI-generated · tailored to your CV and the job description
+                    </p>
+                  </div>
+                </button>
+              ) : (
+                <button
+                  onClick={handleGenerateCoverLetter}
+                  disabled={isGeneratingCoverLetter || isEditing || !apiKeySet}
+                  className="flex items-center gap-2 p-2.5 rounded-xl border border-zinc-200 dark:border-neutral-700 bg-zinc-50 dark:bg-neutral-800 hover:border-sky-300 dark:hover:border-sky-700 hover:bg-sky-50/50 dark:hover:bg-sky-900/10 transition-colors text-left disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <div className="w-7 h-7 rounded-lg flex items-center justify-center bg-sky-100 dark:bg-sky-900/40 flex-shrink-0">
+                    <FileText className="h-3.5 w-3.5 text-sky-600 dark:text-sky-400" />
+                  </div>
+                  <p className="text-xs font-semibold text-zinc-700 dark:text-zinc-200">
+                    {isGeneratingCoverLetter ? 'Writing…' : 'Cover Letter'}
+                  </p>
+                </button>
+              )}
 
               {/* CV Doctor — full-width */}
               <button
