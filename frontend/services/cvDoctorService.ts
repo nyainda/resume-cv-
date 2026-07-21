@@ -29,6 +29,19 @@ import { purifiedCompletion } from './purifiedLLMGateway';
 const FAST_MODEL  = 'llama-3.1-8b-instant';
 const SYSTEM_JSON = 'You are a professional CV consultant. Return ONLY valid JSON with no markdown fences or prose.';
 
+// ─── Pipeline rules (injected at boot from loadRules in geminiService) ────────
+// Same pattern as HUMANIZATION_RULES in geminiService.ts. Every LLM fix call
+// in this file must include these so the Doctor uses the same rules as generation.
+let _humanizationRules = '';
+
+/**
+ * Called by loadRules() in geminiService.ts after the Worker rules are fetched.
+ * Ensures all Doctor LLM calls enforce the same writing standards as CV generation.
+ */
+export function setDoctorRules(humanizationRules: string): void {
+    _humanizationRules = humanizationRules;
+}
+
 // ─── JSON repair utility ──────────────────────────────────────────────────────
 /**
  * Attempts to repair truncated JSON — the most common failure when the AI hits
@@ -416,6 +429,7 @@ ROLE: ${role.jobTitle} at ${role.company}
 TASK: ${taskDesc}
 TENSE: Use ${tense}.
 ${jobDescription ? `TARGETING JOB: ${jobDescription.substring(0, 300)}` : ''}
+${_humanizationRules ? `\nPROCV WRITING RULES — follow these exactly, same as during CV generation:\n${_humanizationRules}` : ''}
 
 RULES:
 - Keep the same underlying fact or achievement — do NOT invent new metrics or figures
@@ -593,6 +607,7 @@ export async function rewriteAllFlaggedBullets(
 
 ${lines.join('\n')}
 ${jobDescription ? `\nTARGET ROLE (for context only):\n${jobDescription.substring(0, 400)}` : ''}
+${_humanizationRules ? `\nPROCV WRITING RULES — follow these exactly, same as during CV generation:\n${_humanizationRules}` : ''}
 
 RULES:
 - Keep the same underlying achievement — do NOT invent new facts, figures, or metrics

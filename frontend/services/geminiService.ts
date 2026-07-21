@@ -1472,6 +1472,12 @@ export async function loadRules(): Promise<void> {
     _criticalRulesReminder           = rules.criticalRulesReminder;
     _cvDataSchema                    = rules.cvDataSchema;
     CV_DATA_SCHEMA                   = rules.cvDataSchema;
+
+    // Propagate humanization rules to cvDoctorService so every Doctor LLM
+    // fix call (rewriteAllFlaggedBullets, rewriteBulletOptions) enforces the
+    // same pipeline rules as CV generation — not ad-hoc prompts.
+    const { setDoctorRules } = await import('./cvDoctorService');
+    setDoctorRules(rules.humanizationRules);
 }
 
 // --- Gemini Client (multimodal only — PDF/image parsing) ---
