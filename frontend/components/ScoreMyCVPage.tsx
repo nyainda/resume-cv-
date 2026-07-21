@@ -39,6 +39,7 @@ import type { MetricStrengthReport, MetricLevel } from '../services/cvMetricStre
 import { scoreVerbVariety } from '../services/cvVerbVariety';
 import type { VerbVarietyReport, OverusedVerb } from '../services/cvVerbVariety';
 import { fixVerbVariety, fixAiIsms } from '../services/cvAutoFixer';
+import CoachingRecommendations from './CoachingRecommendations';
 import type { FixChange } from '../services/cvAutoFixer';
 import { fixBulletsForSignal, fixSummaryForSignal, fixVerbSaturation } from '../services/geminiService';
 
@@ -1586,6 +1587,26 @@ const ScoreMyCVPage: React.FC<ScoreMyCVPageProps> = ({ currentCV, onGoToGenerato
             </div>
           );
         })()}
+
+        {/* ── Coaching Recommendations — per-issue actions ── */}
+        <div className="rounded-2xl border border-zinc-200 dark:border-neutral-700 overflow-hidden bg-white dark:bg-neutral-900">
+          <div className="px-4 py-3.5 border-b border-zinc-100 dark:border-neutral-800 flex items-center gap-2.5">
+            <span className="text-lg">🎓</span>
+            <div>
+              <p className="text-sm font-bold text-zinc-800 dark:text-zinc-100">Coaching Recommendations</p>
+              <p className="text-[11px] text-zinc-400 dark:text-zinc-500">Each issue below has a fix — either instant auto-fix or a step-by-step guide</p>
+            </div>
+          </div>
+          <div className="p-4">
+            <CoachingRecommendations
+              cv={currentCV!}
+              report={buildReport ?? null}
+              onUpdateCV={onCVUpdate}
+              onGoToGenerator={onGoToGenerator}
+              showHeading={false}
+            />
+          </div>
+        </div>
 
         {/* Dimension cards */}
         <div className="space-y-2.5">

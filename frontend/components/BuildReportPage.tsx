@@ -35,9 +35,10 @@ import { fixVerbVariety, fixAiIsms } from '../services/cvAutoFixer';
 import {
   Wrench, Zap, Target, LayoutGrid, Cpu, ArrowRight,
   Stethoscope, BarChart3, GraduationCap, CheckCircle,
-  Sparkles, ChevronDown, ChevronUp, AlertTriangle,
-  TrendingUp, Shield, Award, Lightbulb,
+  Sparkles, ChevronDown, ChevronUp,
+  TrendingUp, Shield, Award,
 } from 'lucide-react';
+import CoachingRecommendations from './CoachingRecommendations';
 
 // ── Props ──────────────────────────────────────────────────────────────────────
 
@@ -385,168 +386,26 @@ function ScoreTab({ cv, atsScore }: { cv: CVData; atsScore?: number }) {
 
 // ── Coach Tab ──────────────────────────────────────────────────────────────────
 
-interface CoachTip {
-  priority: 'high' | 'medium' | 'low';
-  icon: React.ReactNode;
-  title: string;
-  detail: string;
-}
-
-function buildCoachingTips(cv: CVData, report: CVBuildReport | null): CoachTip[] {
-  const tips: CoachTip[] = [];
-
-  const annotations = classifyBullets(cv);
-  const flagged = annotations.filter(a => a.primaryIssue !== 'good');
-  const scores  = computeScores(cv);
-
-  // Issue-specific tips
-  const issueMap = flagged.reduce<Record<string, number>>((acc, a) => {
-    acc[a.primaryIssue] = (acc[a.primaryIssue] ?? 0) + 1;
-    return acc;
-  }, {});
-
-  if ((issueMap['ai_language'] ?? 0) + (issueMap['pronoun'] ?? 0) > 2) {
-    tips.push({
-      priority: 'high',
-      icon: <Shield className="w-4 h-4" />,
-      title: 'Remove AI-sounding language',
-      detail: `${(issueMap['ai_language'] ?? 0) + (issueMap['pronoun'] ?? 0)} bullets use AI buzzwords or first-person pronouns. Auto-Optimize can fix these in one click.`,
-    });
-  }
-
-  if ((issueMap['no_metric'] ?? 0) >= 3) {
-    tips.push({
-      priority: 'high',
-      icon: <Award className="w-4 h-4" />,
-      title: 'Add numbers to your bullets',
-      detail: `${issueMap['no_metric']} bullets have no metric. Add a %, £/$, headcount, or timeframe to each — even rough estimates are far stronger than no number.`,
-    });
-  }
-
-  if ((issueMap['passive_voice'] ?? 0) >= 2) {
-    tips.push({
-      priority: 'high',
-      icon: <Zap className="w-4 h-4" />,
-      title: 'Fix passive voice',
-      detail: `${issueMap['passive_voice']} bullets use passive voice ("was responsible for", "was tasked with"). Start each with a strong action verb instead.`,
-    });
-  }
-
-  if ((issueMap['weak_verb'] ?? 0) >= 2) {
-    tips.push({
-      priority: 'medium',
-      icon: <TrendingUp className="w-4 h-4" />,
-      title: 'Upgrade weak opening verbs',
-      detail: `${issueMap['weak_verb']} bullets start with weak verbs. Replace "helped", "worked on", or "assisted" with specific, ownership-showing verbs like "Architected", "Delivered", or "Scaled".`,
-    });
-  }
-
-  if ((issueMap['tense_mismatch'] ?? 0) >= 1) {
-    tips.push({
-      priority: 'medium',
-      icon: <Lightbulb className="w-4 h-4" />,
-      title: 'Fix tense consistency',
-      detail: `${issueMap['tense_mismatch']} bullet${issueMap['tense_mismatch'] !== 1 ? 's have' : ' has'} the wrong tense. Current roles → present tense. Past roles → past tense.`,
-    });
-  }
-
-  // Score-based tips
-  if (scores.verbVariety < 65) {
-    tips.push({
-      priority: 'medium',
-      icon: <Sparkles className="w-4 h-4" />,
-      title: 'Diversify your action verbs',
-      detail: 'Several verbs are repeated too many times across roles. Auto-Optimize will rotate synonyms automatically, or you can manually vary them in the CV editor.',
-    });
-  }
-
-  if (scores.achievement < 55) {
-    tips.push({
-      priority: 'high',
-      icon: <BarChart3 className="w-4 h-4" />,
-      title: 'Convert duty bullets into achievements',
-      detail: 'More than half your bullets describe what you did (duties) rather than what you achieved. Reframe using "Result + Action + Context" — e.g. "Cut deploy time 40% by rewriting the CI pipeline."',
-    });
-  }
-
-  // ATS tips (only when report exists)
-  const missing = report?.atsReport?.missing ?? [];
-  if (missing.length >= 4) {
-    tips.push({
-      priority: 'high',
-      icon: <Target className="w-4 h-4" />,
-      title: `Add ${Math.min(missing.length, 5)} missing ATS keywords`,
-      detail: `Top missing: ${missing.slice(0, 5).join(', ')}. Weave these naturally into your bullets or skills — don't just list them.`,
-    });
-  }
-
-  // Manual flags (only when report exists)
-  for (const flag of (report?.manualFlags ?? []).slice(0, 2)) {
-    tips.push({
-      priority: 'high',
-      icon: <AlertTriangle className="w-4 h-4" />,
-      title: flag.description.slice(0, 60) + (flag.description.length > 60 ? '…' : ''),
-      detail: flag.description,
-    });
-  }
-
-  // Summary tip
-  const summaryLen = (cv.summary ?? '').trim().split(/\s+/).filter(Boolean).length;
-  if (summaryLen < 40) {
-    tips.push({
-      priority: 'medium',
-      icon: <Lightbulb className="w-4 h-4" />,
-      title: 'Expand your professional summary',
-      detail: `Your summary is only ${summaryLen} words. Aim for 60–90: who you are, your strongest skill, and one concrete achievement. Recruiters read this first.`,
-    });
-  } else if (summaryLen > 120) {
-    tips.push({
-      priority: 'low',
-      icon: <Lightbulb className="w-4 h-4" />,
-      title: 'Tighten your summary',
-      detail: `Your summary is ${summaryLen} words — aim for 90 max. Every sentence should carry new information.`,
-    });
-  }
-
-  if (tips.length === 0) {
-    tips.push({
-      priority: 'low',
-      icon: <CheckCircle className="w-4 h-4" />,
-      title: 'Your CV is in strong shape',
-      detail: 'No major coaching recommendations. Keep generating role-specific versions and monitor ATS score for each job description.',
-    });
-  }
-
-  // Sort: high → medium → low
-  const ORDER = { high: 0, medium: 1, low: 2 };
-  return tips.sort((a, b) => ORDER[a.priority] - ORDER[b.priority]).slice(0, 8);
-}
-
-const PRIORITY_STYLES = {
-  high:   { dot: 'bg-[#C0392B]', badge: 'bg-rose-50 text-rose-700 dark:bg-rose-950/30 dark:text-rose-300', label: 'High priority' },
-  medium: { dot: 'bg-[#C9A84C]', badge: 'bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-300', label: 'Medium' },
-  low:    { dot: 'bg-[#2D6A4F]', badge: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300', label: 'Low' },
-};
-
 function CoachTab({
   cv,
   report,
   onAutoOptimize,
   optimizing,
   optimizeResult,
+  onUpdateCV,
+  onGoToGenerator,
 }: {
   cv: CVData;
   report: CVBuildReport | null;
   onAutoOptimize: () => void;
   optimizing: boolean;
   optimizeResult: { fixCount: number; done: boolean } | null;
+  onUpdateCV?: (cv: CVData) => void;
+  onGoToGenerator: () => void;
 }) {
-  const tips = useMemo(() => buildCoachingTips(cv, report), [cv, report]);
-  const highCount = tips.filter(t => t.priority === 'high').length;
-
   return (
     <div className="space-y-5">
-      {/* Auto-Optimize hero card */}
+      {/* Auto-Optimize hero card — fixes everything at once */}
       <div
         className="relative overflow-hidden rounded-2xl border p-5"
         style={{ borderColor: 'rgba(201,168,76,0.4)', background: 'linear-gradient(135deg, rgba(27,43,75,0.06) 0%, rgba(201,168,76,0.06) 100%)' }}
@@ -561,8 +420,8 @@ function CoachTab({
           <div className="flex-1 min-w-0">
             <h3 className="font-bold text-foreground text-base">Auto-Optimize CV</h3>
             <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
-              Fixes AI-isms, rotating overused verbs, and language issues in one click —
-              no AI calls, instant and deterministic.
+              Fixes all AI-isms, overused verbs, and language issues across your entire CV in
+              one click — no AI calls, instant and deterministic.
             </p>
 
             {optimizeResult?.done ? (
@@ -595,7 +454,7 @@ function CoachTab({
           </div>
         </div>
 
-        {/* What it fixes */}
+        {/* What it covers */}
         <div className="mt-4 grid grid-cols-2 gap-1.5 text-[11px]">
           {[
             'Remove AI buzzwords', 'Fix verb repetition',
@@ -609,42 +468,13 @@ function CoachTab({
         </div>
       </div>
 
-      {/* Coaching tips */}
-      <div>
-        <div className="flex items-center justify-between mb-3">
-          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-            Coaching Recommendations
-          </p>
-          {highCount > 0 && (
-            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 dark:bg-rose-950/30 dark:text-rose-300">
-              {highCount} high priority
-            </span>
-          )}
-        </div>
-
-        <div className="space-y-2">
-          {tips.map((tip, i) => {
-            const styles = PRIORITY_STYLES[tip.priority];
-            return (
-              <div
-                key={i}
-                className="flex items-start gap-3 p-3.5 rounded-xl border border-border bg-background/60"
-              >
-                <div className={`mt-0.5 w-2 h-2 rounded-full flex-shrink-0 ${styles.dot}`} />
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-start justify-between gap-2 flex-wrap">
-                    <p className="text-sm font-semibold text-foreground leading-snug">{tip.title}</p>
-                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded flex-shrink-0 ${styles.badge}`}>
-                      {styles.label}
-                    </span>
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{tip.detail}</p>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
+      {/* Per-issue coaching — each tip has its own action */}
+      <CoachingRecommendations
+        cv={cv}
+        report={report}
+        onUpdateCV={onUpdateCV}
+        onGoToGenerator={onGoToGenerator}
+      />
     </div>
   );
 }
@@ -904,6 +734,8 @@ export default function BuildReportPage({
               onAutoOptimize={handleAutoOptimize}
               optimizing={optimizing}
               optimizeResult={optimizeResult}
+              onUpdateCV={onUpdateCV}
+              onGoToGenerator={onGoToGenerator}
             />
           )}
 
