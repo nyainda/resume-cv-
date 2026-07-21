@@ -277,6 +277,7 @@ const AppViewRouter: React.FC<AppViewRouterProps> = (props) => {
                 <BuildReportPage
                   report={buildReport}
                   cv={currentCV}
+                  jobDescription={activeSlot?.jobDescription ?? (activeSlot as any)?.currentJobDescription ?? ''}
                   onGoToGenerator={() => setCurrentView('generator')}
                   onApplySuggestion={(item, updatedCV) => {
                     setCurrentCV(updatedCV);
@@ -287,6 +288,12 @@ const AppViewRouter: React.FC<AppViewRouterProps> = (props) => {
                   onSkipSuggestion={() => {}}
                   onFlagAction={(flag: ManualFlag) => {
                     if (flag.ctaAction === 'edit_profile') setIsSettingsOpen(true);
+                  }}
+                  onUpdateCV={(updatedCV) => {
+                    setCurrentCV(updatedCV);
+                    if (isAuthenticated && activeSlot) {
+                      enqueueSlotSync({ ...activeSlot, currentCV: updatedCV }, { immediate: true }).catch(() => {});
+                    }
                   }}
                 />
               )}
