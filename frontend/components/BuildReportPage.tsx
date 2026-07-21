@@ -392,7 +392,7 @@ interface CoachTip {
   detail: string;
 }
 
-function buildCoachingTips(cv: CVData, report: CVBuildReport): CoachTip[] {
+function buildCoachingTips(cv: CVData, report: CVBuildReport | null): CoachTip[] {
   const tips: CoachTip[] = [];
 
   const annotations = classifyBullets(cv);
@@ -469,8 +469,8 @@ function buildCoachingTips(cv: CVData, report: CVBuildReport): CoachTip[] {
     });
   }
 
-  // ATS tips
-  const missing = report.atsReport?.missing ?? [];
+  // ATS tips (only when report exists)
+  const missing = report?.atsReport?.missing ?? [];
   if (missing.length >= 4) {
     tips.push({
       priority: 'high',
@@ -480,8 +480,8 @@ function buildCoachingTips(cv: CVData, report: CVBuildReport): CoachTip[] {
     });
   }
 
-  // Manual flags
-  for (const flag of report.manualFlags.slice(0, 2)) {
+  // Manual flags (only when report exists)
+  for (const flag of (report?.manualFlags ?? []).slice(0, 2)) {
     tips.push({
       priority: 'high',
       icon: <AlertTriangle className="w-4 h-4" />,
@@ -536,7 +536,7 @@ function CoachTab({
   optimizeResult,
 }: {
   cv: CVData;
-  report: CVBuildReport;
+  report: CVBuildReport | null;
   onAutoOptimize: () => void;
   optimizing: boolean;
   optimizeResult: { fixCount: number; done: boolean } | null;
@@ -661,38 +661,20 @@ export default function BuildReportPage({
   onFlagAction,
   onUpdateCV,
 }: BuildReportPageProps) {
-  const [activeTab, setActiveTab] = useState<TabId>('repaired');
+  // Default to 'doctor' when there's no report yet, 'repaired' when there is
+  const [activeTab, setActiveTab] = useState<TabId>(report ? 'repaired' : 'doctor');
   const [localItems, setLocalItems] = useState<ReviewItem[]>(report?.reviewItems ?? []);
   const [optimizing, setOptimizing] = useState(false);
   const [optimizeResult, setOptimizeResult] = useState<{ fixCount: number; done: boolean } | null>(null);
 
-  // Sync items when a new report arrives
+  // Sync items when a new report arrives; jump to 'repaired' to show the new results
   useEffect(() => {
     setLocalItems(report?.reviewItems ?? []);
-    setActiveTab('repaired');
+    if (report) setActiveTab('repaired');
     setOptimizeResult(null);
   }, [report?.generatedAt]);
 
-  if (!report || !cv) {
-    return <EmptyState onGoToGenerator={onGoToGenerator} />;
-  }
-
-  const pendingReviewCount = localItems.filter(i => !i.applied && !i.skipped).length;
-  const atsScore = report.atsReport?.semanticScore ?? report.atsReport?.score;
-  const builtAt  = new Date(report.generatedAt).toLocaleString(undefined, {
-    month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
-  });
-
-  const tabs: Array<{ id: TabId; label: string; icon: React.ReactNode; badge?: number }> = [
-    { id: 'repaired', label: 'Fixed',   icon: <Wrench className="w-4 h-4" /> },
-    { id: 'review',   label: 'Review',  icon: <Zap className="w-4 h-4" />,
-      badge: pendingReviewCount > 0 ? pendingReviewCount : undefined },
-    { id: 'ats',      label: 'ATS',     icon: <Target className="w-4 h-4" /> },
-    { id: 'skills',   label: 'Skills',  icon: <LayoutGrid className="w-4 h-4" /> },
-    { id: 'doctor',   label: 'Doctor',  icon: <Stethoscope className="w-4 h-4" /> },
-    { id: 'score',    label: 'Score',   icon: <BarChart3 className="w-4 h-4" /> },
-    { id: 'coach',    label: 'Coach',   icon: <GraduationCap className="w-4 h-4" /> },
-  ];
+  // ── All hooks must be declared before any early return ────────────────────
 
   const handleApply = useCallback((item: ReviewItem, updatedCV: CVData) => {
     setLocalItems(prev => prev.map(i => i.id === item.id ? { ...i, applied: true } : i));
@@ -705,7 +687,7 @@ export default function BuildReportPage({
   }, [onSkipSuggestion]);
 
   const handleAutoOptimize = useCallback(async () => {
-    if (!onUpdateCV || optimizing) return;
+    if (!cv || !onUpdateCV || optimizing) return;
     setOptimizing(true);
     try {
       // 1. Fix AI-isms (deterministic, instant)
@@ -753,6 +735,35 @@ export default function BuildReportPage({
     }
   }, [cv, localItems, onUpdateCV, optimizing]);
 
+  // ── Early return — no CV means nothing to analyse ─────────────────────────
+
+  if (!cv) {
+    return <EmptyState onGoToGenerator={onGoToGenerator} />;
+  }
+
+  const hasReport = !!report;
+  const pendingReviewCount = localItems.filter(i => !i.applied && !i.skipped).length;
+  const atsScore = report?.atsReport?.semanticScore ?? report?.atsReport?.score;
+  const builtAt  = report
+    ? new Date(report.generatedAt).toLocaleString(undefined, {
+        month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
+      })
+    : null;
+
+  // Quality tabs (always available); report tabs only after generation
+  const tabs: Array<{ id: TabId; label: string; icon: React.ReactNode; badge?: number }> = [
+    ...(hasReport ? [
+      { id: 'repaired' as TabId, label: 'Fixed',  icon: <Wrench className="w-4 h-4" /> },
+      { id: 'review'   as TabId, label: 'Review', icon: <Zap className="w-4 h-4" />,
+        badge: pendingReviewCount > 0 ? pendingReviewCount : undefined },
+      { id: 'ats'      as TabId, label: 'ATS',    icon: <Target className="w-4 h-4" /> },
+      { id: 'skills'   as TabId, label: 'Skills', icon: <LayoutGrid className="w-4 h-4" /> },
+    ] : []),
+    { id: 'doctor', label: 'Doctor', icon: <Stethoscope className="w-4 h-4" /> },
+    { id: 'score',  label: 'Score',  icon: <BarChart3 className="w-4 h-4" /> },
+    { id: 'coach',  label: 'Coach',  icon: <GraduationCap className="w-4 h-4" /> },
+  ];
+
   return (
     <div className="max-w-3xl mx-auto space-y-6">
 
@@ -763,10 +774,11 @@ export default function BuildReportPage({
             <Cpu className="w-6 h-6" style={{ color: '#C9A84C' }} />
             Build Report
           </h1>
-          <p className="text-sm text-muted-foreground mt-0.5">Last generated {builtAt}</p>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            {builtAt ? `Last generated ${builtAt}` : 'Run CV Generator to build a full report'}
+          </p>
         </div>
         <div className="flex items-center gap-2 self-start sm:self-auto">
-          {/* Quick-access Coach button */}
           <button
             onClick={() => setActiveTab('coach')}
             className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold border transition-colors"
@@ -780,41 +792,65 @@ export default function BuildReportPage({
             className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold text-white transition-opacity hover:opacity-90"
             style={{ background: '#1B2B4B' }}
           >
-            New CV
+            {hasReport ? 'New CV' : 'Generate CV'}
             <ArrowRight className="w-3.5 h-3.5" />
           </button>
         </div>
       </div>
 
-      {/* ── Quality check banner ── */}
+      {/* ── Stats / quality banner ── */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-        {/* Score pill — clickable to open Score tab */}
         <button
           onClick={() => setActiveTab('score')}
-          className="flex flex-col items-center gap-1 px-3 py-2.5 rounded-xl border border-border bg-background/60 hover:bg-background transition-colors cursor-pointer"
+          className="flex flex-col items-center gap-1 px-3 py-2.5 rounded-xl border border-border bg-background/60 hover:bg-background transition-colors"
         >
           <BarChart3 className="w-4 h-4 text-muted-foreground" />
           <span className="text-[10px] text-muted-foreground">Quality Score</span>
           <span className="text-sm font-bold" style={{ color: '#C9A84C' }}>→ Check</span>
         </button>
-        <StatPill value={report.appliedCount} label="auto-fixed" colour="#2D6A4F" />
-        <StatPill
-          value={pendingReviewCount}
-          label="to review"
-          colour={pendingReviewCount > 0 ? '#C9A84C' : '#2D6A4F'}
-        />
-        {atsScore !== undefined ? (
-          <StatPill
-            value={`${atsScore}%`}
-            label="ATS match"
-            colour={atsScore >= 80 ? '#2D6A4F' : atsScore >= 60 ? '#C9A84C' : '#C0392B'}
-          />
+        {hasReport ? (
+          <>
+            <StatPill value={report!.appliedCount} label="auto-fixed" colour="#2D6A4F" />
+            <StatPill
+              value={pendingReviewCount}
+              label="to review"
+              colour={pendingReviewCount > 0 ? '#C9A84C' : '#2D6A4F'}
+            />
+            {atsScore !== undefined ? (
+              <StatPill
+                value={`${atsScore}%`}
+                label="ATS match"
+                colour={atsScore >= 80 ? '#2D6A4F' : atsScore >= 60 ? '#C9A84C' : '#C0392B'}
+              />
+            ) : (
+              <StatPill
+                value={report!.manualFlags.length}
+                label={report!.manualFlags.length === 1 ? 'manual flag' : 'manual flags'}
+                colour={report!.manualFlags.length > 0 ? '#C0392B' : '#2D6A4F'}
+              />
+            )}
+          </>
         ) : (
-          <StatPill
-            value={report.manualFlags.length}
-            label={report.manualFlags.length === 1 ? 'manual flag' : 'manual flags'}
-            colour={report.manualFlags.length > 0 ? '#C0392B' : '#2D6A4F'}
-          />
+          <>
+            <button onClick={() => setActiveTab('doctor')}
+              className="flex flex-col items-center gap-1 px-3 py-2.5 rounded-xl border border-border bg-background/60 hover:bg-background transition-colors">
+              <Stethoscope className="w-4 h-4 text-muted-foreground" />
+              <span className="text-[10px] text-muted-foreground">Bullet Health</span>
+              <span className="text-sm font-bold" style={{ color: '#C9A84C' }}>→ Inspect</span>
+            </button>
+            <button onClick={() => setActiveTab('coach')}
+              className="flex flex-col items-center gap-1 px-3 py-2.5 rounded-xl border border-border bg-background/60 hover:bg-background transition-colors">
+              <GraduationCap className="w-4 h-4 text-muted-foreground" />
+              <span className="text-[10px] text-muted-foreground">Coaching</span>
+              <span className="text-sm font-bold" style={{ color: '#C9A84C' }}>→ Advice</span>
+            </button>
+            <button onClick={onGoToGenerator}
+              className="flex flex-col items-center gap-1 px-3 py-2.5 rounded-xl border border-border bg-background/60 hover:bg-background transition-colors">
+              <Cpu className="w-4 h-4 text-muted-foreground" />
+              <span className="text-[10px] text-muted-foreground">Full Report</span>
+              <span className="text-sm font-bold" style={{ color: '#1B2B4B' }}>→ Generate</span>
+            </button>
+          </>
         )}
       </div>
 
@@ -848,8 +884,8 @@ export default function BuildReportPage({
 
         {/* Tab content */}
         <div className="p-5 sm:p-6">
-          {activeTab === 'repaired' && <RepairedTab report={report} />}
-          {activeTab === 'review' && (
+          {activeTab === 'repaired' && report && <RepairedTab report={report} />}
+          {activeTab === 'review'   && report && (
             <ReviewTab
               items={localItems}
               cv={cv}
@@ -857,22 +893,22 @@ export default function BuildReportPage({
               onSkip={handleSkip}
             />
           )}
-          {activeTab === 'ats'    && <ATSTab report={report} />}
-          {activeTab === 'skills' && <SkillsTab report={report} />}
+          {activeTab === 'ats'    && report && <ATSTab report={report} />}
+          {activeTab === 'skills' && report && <SkillsTab report={report} />}
           {activeTab === 'doctor' && <DoctorTab cv={cv} />}
           {activeTab === 'score'  && <ScoreTab cv={cv} atsScore={atsScore} />}
           {activeTab === 'coach'  && (
             <CoachTab
               cv={cv}
-              report={report}
+              report={report ?? null}
               onAutoOptimize={handleAutoOptimize}
               optimizing={optimizing}
               optimizeResult={optimizeResult}
             />
           )}
 
-          {/* Manual flags — always shown at the bottom */}
-          <ManualFlagsSection flags={report.manualFlags} onAction={onFlagAction} />
+          {/* Manual flags — only when there's a report */}
+          {report && <ManualFlagsSection flags={report.manualFlags} onAction={onFlagAction} />}
         </div>
       </div>
     </div>
