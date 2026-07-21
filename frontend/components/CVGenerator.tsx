@@ -3399,10 +3399,10 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
                   }`}>
                     {layoutMode === 'natural-1' && pageCount === 1 && '✓ Fits 1 page'}
                     {layoutMode === 'compress-1' && pageCount <= 1 && '✓ Compressed to 1 page'}
-                    {layoutMode === 'compress-1' && pageCount > 1 && (
+                    {layoutMode === 'compress-1' && pageCount > 1 && !showTwoPageBanner && (
                       density < 1
-                        ? `Compressing… zoom ${Math.round(density * 100)}%`
-                        : `Compressing… spacing ↓`
+                        ? `Fitting… zoom ${Math.round(density * 100)}%`
+                        : `Fitting… tightening spacing`
                     )}
                     {layoutMode === 'balance-2' && `⇔ Balanced 2-page${expansionStep > 0 ? ` · spacing ↑` : ''}`}
                     {layoutMode === 'natural-1' && pageCount > 1 && `${pageCount} pages`}

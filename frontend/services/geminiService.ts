@@ -1658,6 +1658,8 @@ function compactProfile(profile: UserProfile, maxResponsibilityChars = 350): str
                 ? truncate(pr.description, 200) // LLM context budget; see textTruncate.ts for why display cap differs
                 : pr.description,
             link: pr.link,
+            startDate: pr.startDate,
+            endDate: pr.endDate,
         })),
         workExperience: (profile.workExperience || []).map((exp, idx) => ({
             _role: `ROLE_${idx + 1}`,
@@ -1887,12 +1889,17 @@ function applySourceFidelityRules(cvData: CVData, profile: UserProfile, reconcil
     const generatedSkills = Array.isArray(cvData.skills) ? cvData.skills.map(s => String(s || '').trim()).filter(Boolean) : [];
     const allowedSet = new Set(sourceSkills.map(s => s.toLowerCase()));
     const filtered = generatedSkills.filter(s => allowedSet.has(s.toLowerCase()));
-    // JD path: use ONLY reconciled skills so JD-irrelevant profile skills
-    // cannot merge back in. No-JD path: merge filtered + source as before.
+    // JD path: reconciler's JD-priority ordering is authoritative — put it FIRST
+    // so ATS-critical skills are not displaced by the LLM's arbitrary ordering.
+    // No-JD path: merge filtered (LLM) + source as before.
     const mergedSkills = (reconciledSkills?.finalSkills?.length ?? 0) > 0
-        ? Array.from(new Set([...filtered, ...reconciledSkills!.finalSkills]))
+        ? Array.from(new Set([...reconciledSkills!.finalSkills, ...filtered]))
         : Array.from(new Set([...filtered, ...sourceSkills]));
-    cvData.skills = mergedSkills.slice(0, 25);
+    // Cap at 15 — consistent with skillsReconciler (MAX_SKILLS=15), the generation
+    // instruction ("EXACTLY 15"), and cvValidationEngine (ruleSkillsCap). The old
+    // value of 25 caused the validator to silently trim the list and discard the
+    // reconciler's carefully ordered tail skills.
+    cvData.skills = mergedSkills.slice(0, 15);
 
     // Rule 7 (summary): if the generated professional summary would come out
     // hollowed-out after the number strip, fall back to the user's own
@@ -3283,7 +3290,7 @@ ${lines}
             { name: 'education',  task: 'cvEducation',  instruction: 'OUTPUT-ONLY OVERRIDE: Reply with a JSON object that has exactly one key called education whose value is an array. Each array item is an object with these string fields: degree, school, year, description. The description should be one concise sentence covering GPA / honors / thesis / 2–3 relevant courses where applicable. Honor the GRADUATION-STATUS RULE strictly — past or current-year graduation years mean the degree is COMPLETED; never write "currently pursuing" for a past degree. Do NOT include any other CVData fields. NO markdown fences, NO commentary.', maxTokens: 800, temperature, json: true },
         ];
         if (Array.isArray(profile.projects) && profile.projects.length > 0) {
-            sections.push({ name: 'projects', task: 'cvProjects', instruction: 'OUTPUT-ONLY OVERRIDE: Reply with a JSON object that has exactly one key called projects whose value is an array. Each array item is an object with these string fields: name, description, link (link may be empty if none exists). Each project description must follow the format problem/goal → solution with named technologies → measurable outcome, and must name at least one specific technology, tool, framework, or methodology. Do NOT include any other CVData fields. NO markdown fences, NO commentary.', maxTokens: 1200, temperature, json: true });
+            sections.push({ name: 'projects', task: 'cvProjects', instruction: 'OUTPUT-ONLY OVERRIDE: Reply with a JSON object that has exactly one key called projects whose value is an array. Each array item is an object with these string fields: name, description, link (link may be empty if none exists), dates (copy exactly from the input project\'s startDate/endDate — format as "MMM YYYY – MMM YYYY" or "MMM YYYY – Present"; leave empty string if no dates given). Each project description must follow the format problem/goal → solution with named technologies → measurable outcome, and must name at least one specific technology, tool, framework, or methodology. Do NOT include any other CVData fields. NO markdown fences, NO commentary.', maxTokens: 1200, temperature, json: true });
         }
 
         const psResult = await workerParallelSections(sections, {
@@ -3340,7 +3347,29 @@ ${lines}
                 );
                 return patched;
             })();
-            const sectionProjects   = psResult.results.projects ? tolerantParse(psResult.results.projects.text, 'projects') : [];
+            // Parse projects and merge in profile dates — the AI may return them
+            // but as a safety net we always fall back to the profile's startDate/endDate
+            // so project dates are never silently lost.
+            const sectionProjects = (() => {
+                const raw: any[] = psResult.results.projects
+                    ? (Array.isArray(tolerantParse(psResult.results.projects.text, 'projects'))
+                        ? tolerantParse(psResult.results.projects.text, 'projects')
+                        : [])
+                    : [];
+                const profileProjects = (profile.projects || []).slice(0, 6);
+                return raw.map((p: any, i: number) => {
+                    const src = profileProjects[i];
+                    if (!src) return p;
+                    // Use AI-formatted dates if present; otherwise derive from profile fields
+                    const dates = (typeof p.dates === 'string' && p.dates.trim())
+                        ? p.dates.trim()
+                        : formatExpDateRange(src.startDate, src.endDate === 'Present' || !src.endDate ? src.endDate : src.endDate);
+                    const year = dates
+                        ? dates.split(/[-–]/)[0].trim().replace(/^[A-Za-z]+\s+/, '') // extract start year
+                        : undefined;
+                    return { ...p, dates: dates || undefined, year: year || undefined };
+                });
+            })();
 
             const okSummary    = typeof sectionSummary === 'string' && sectionSummary.trim().length > 0;
             const okSkills     = Array.isArray(sectionSkills)     && sectionSkills.length > 0;

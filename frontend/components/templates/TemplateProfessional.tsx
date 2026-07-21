@@ -216,9 +216,16 @@ const TemplateProfessional: React.FC<TemplateProps> = ({ cvData, personalInfo, i
             <div className="space-y-5">
               {cvData.projects.map((proj, index) => (
                 <div key={index} data-pdf-keep="true">
-                  <h3 className="text-[17px] font-serif font-bold text-zinc-900" {...editableProps(['projects', index, 'name'])}>
-                    {proj.name}
-                  </h3>
+                  <div className="flex items-baseline justify-between gap-2">
+                    <h3 className="text-[17px] font-serif font-bold text-zinc-900" {...editableProps(['projects', index, 'name'])}>
+                      {proj.name}
+                    </h3>
+                    {(proj.dates || proj.year) && (
+                      <span className="text-[11px] font-mono text-zinc-500 whitespace-nowrap flex-shrink-0" {...editableProps(['projects', index, 'dates'])}>
+                        {proj.dates || proj.year}
+                      </span>
+                    )}
+                  </div>
                   {proj.bullets?.length ? (
                     <ul className="list-disc list-outside ml-4 mt-1 space-y-0.5">
                       {proj.bullets.map((b, bi) => (
