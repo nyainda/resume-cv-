@@ -462,6 +462,43 @@ const ruleUngroundedCertifications: ValidationRule = {
   },
 };
 
+/**
+ * Incomplete Gerund Phrase — WARN rule.
+ *
+ * Detects the common LLM truncation pattern where a gerund is immediately
+ * followed by a preposition with no intervening direct object:
+ *   "designing and installing across farms"  (missing "systems")
+ *   "managing in Nairobi"                    (ambiguous — may be fine)
+ *
+ * Uses a conservative pattern requiring the AND-conjunction form to reduce
+ * false positives. Cannot be auto-repaired without AI (object is unknown).
+ */
+const GERUND_NO_OBJECT_RX =
+    /\b(?:and|or)\s+(?:installing|implementing|deploying|designing|developing|building|integrating|delivering|commissioning|configuring|managing|operating)\s+(?:across|in|at|for|on|from|into|through|over|under|within)\b/gi;
+
+const ruleIncompleteGerundPhrase: ValidationRule = {
+    id: 'incomplete_gerund_phrase',
+    severity: 'warn',
+    check(cv) {
+        const violations: ValidationViolation[] = [];
+        cv.experience.forEach((role, i) => {
+            (role.responsibilities ?? []).forEach((b, j) => {
+                GERUND_NO_OBJECT_RX.lastIndex = 0;
+                if (GERUND_NO_OBJECT_RX.test(b)) {
+                    violations.push({
+                        ruleId: 'incomplete_gerund_phrase',
+                        severity: 'warn',
+                        location: `experience[${i}].responsibilities[${j}]`,
+                        message: `Gerund without direct object before preposition: "${b.slice(0, 80)}"`,
+                        repaired: false,
+                    });
+                }
+            });
+        });
+        return violations;
+    },
+};
+
 // ─── Rule registry (ordered — block rules run before warn rules) ──────────────
 
 const RULES: ValidationRule[] = [
@@ -479,6 +516,7 @@ const RULES: ValidationRule[] = [
   ruleExcessBullets,
   ruleCurrentRoleTense,             // flags past-tense openers in current role
   ruleUngroundedCertifications,     // S3: flags credential mentions not in user's profile
+  ruleIncompleteGerundPhrase,       // flags "installing across" / "managing in" with no object
 ];
 
 // ─── Main entry point ─────────────────────────────────────────────────────────

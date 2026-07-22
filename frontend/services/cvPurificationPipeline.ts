@@ -138,6 +138,15 @@ const SUBSTITUTIONS: Array<[RegExp, string]> = [
     [/\bend[- ]to[- ]end\s+/gi,          ''],
     [/,\s*ensuring\s+[^.;:!?]+/gi,       ''],
     [/,\s*and\s+(?:incorporating|supporting|utilizing|utilising|applying|implementing|integrating|leveraging|using)\s+[^.;:!?]+/gi, ''],
+    // ── Missing-preposition repairs ────────────────────────────────────────────
+    // LLM omits "to" in time-bound clauses: "turnaround time under 48 hours"
+    // → "turnaround time to under 48 hours". Matches are case-insensitive.
+    [/\bturnaround time under\b/gi, 'turnaround time to under'],
+    [/\bcompletion time under\b/gi,  'completion time to under'],
+    [/\bresponse time under\b/gi,    'response time to under'],
+    [/\bdelivery time under\b/gi,    'delivery time to under'],
+    [/\bresolution time under\b/gi,  'resolution time to under'],
+    [/\bprocessing time under\b/gi,  'processing time to under'],
 ];
 
 /**
@@ -642,6 +651,48 @@ function flipMidBulletVerb(bullet: string, target: 'present' | 'past'): { text: 
         }
     }
     return { text: out, changed };
+}
+
+/**
+ * Fixes third-person-singular verb forms after "and"/"or" in imperative bullets.
+ *   "Design and implements X"  →  "Design and implement X"
+ *   "Lead and manages Y"       →  "Lead and manage Y"
+ *
+ * Only fires when the leading word is in base/imperative form (not ending in
+ * -s/-es/-ed/-ing), so it doesn't misfired on narrative text like
+ * "He leads and manages the team." Scoped to the conjunction context only.
+ */
+const _CONJ_3PS_VERBS: Array<[RegExp, string]> = [
+    [/\band implements\b/g, 'and implement'],   [/\band designs\b/g,     'and design'],
+    [/\band develops\b/g,   'and develop'],     [/\band manages\b/g,     'and manage'],
+    [/\band leads\b/g,      'and lead'],        [/\band supports\b/g,    'and support'],
+    [/\band coordinates\b/g,'and coordinate'],  [/\band ensures\b/g,     'and ensure'],
+    [/\band monitors\b/g,   'and monitor'],     [/\band reviews\b/g,     'and review'],
+    [/\band provides\b/g,   'and provide'],     [/\band maintains\b/g,   'and maintain'],
+    [/\band creates\b/g,    'and create'],      [/\band delivers\b/g,    'and deliver'],
+    [/\band builds\b/g,     'and build'],       [/\band conducts\b/g,    'and conduct'],
+    [/\band prepares\b/g,   'and prepare'],     [/\band produces\b/g,    'and produce'],
+    [/\band oversees\b/g,   'and oversee'],     [/\band drives\b/g,      'and drive'],
+    [/\band analyzes\b/g,   'and analyze'],     [/\band analyses\b/g,    'and analyse'],
+    [/\band executes\b/g,   'and execute'],     [/\band operates\b/g,    'and operate'],
+    [/\band trains\b/g,     'and train'],       [/\band tracks\b/g,      'and track'],
+    [/\band handles\b/g,    'and handle'],      [/\band plans\b/g,       'and plan'],
+    [/\band reports\b/g,    'and report'],      [/\band performs\b/g,    'and perform'],
+    [/\band assists\b/g,    'and assist'],      [/\band processes\b/g,   'and process'],
+    [/\band serves\b/g,     'and serve'],       [/\band drafts\b/g,      'and draft'],
+    [/\band engineers\b/g,  'and engineer'],    [/\band works\b/g,       'and work'],
+    [/\band troubleshoots\b/g, 'and troubleshoot'],
+];
+
+function fixMidBulletConjunctionVerb(bullet: string): string {
+    if (!bullet) return bullet;
+    // Only apply when the leading word is a base-form imperative (no -s/-es/-ed/-ing).
+    const first = (bullet.trim().split(/\s+/)[0] || '').replace(/^[^a-zA-Z]+/, '');
+    if (first.length < 3) return bullet;
+    if (/(?:(?:ch|sh|ss|x|o)es|[^aeiou][s]|[^aeiou]ed|ing)$/i.test(first)) return bullet;
+    let out = bullet;
+    for (const [re, rep] of _CONJ_3PS_VERBS) out = out.replace(re, rep);
+    return out;
 }
 
 /**
@@ -2682,6 +2733,37 @@ export function purifyCV(
                 fixedBy: 'tense_flip',
                 contextSnippet: c.slice(0, 300),
             });
+        }
+    }
+
+    // Step 2b — mid-bullet conjunction verb agreement (deterministic).
+    // Fixes "Design and implements X" → "Design and implement X".
+    // Same redundancy guard as Steps 1 and 2: skip when Worker already ran it.
+    if (!skipDup) {
+        let conjFixes = 0;
+        working = {
+            ...working,
+            experience: (working.experience || []).map((role, i) => ({
+                ...role,
+                responsibilities: (role.responsibilities as string[] || []).map((b: string, j: number) => {
+                    const fixed = fixMidBulletConjunctionVerb(b);
+                    if (fixed !== b) {
+                        conjFixes++;
+                        leaks.push({
+                            leakType: 'banned_phrase',
+                            phrase: 'conjunction verb agreement',
+                            fieldLocation: `experience[${i}].responsibilities[${j}]`,
+                            fixedBy: 'conjunction_verb_fix',
+                            contextSnippet: b.slice(0, 200),
+                        });
+                    }
+                    return fixed;
+                }),
+            })),
+        };
+        if (conjFixes > 0) {
+            substitutionsMade += conjFixes;
+            console.debug(`[Purify] Conjunction verb agreement: ${conjFixes} fix(es).`);
         }
     }
 

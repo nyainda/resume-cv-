@@ -2,7 +2,7 @@ import { GoogleGenAI, GenerateContentResponse } from '@google/genai';
 import { truncate } from '../utils/textTruncate';
 import { UserProfile, CVData, PersonalInfo, JobAnalysisResult, CVGenerationMode, ScholarshipFormat, EnhancedJobAnalysis } from '../types';
 import { groqChat, groqChatStream, GROQ_LARGE, GROQ_FAST, getLastAiEngine, getSelectedProvider, getClaudeModel, getGroqApiKey } from './groqService';
-import { purifyCV, purifyText, cleanImportedText, purifyProfile, purifyInboundCV, revertCorruptedMetrics, enforceOpenerDiversity, applyRemoteBannedPhrasesToCV, enforceTenseConsistency, type PurifyReport } from './cvPurificationPipeline';
+import { purifyCV, purifyText, cleanImportedText, purifyProfile, purifyInboundCV, revertCorruptedMetrics, enforceOpenerDiversity, applyRemoteBannedPhrasesToCV, enforceTenseConsistency, normalizeCurrencyInCV, type PurifyReport } from './cvPurificationPipeline';
 import { remotePrePurify } from './cvPurifyClient';
 import { detectField, detectFieldWithSource, lockRealNumbers, buildPromptAnchorBlock, fixPronounsInCV } from './cvPromptHelpers';
 import { logGeneration, quickHash } from './telemetryService';
@@ -5983,6 +5983,10 @@ interface QualityPolishOpts {
      *  the authoritative allowed-skills list in applySourceFidelityRules so
      *  JD-irrelevant profile skills cannot leak back after generation. */
     reconciledSkills?: ReconciledSkills | null;
+    /** Detected market currency (e.g. 'KES', 'NGN', 'GBP'). When set, the
+     *  silent guardian normalizes any wrong currency symbols to this value —
+     *  e.g. "$2M" → "KES 2M" for a Kenyan profile. */
+    detectedCurrency?: string;
 }
 
 async function runQualityPolishPasses(
