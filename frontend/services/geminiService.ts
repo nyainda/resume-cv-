@@ -2411,7 +2411,27 @@ async function _runSilentQualityGuardian(
                     console.debug(`[Guardian pass ${pass}] Gerund repair reverted ${repaired.reverted.length} corrupted metric(s).`);
                     out = repaired.cv;
                 }
-                fixed += gerundViolations.length; // count as attempted so loop continues
+                // Count ACTUAL bullet changes — not attempts. If the LLM was
+                // uncertain and returned all bullets unchanged, fixed stays 0
+                // and the early-break fires correctly (no wasted pass 2).
+                let gerundFixed = 0;
+                for (const v of gerundViolations) {
+                    const m = v.location?.match(/experience\[(\d+)\]\.responsibilities\[(\d+)\]/);
+                    if (!m) continue;
+                    const ri = parseInt(m[1], 10);
+                    const bi = parseInt(m[2], 10);
+                    const origBullet = (preFix.experience?.[ri]?.responsibilities as string[] | undefined)?.[bi];
+                    const newBullet  = (out.experience?.[ri]?.responsibilities as string[] | undefined)?.[bi];
+                    if (origBullet !== undefined && newBullet !== undefined && newBullet !== origBullet) {
+                        gerundFixed++;
+                    }
+                }
+                if (gerundFixed > 0) {
+                    fixed += gerundFixed;
+                    console.debug(`[Guardian pass ${pass}] Gerund repair applied to ${gerundFixed}/${gerundViolations.length} bullet(s).`);
+                } else {
+                    console.debug(`[Guardian pass ${pass}] Gerund repair: LLM made no changes (${gerundViolations.length} violation(s) remain).`);
+                }
             } catch (e) {
                 console.debug('[Guardian pass 1] Gerund repair skipped (non-fatal):', e);
             }
