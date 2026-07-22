@@ -1,3 +1,4 @@
+- [Silent Quality Guardian](silent-quality-guardian.md) — step 9.1 (remote KV phrase strip) + step 11 (re-run validator, 4 deterministic fixes, debug-log only) in runQualityPolishPasses; validator ran too early before, now runs last.
 - [Pipeline Intelligence plan completion](pipeline-intelligence-plan.md) — all 4 features shipped; escapeCollector uses ENGINE_URL directly (buildEngineURL not exported); CVBuildReport.annotations feeds CVDoctorPanel; D1 migration 040 written but needs manual deploy.
 - [CV Generator 2-col redesign](cv-generator-2col.md) — LEFT: form card (sections 1–5 numbered, divide-y style), RIGHT: sticky 500px preview panel; placeholder before generation; cover letter/export stay full-width below.
 - [Sidebar redesign](sidebar-redesign.md) — AppSidebar replaces AppNavbar; flex layout in App.tsx; same props interface, zero logic changes.

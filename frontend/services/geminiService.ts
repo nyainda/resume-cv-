@@ -2,7 +2,7 @@ import { GoogleGenAI, GenerateContentResponse } from '@google/genai';
 import { truncate } from '../utils/textTruncate';
 import { UserProfile, CVData, PersonalInfo, JobAnalysisResult, CVGenerationMode, ScholarshipFormat, EnhancedJobAnalysis } from '../types';
 import { groqChat, groqChatStream, GROQ_LARGE, GROQ_FAST, getLastAiEngine, getSelectedProvider, getClaudeModel, getGroqApiKey } from './groqService';
-import { purifyCV, purifyText, cleanImportedText, purifyProfile, purifyInboundCV, revertCorruptedMetrics, enforceOpenerDiversity, applyRemoteBannedPhrasesToCV, type PurifyReport } from './cvPurificationPipeline';
+import { purifyCV, purifyText, cleanImportedText, purifyProfile, purifyInboundCV, revertCorruptedMetrics, enforceOpenerDiversity, applyRemoteBannedPhrasesToCV, enforceTenseConsistency, type PurifyReport } from './cvPurificationPipeline';
 import { remotePrePurify } from './cvPurifyClient';
 import { detectField, detectFieldWithSource, lockRealNumbers, buildPromptAnchorBlock, fixPronounsInCV } from './cvPromptHelpers';
 import { logGeneration, quickHash } from './telemetryService';
@@ -2052,6 +2052,156 @@ function applyFidelityAgainstSourceCV(cvData: CVData, sourceCV: CVData): CVData 
         customSections: sourceCV.customSections || [],
     } as unknown as UserProfile;
     return applySourceFidelityRules(cvData, pseudoProfile);
+}
+
+// ─── Silent Quality Guardian ──────────────────────────────────────────────────
+// Runs after every polish pass to catch anything that slipped through.
+// Applies all deterministic fixes silently — never surfaces to the user.
+// Unfixable issues (hollow bullets needing AI expansion) are debug-logged only.
+
+/**
+ * Trim an overlong bullet at the last clean sentence boundary (period or
+ * semicolon) within `maxWords`. Returns the original string unchanged if no
+ * clean cut point is found in the latter half — never chops mid-sentence.
+ */
+function _trimBulletAtBoundary(text: string, maxWords = 45): string {
+    const words = text.trim().split(/\s+/);
+    if (words.length <= maxWords) return text;
+    const partial = words.slice(0, maxWords).join(' ');
+    const lastPeriod = partial.lastIndexOf('.');
+    const lastSemi   = partial.lastIndexOf(';');
+    const cut = Math.max(lastPeriod, lastSemi);
+    // Only accept cuts that fall in the latter half of the window — prevents
+    // cutting at an early abbreviation period like "e.g. something very long".
+    if (cut > partial.length * 0.5) return text.slice(0, cut + 1).trim();
+    return text; // no clean boundary — leave as-is for telemetry
+}
+
+/**
+ * Silent Quality Guardian — runs as the final step of runQualityPolishPasses,
+ * after every humanizer/purify/voice/opener pass has completed.
+ *
+ * What it does:
+ *  1. Re-runs the full validation engine (fresh eyes on the finished CV).
+ *  2. Applies every deterministic fix available — up to MAX_PASSES times.
+ *  3. Logs a debug summary; never shows anything to the user.
+ *
+ * Deterministic fixes (silent, zero AI cost):
+ *  • empty_experience_bullets  → remove the empty role entirely
+ *  • overlong_bullets          → trim at last sentence boundary within 45 words
+ *  • current_role_tense        → enforceTenseConsistency (present imperatives)
+ *  • hollow_bullets (empty str)→ strip truly blank bullets; genuinely short ones logged
+ *
+ * Unfixable without AI (logged to debug only, never surfaced to user):
+ *  • hollow_bullets (< 6 words but non-empty) — need content expansion
+ */
+async function _runSilentQualityGuardian(
+    cv: CVData,
+    targetBulletCount?: number,
+): Promise<CVData> {
+    const MAX_PASSES = 2;
+    let out = cv;
+
+    for (let pass = 1; pass <= MAX_PASSES; pass++) {
+        const check = runValidationEngine(out, { targetBulletCount });
+        if (check.repairApplied) out = check.cv; // apply block repairs (idempotent)
+
+        const warns = check.violations.filter(v => v.severity === 'warn' && !v.repaired);
+        if (warns.length === 0) {
+            console.debug(`[Guardian pass ${pass}] Clean — no warn violations. ✓`);
+            break;
+        }
+
+        let fixed = 0;
+        const ruleIds = warns.map(v => v.ruleId);
+
+        // ── Fix 1: Remove roles that have no bullets at all ────────────────
+        if (ruleIds.includes('empty_experience_bullets')) {
+            const before = out.experience?.length ?? 0;
+            out = {
+                ...out,
+                experience: (out.experience ?? []).filter(
+                    role => Array.isArray(role.responsibilities)
+                         && (role.responsibilities as string[]).filter(Boolean).length > 0,
+                ),
+            };
+            const removed = before - (out.experience?.length ?? 0);
+            if (removed > 0) {
+                fixed += removed;
+                console.debug(`[Guardian pass ${pass}] Removed ${removed} empty role(s).`);
+            }
+        }
+
+        // ── Fix 2: Trim overlong bullets at last sentence boundary ─────────
+        if (ruleIds.includes('overlong_bullets')) {
+            let trimmed = 0;
+            out = {
+                ...out,
+                experience: (out.experience ?? []).map(role => ({
+                    ...role,
+                    responsibilities: (role.responsibilities as string[] ?? []).map((b: string) => {
+                        const after = _trimBulletAtBoundary(b, 45);
+                        if (after !== b) trimmed++;
+                        return after;
+                    }),
+                })),
+            };
+            if (trimmed > 0) {
+                fixed += trimmed;
+                console.debug(`[Guardian pass ${pass}] Trimmed ${trimmed} overlong bullet(s) at sentence boundary.`);
+            }
+        }
+
+        // ── Fix 3: Present-tense enforcement for current role ──────────────
+        if (ruleIds.includes('current_role_tense')) {
+            const { cv: tenseFixed, changes } = enforceTenseConsistency(out);
+            if (changes.length > 0) {
+                out = tenseFixed;
+                fixed += changes.length;
+                console.debug(`[Guardian pass ${pass}] Tense-corrected ${changes.length} bullet(s) in current role.`);
+            }
+        }
+
+        // ── Fix 4: Strip truly blank bullets (hollow but empty string) ─────
+        if (ruleIds.includes('hollow_bullets')) {
+            let stripped = 0;
+            out = {
+                ...out,
+                experience: (out.experience ?? []).map(role => {
+                    const orig = role.responsibilities as string[] ?? [];
+                    const cleaned = orig.filter((b: string) => b.trim().length > 0);
+                    stripped += orig.length - cleaned.length;
+                    return { ...role, responsibilities: cleaned };
+                }),
+            };
+            if (stripped > 0) {
+                fixed += stripped;
+                console.debug(`[Guardian pass ${pass}] Stripped ${stripped} blank bullet(s).`);
+            }
+            // Genuinely short bullets need AI expansion — log for telemetry only
+            const hollowRemaining = warns.filter(v => v.ruleId === 'hollow_bullets');
+            if (hollowRemaining.length > 0) {
+                console.debug(`[Guardian pass ${pass}] ${hollowRemaining.length} role(s) still have short bullets — needs AI expansion (logged for telemetry).`);
+            }
+        }
+
+        if (fixed === 0) {
+            console.debug(`[Guardian pass ${pass}] No deterministic fixes available for remaining violations: ${[...new Set(ruleIds)].join(', ')}`);
+            break;
+        }
+    }
+
+    // Final check — debug summary only, never shown to user
+    const final = runValidationEngine(out, { targetBulletCount });
+    if (final.repairApplied) out = final.cv;
+    const remaining = final.violations.filter(v => !v.repaired);
+    if (remaining.length > 0) {
+        console.debug(`[Guardian final] ${remaining.length} issue(s) remain (need AI or are acceptable): ${[...new Set(remaining.map(v => v.ruleId))].join(', ')}`);
+    } else {
+        console.debug('[Guardian final] All violations resolved. CV is clean. ✓');
+    }
+
+    return out;
 }
 
 function finalizeCvData(
@@ -6124,6 +6274,17 @@ async function runQualityPolishPasses(
         out = enforceOpenerDiversity(out);
     } catch (e) {
         console.debug('[Polish] Opener diversity pass skipped (non-fatal):', e);
+    }
+
+    // 11. Silent Quality Guardian — final sweep after all polish stages.
+    // Re-runs the full validation engine and applies every deterministic fix
+    // available. Unfixable issues (hollow bullets needing AI) are debug-logged
+    // for telemetry only. Never surfaces anything to the user.
+    try {
+        const guardianBulletCount = engineBrief?.rhythm?.bullet_count as number | undefined;
+        out = await _runSilentQualityGuardian(out, guardianBulletCount);
+    } catch (e) {
+        console.debug('[Guardian] Silent quality sweep skipped (non-fatal):', e);
     }
 
     return out;
