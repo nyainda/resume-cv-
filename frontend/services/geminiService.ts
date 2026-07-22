@@ -1,4 +1,5 @@
 import { GoogleGenAI, GenerateContentResponse } from '@google/genai';
+import { initNlp } from './nlpTense';
 import { truncate } from '../utils/textTruncate';
 import { UserProfile, CVData, PersonalInfo, JobAnalysisResult, CVGenerationMode, ScholarshipFormat, EnhancedJobAnalysis } from '../types';
 import { groqChat, groqChatStream, GROQ_LARGE, GROQ_FAST, getLastAiEngine, getSelectedProvider, getClaudeModel, getGroqApiKey } from './groqService';
@@ -2142,6 +2143,138 @@ const _GERUND_NO_OBJECT_RX =
  *
  * Uses GROQ_FAST at temperature 0 for determinism and low cost.
  */
+/**
+ * Fix 6 — AI hollow-bullet expansion.
+ *
+ * Finds bullets that are too short (< 6 words) after all deterministic passes
+ * and asks the LLM to expand them using only context from the job title,
+ * company name, and the user's profile. Never invents metrics.
+ *
+ * Follows the same safety-gate pattern as _repairGerundTruncations (Fix 5):
+ *   Gate A — numbers must be identical before/after repair.
+ *   Gate B — repaired bullet must reach ≥ 6 words.
+ *   Gate C — repaired bullet must not be > 3× the original length.
+ *
+ * Requires `carryProfile` to be threaded through from runQualityPolishPasses.
+ * When `userProfile` is absent the function returns `cv` unchanged (no-op).
+ */
+async function _expandHollowBullets(
+    cv: CVData,
+    violations: Array<{ ruleId: string; location: string }>,
+    userProfile?: UserProfile,
+): Promise<CVData> {
+    // Collect all genuinely short (not blank) bullets from flagged roles.
+    const targets: Array<{
+        roleIdx: number;
+        bulletIdx: number;
+        bullet: string;
+        jobTitle: string;
+        company: string;
+    }> = [];
+
+    for (const v of violations) {
+        const m = v.location.match(/experience\[(\d+)\]/);
+        if (!m) continue;
+        const ri = parseInt(m[1], 10);
+        const role = cv.experience?.[ri];
+        if (!role) continue;
+        ((role.responsibilities as string[]) ?? []).forEach((b, bi) => {
+            const wc = b.trim().split(/\s+/).filter(Boolean).length;
+            if (wc > 0 && wc < 6) {
+                targets.push({
+                    roleIdx: ri, bulletIdx: bi, bullet: b,
+                    jobTitle: role.jobTitle || '', company: role.company || '',
+                });
+            }
+        });
+    }
+
+    if (targets.length === 0) return cv;
+    // Cap: don't burn tokens on a CV with systemic hollow-bullet problems
+    // (that indicates a data issue, not individual truncated bullets).
+    if (targets.length > 8) {
+        console.debug('[Guardian/HollowExpand] Too many hollow bullets to repair in bulk — skipping.');
+        return cv;
+    }
+
+    const profileContext = userProfile
+        ? [
+            userProfile.personalInfo?.summary,
+            (userProfile.workExperience || []).slice(0, 2)
+                .map(w => `${w.jobTitle} at ${w.company}`).join(', '),
+          ].filter(Boolean).join(' | ')
+        : '';
+
+    const items = targets
+        .map((t, idx) => `[${idx}] Role: ${t.jobTitle} at ${t.company}\nBullet: ${t.bullet}`)
+        .join('\n\n');
+
+    const systemMsg = 'You are a precise CV copy-editor. Return only valid JSON. Never add facts.';
+    const userMsg =
+        `Each bullet below is too short (under 6 words) for a professional CV. Expand it to 8–20 words ` +
+        `using ONLY context from the job title, company name, and candidate background. ` +
+        `Never invent metrics, percentages, or tools not already present.\n\n` +
+        (profileContext ? `Candidate background: ${profileContext}\n\n` : '') +
+        `HARD RULES:\n` +
+        `1. Only use information directly inferable from the job title, company, or existing bullet text.\n` +
+        `2. Never add, change, or remove any number, percentage, or currency figure.\n` +
+        `3. If you cannot expand without inventing facts, return the bullet unchanged.\n\n` +
+        `Return: JSON array of strings, one per input bullet, in the same order.\n\n` +
+        `Input bullets:\n${items}`;
+
+    let parsed: unknown;
+    try {
+        const raw = await groqChat(
+            GROQ_FAST, systemMsg, userMsg,
+            { temperature: 0, json: true, maxTokens: 800 },
+        );
+        parsed = JSON.parse(raw);
+    } catch (e) {
+        console.debug('[Guardian/HollowExpand] LLM call or parse failed (non-fatal):', e);
+        return cv;
+    }
+
+    if (!Array.isArray(parsed) || parsed.length !== targets.length) {
+        console.debug('[Guardian/HollowExpand] Unexpected response shape — skipping.');
+        return cv;
+    }
+
+    const updatedExp = (cv.experience || []).map(r => ({
+        ...r,
+        responsibilities: [...((r.responsibilities as string[]) || [])],
+    }));
+
+    let applied = 0;
+    for (let i = 0; i < targets.length; i++) {
+        const t = targets[i];
+        const repaired = String((parsed as unknown[])[i] ?? '').trim();
+        if (!repaired || repaired === t.bullet) continue;
+
+        // Gate A: numbers must be identical
+        const origNums = (t.bullet.match(/\d+/g) || []).slice().sort().join(',');
+        const repNums  = (repaired.match(/\d+/g) || []).slice().sort().join(',');
+        if (origNums !== repNums) {
+            console.debug(`[Guardian/HollowExpand] Gate A (numbers changed) at [${t.roleIdx}][${t.bulletIdx}] — keeping original.`);
+            continue;
+        }
+        // Gate B: must reach ≥ 6 words to actually fix the violation
+        if (repaired.trim().split(/\s+/).filter(Boolean).length < 6) continue;
+        // Gate C: must not be more than 3× original + 30 chars (hallucination guard)
+        if (repaired.length > t.bullet.length * 3 + 30) {
+            console.debug(`[Guardian/HollowExpand] Gate C (too long) at [${t.roleIdx}][${t.bulletIdx}] — keeping original.`);
+            continue;
+        }
+
+        updatedExp[t.roleIdx].responsibilities[t.bulletIdx] = repaired;
+        applied++;
+        console.debug(`[Guardian/HollowExpand] ✓ [${t.roleIdx}][${t.bulletIdx}]: "${t.bullet}" → "${repaired}"`);
+    }
+
+    if (applied === 0) return cv;
+    console.debug(`[Guardian/HollowExpand] Applied ${applied} hollow-bullet expansion(s).`);
+    return { ...cv, experience: updatedExp };
+}
+
 async function _repairGerundTruncations(
     cv: CVData,
     violations: Array<{ ruleId: string; location: string }>,
@@ -2310,7 +2443,14 @@ function _trimBulletAtBoundary(text: string, maxWords = 45): string {
 async function _runSilentQualityGuardian(
     cv: CVData,
     targetBulletCount?: number,
+    userProfile?: UserProfile,
 ): Promise<CVData> {
+    // Pre-load compromise.js NLP so flipLeadingVerb and detectTenseMismatch can
+    // use it as a fallback for verbs not in VERB_TENSE_MAP (irregular + rare).
+    // Awaiting here is safe — initNlp() is idempotent and resolves in < 300ms
+    // on first call (dynamic import). Subsequent calls are instant (cache hit).
+    await initNlp();
+
     const MAX_PASSES = 2;
     let out = cv;
 
@@ -2390,10 +2530,43 @@ async function _runSilentQualityGuardian(
                 fixed += stripped;
                 console.debug(`[Guardian pass ${pass}] Stripped ${stripped} blank bullet(s).`);
             }
-            // Genuinely short bullets need AI expansion — log for telemetry only
+        }
+
+        // ── Fix 6: AI hollow-bullet expansion (pass 1 only) ───────────────
+        // Expands genuinely short bullets (< 6 words, non-empty) using LLM
+        // with the user's profile as context. Only fires when carryProfile was
+        // provided — without profile context the LLM has no safe material to
+        // draw from, so we skip rather than risk hallucination.
+        if (pass === 1 && ruleIds.includes('hollow_bullets') && userProfile) {
+            try {
+                const hollowViolations = warns.filter(v => v.ruleId === 'hollow_bullets');
+                const preFix6: CVData = JSON.parse(JSON.stringify(out));
+                out = await _expandHollowBullets(out, hollowViolations, userProfile);
+                let hollowFixed = 0;
+                for (const v of hollowViolations) {
+                    const m = v.location.match(/experience\[(\d+)\]/);
+                    if (!m) continue;
+                    const ri = parseInt(m[1], 10);
+                    const origBullets = (preFix6.experience?.[ri]?.responsibilities as string[] | undefined) ?? [];
+                    const newBullets  = (out.experience?.[ri]?.responsibilities as string[] | undefined) ?? [];
+                    for (let bi = 0; bi < origBullets.length; bi++) {
+                        if (origBullets[bi] !== newBullets[bi]) hollowFixed++;
+                    }
+                }
+                if (hollowFixed > 0) {
+                    fixed += hollowFixed;
+                    console.debug(`[Guardian pass ${pass}] Hollow-bullet expansion applied to ${hollowFixed} bullet(s).`);
+                } else {
+                    // Log for telemetry — short bullets that couldn't be safely expanded
+                    console.debug(`[Guardian pass ${pass}] ${hollowViolations.length} role(s) still have short bullets after expansion attempt.`);
+                }
+            } catch (e) {
+                console.debug('[Guardian pass 1] Hollow-bullet expansion skipped (non-fatal):', e);
+            }
+        } else if (ruleIds.includes('hollow_bullets') && !userProfile) {
             const hollowRemaining = warns.filter(v => v.ruleId === 'hollow_bullets');
             if (hollowRemaining.length > 0) {
-                console.debug(`[Guardian pass ${pass}] ${hollowRemaining.length} role(s) still have short bullets — needs AI expansion (logged for telemetry).`);
+                console.debug(`[Guardian pass ${pass}] ${hollowRemaining.length} role(s) have short bullets — profile context unavailable, skipping AI expansion.`);
             }
         }
 
@@ -6559,7 +6732,7 @@ async function runQualityPolishPasses(
     // for telemetry only. Never surfaces anything to the user.
     try {
         const guardianBulletCount = engineBrief?.rhythm?.bullet_count as number | undefined;
-        out = await _runSilentQualityGuardian(out, guardianBulletCount);
+        out = await _runSilentQualityGuardian(out, guardianBulletCount, carryProfile);
     } catch (e) {
         console.debug('[Guardian] Silent quality sweep skipped (non-fatal):', e);
     }

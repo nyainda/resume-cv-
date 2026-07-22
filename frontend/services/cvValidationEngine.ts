@@ -476,6 +476,35 @@ const ruleUngroundedCertifications: ValidationRule = {
 const GERUND_NO_OBJECT_RX =
     /\b(?:and|or)\s+(?:installing|implementing|deploying|designing|developing|building|integrating|delivering|commissioning|configuring|managing|operating)\s+(?:across|in|at|for|on|from|into|through|over|under|within)\b/gi;
 
+/**
+ * Confidence gate for gerund-truncation detection.
+ *
+ * The regex is a coarse trip-wire; this function scores how likely it is that
+ * a match is a genuine truncation (missing direct-object noun) vs a valid phrase.
+ *
+ * Signals that lower confidence (the phrase is probably fine):
+ *   - A title-case word immediately follows the preposition → likely a proper
+ *     noun (place, organisation): "managing in Nairobi", "deploying across AWS".
+ *   - The bullet is long (≥ 14 words) → probably has enough surrounding context.
+ *   - The bullet contains a metric (number) → substantive, less likely truncated.
+ *
+ * Only 'high'-confidence matches are surfaced as violations to avoid burning
+ * LLM repair tokens on valid sentences.
+ */
+function scoreGerundConfidence(bullet: string): 'high' | 'medium' | 'low' {
+    // Proper noun after preposition (title-case word) → likely valid geography/name.
+    if (/\b(?:across|in|at|for|on|from|into|through|over|under|within)\s+[A-Z][a-z]{2,}\b/.test(bullet)) {
+        return 'low';
+    }
+    const words = bullet.trim().split(/\s+/);
+    const hasMetric = /\d/.test(bullet);
+    // Short bullet with no metric → high probability of genuine truncation.
+    if (words.length < 10 && !hasMetric) return 'high';
+    // Long bullet or one with a metric → less likely to be a problem.
+    if (words.length >= 14 || hasMetric) return 'medium';
+    return 'high';
+}
+
 const ruleIncompleteGerundPhrase: ValidationRule = {
     id: 'incomplete_gerund_phrase',
     severity: 'warn',
@@ -484,15 +513,17 @@ const ruleIncompleteGerundPhrase: ValidationRule = {
         cv.experience.forEach((role, i) => {
             (role.responsibilities ?? []).forEach((b, j) => {
                 GERUND_NO_OBJECT_RX.lastIndex = 0;
-                if (GERUND_NO_OBJECT_RX.test(b)) {
-                    violations.push({
-                        ruleId: 'incomplete_gerund_phrase',
-                        severity: 'warn',
-                        location: `experience[${i}].responsibilities[${j}]`,
-                        message: `Gerund without direct object before preposition: "${b.slice(0, 80)}"`,
-                        repaired: false,
-                    });
-                }
+                if (!GERUND_NO_OBJECT_RX.test(b)) return;
+                // Only flag when confidence is high — avoids triggering AI repair
+                // on valid phrases like "managing in Nairobi" or "deploying across AWS".
+                if (scoreGerundConfidence(b) !== 'high') return;
+                violations.push({
+                    ruleId: 'incomplete_gerund_phrase',
+                    severity: 'warn',
+                    location: `experience[${i}].responsibilities[${j}]`,
+                    message: `Gerund without direct object before preposition: "${b.slice(0, 80)}"`,
+                    repaired: false,
+                });
             });
         });
         return violations;

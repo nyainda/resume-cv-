@@ -17,136 +17,164 @@ import { CVData, UserProfile } from '../types';
 import { getCachedBannedPhrases, type BannedEntry } from './cvEngineClient';
 import { auditStyleGovernance, classifyOpener, GOVERNANCE_SUBSTITUTIONS } from './cvStyleGovernance';
 import { auditSeniorityCoherence } from './cvSeniorityCoherence';
+import { detectWordTense, conjugateWord, isNlpReady } from './nlpTense';
 
 // ────────────────────────────────────────────────────────────────────────────
 // 1. FORBIDDEN-WORD SUBSTITUTIONS — applied to imported CV text BEFORE parsing,
 //    and to any free-text field after generation. Replacement-based (not just
 //    deletion) so the sentence stays grammatical.
 // ────────────────────────────────────────────────────────────────────────────
+
+/**
+ * A single substitution rule: what to match, what to replace it with, and why.
+ * Every rule in SUBSTITUTIONS and GOVERNANCE_SUBSTITUTIONS uses this type so
+ * the table is self-documenting, auditable, and testable in isolation.
+ *
+ * Fields:
+ *   pattern     — the regex to match (use /g flag for global replacements)
+ *   replacement — the replacement string; empty string deletes the match
+ *   reason      — brief label identifying the class of AI tell being caught
+ */
+export interface SubstitutionRule {
+    pattern: RegExp;
+    replacement: string;
+    reason: string;
+}
+
+/** Shorthand constructor — keeps the table readable at scale. */
+const sub = (pattern: RegExp, replacement: string, reason: string): SubstitutionRule =>
+    ({ pattern, replacement, reason });
+
 // Single source of truth: this table MUST stay in sync with the identical
 // `_SUBS` array in `backend/cv-engine-worker/src/handlers/purify.ts`. A prior
 // migration emptied this table (silent no-op) while the Worker kept the real
 // data — see cv-purification-pipeline-migration-gap memory note.
-const SUBSTITUTIONS: Array<[RegExp, string]> = [
-    [/^Manages\b/,        'Manage'],
-    [/^Leads\b/,          'Lead'],
-    [/^Builds\b/,         'Build'],
-    [/^Conducts\b/,       'Conduct'],
-    [/^Troubleshoots\b/,  'Troubleshoot'],
-    [/^Generates\b/,      'Generate'],
-    [/^Prepares\b/,       'Prepare'],
-    [/^Designs\b/,        'Design'],
-    [/^Oversees\b/,       'Oversee'],
-    [/^Coordinates\b/,    'Coordinate'],
-    [/^Supports\b/,       'Support'],
-    [/^Maintains\b/,      'Maintain'],
-    [/^Develops\b/,       'Develop'],
-    [/^Implements\b/,     'Implement'],
-    [/^Monitors\b/,       'Monitor'],
-    [/^Reviews\b/,        'Review'],
-    [/^Reports\b/,        'Report'],
-    [/^Ensures\b/,        'Ensure'],
-    [/^Provides\b/,       'Provide'],
-    [/^Handles\b/,        'Handle'],
-    [/^Engineers\b/,      'Engineer'],
-    [/^Delivers\b/,       'Deliver'],
-    [/^Drives\b/,         'Drive'],
-    [/^Creates\b/,        'Create'],
-    [/^Operates\b/,       'Operate'],
-    [/^Works\b/,          'Work'],
-    [/^Analyzes\b/,       'Analyze'],
-    [/^Analyses\b/,       'Analyse'],
-    [/^Plans\b/,          'Plan'],
-    [/^Executes\b/,       'Execute'],
-    [/^Performs\b/,       'Perform'],
-    [/^Serves\b/,         'Serve'],
-    [/^Assists\b/,        'Assist'],
-    [/^Drafts\b/,         'Draft'],
-    [/^Produces\b/,       'Produce'],
-    [/^Processes\b/,      'Process'],
-    [/^Tracks\b/,         'Track'],
-    [/^Trains\b/,         'Train'],
-    [/\bof\s*[–—]\s+(?=[a-zA-Z])/g,  'of '],
-    [/\bfor\s*[–—]\s+(?=[a-zA-Z])/g, 'for '],
-    [/\s*[–—]\s*$/,                   ''],
-    [/\bhands-\s*on\b/gi,                  'hands-on'],
-    [/\bhands-\s*with\b/gi,               'hands-on experience with'],
-    [/\bhands-\s*in\b/gi,                 'hands-on experience in'],
-    [/\bhands-\s*across\b/gi,             'hands-on experience across'],
-    [/\bhands-\s*(?!on\b)(?=[a-zA-Z])/gi, 'hands-on '],
-    [/,\s*and\s*$/,                   ''],
-    [/\s+and\s*$/,                    ''],
-    [/,\s*$/,                         ''],
-    [/\bleveraging\b/gi,                 'using'],
-    [/\bleveraged\b/gi,                  'used'],
-    [/\bleverage\b/gi,                   'use'],
-    [/\bspearheaded\b/gi,                'led'],
-    [/\bspearhead\b/gi,                  'lead'],
-    [/\butilized\b/gi,                   'used'],
-    [/\butilised\b/gi,                   'used'],
-    [/\butilize\b/gi,                    'use'],
-    [/\butilise\b/gi,                    'use'],
-    [/\bfacilitated\b/gi,                'enabled'],
-    [/\bfacilitate\b/gi,                 'enable'],
-    [/\bsynergy\b/gi,                    'collaboration'],
-    [/\bsynergies\b/gi,                  'collaboration'],
-    [/\binnovative solutions?\b/gi,      'practical solutions'],
-    [/\bbest practices?\b/gi,            'proven methods'],
-    [/\bknowledge sharing\b/gi,          'documentation'],
-    [/\bstaying up[- ]to[- ]date\b/gi,   'keeping current'],
-    [/\bdrive meaningful change\b/gi,    'improve outcomes'],
-    [/\bpassion for\b/gi,                'focus on'],
-    [/\bresults[- ]driven\b/gi,          'delivery-focused'],
-    [/\bdetail[- ]oriented\b/gi,         'thorough'],
-    [/\bgo[- ]getter\b/gi,               'self-starter'],
-    [/\bgreenfielded\b/gi,               'built'],
-    [/\bgreenfiel(?:ding|s)\b/gi,        'building'],
-    [/\bscaffolded\b/gi,                 'established'],
-    [/\bscaffolding\b/gi,                'establishing'],
-    [/\bmaterialized\b/gi,               'developed'],
-    [/\bmaterialize[sd]?\b/gi,           'develop'],
-    [/\bactioned\b/gi,                   'completed'],
-    [/\bactioning\b/gi,                  'completing'],
-    [/\bideated\b/gi,                    'developed'],
-    [/\bideating\b/gi,                   'developing'],
-    [/\bsolutioned\b/gi,                 'resolved'],
-    [/\bsolutioning\b/gi,                'resolving'],
-    [/\bDeployed troubleshooting\b/gi,                                'Performed troubleshooting and maintenance on'],
-    [/\bDeployed\s+(analysis|review|audit|research)\b/gi,            'Conducted $1'],
-    [/^Eager to\b/gim,                                               ''],
-    [/^Looking to\b/gim,                                             ''],
-    [/^Aiming to\b/gim,                                              ''],
-    [/^Hoping to\b/gim,                                              ''],
-    [/[,\s]+(?:and\s+)?eager\s+to\s+(?:apply|learn|contribute|join|grow|develop|bring|use|leverage|gain|expand|leverage|utilise|utilize)\b[^.;]*/gi, ''],
-    [/\bseeking to (?:use|apply|leverage|bring|contribute|join|gain|grow|develop|expand|utilise|utilize)\b/gi, ''],
-    [/\baiming to (?:use|apply|leverage|bring|contribute|join|gain|grow|develop|expand)\b/gi, ''],
-    [/\blooking to (?:use|apply|leverage|bring|contribute|join|gain|grow|develop|expand)\b/gi, ''],
-    [/\bto drive business growth\b/gi,                               ''],
-    [/\bfostering teamwork\b/gi,                                     ''],
-    [/\bdemonstrating strong analytical skills\b/gi,                 ''],
-    [/\battention to detail\b/gi,                                    ''],
-    [/\bproblem-solving abilities\b/gi,                              ''],
-    [/\bto drive project efficiency\b/gi,                            ''],
-    [/\bfostering a collaborative\b/gi,                              ''],
-    [/\bfostering collaboration\b/gi,                                ''],
-    [/\binitiative delivery\b/gi,        'project delivery'],
-    [/\btimely initiative\b/gi,          'timely project'],
-    [/\bensure(?:s|d)? timely delivery\b/gi, 'deliver on time'],
-    [/\bensure(?:s|d)? timely\b/gi,      'deliver on time for'],
-    [/\bteam player\b/gi,                'collaborator'],
-    [/\bdynamic\s+/gi,                   ''],
-    [/\bend[- ]to[- ]end\s+/gi,          ''],
-    [/,\s*ensuring\s+[^.;:!?]+/gi,       ''],
-    [/,\s*and\s+(?:incorporating|supporting|utilizing|utilising|applying|implementing|integrating|leveraging|using)\s+[^.;:!?]+/gi, ''],
+const SUBSTITUTIONS: SubstitutionRule[] = [
+    // ── Third-person singular → imperative form ───────────────────────────────
+    // ATS parsers and recruiters expect bare-imperative verb openers ("Manage",
+    // "Lead") rather than 3rd-person ("Manages", "Leads") in CV bullets.
+    sub(/^Manages\b/,        'Manage',        'verb:3ps-to-imperative'),
+    sub(/^Leads\b/,          'Lead',          'verb:3ps-to-imperative'),
+    sub(/^Builds\b/,         'Build',         'verb:3ps-to-imperative'),
+    sub(/^Conducts\b/,       'Conduct',       'verb:3ps-to-imperative'),
+    sub(/^Troubleshoots\b/,  'Troubleshoot',  'verb:3ps-to-imperative'),
+    sub(/^Generates\b/,      'Generate',      'verb:3ps-to-imperative'),
+    sub(/^Prepares\b/,       'Prepare',       'verb:3ps-to-imperative'),
+    sub(/^Designs\b/,        'Design',        'verb:3ps-to-imperative'),
+    sub(/^Oversees\b/,       'Oversee',       'verb:3ps-to-imperative'),
+    sub(/^Coordinates\b/,    'Coordinate',    'verb:3ps-to-imperative'),
+    sub(/^Supports\b/,       'Support',       'verb:3ps-to-imperative'),
+    sub(/^Maintains\b/,      'Maintain',      'verb:3ps-to-imperative'),
+    sub(/^Develops\b/,       'Develop',       'verb:3ps-to-imperative'),
+    sub(/^Implements\b/,     'Implement',     'verb:3ps-to-imperative'),
+    sub(/^Monitors\b/,       'Monitor',       'verb:3ps-to-imperative'),
+    sub(/^Reviews\b/,        'Review',        'verb:3ps-to-imperative'),
+    sub(/^Reports\b/,        'Report',        'verb:3ps-to-imperative'),
+    sub(/^Ensures\b/,        'Ensure',        'verb:3ps-to-imperative'),
+    sub(/^Provides\b/,       'Provide',       'verb:3ps-to-imperative'),
+    sub(/^Handles\b/,        'Handle',        'verb:3ps-to-imperative'),
+    sub(/^Engineers\b/,      'Engineer',      'verb:3ps-to-imperative'),
+    sub(/^Delivers\b/,       'Deliver',       'verb:3ps-to-imperative'),
+    sub(/^Drives\b/,         'Drive',         'verb:3ps-to-imperative'),
+    sub(/^Creates\b/,        'Create',        'verb:3ps-to-imperative'),
+    sub(/^Operates\b/,       'Operate',       'verb:3ps-to-imperative'),
+    sub(/^Works\b/,          'Work',          'verb:3ps-to-imperative'),
+    sub(/^Analyzes\b/,       'Analyze',       'verb:3ps-to-imperative'),
+    sub(/^Analyses\b/,       'Analyse',       'verb:3ps-to-imperative'),
+    sub(/^Plans\b/,          'Plan',          'verb:3ps-to-imperative'),
+    sub(/^Executes\b/,       'Execute',       'verb:3ps-to-imperative'),
+    sub(/^Performs\b/,       'Perform',       'verb:3ps-to-imperative'),
+    sub(/^Serves\b/,         'Serve',         'verb:3ps-to-imperative'),
+    sub(/^Assists\b/,        'Assist',        'verb:3ps-to-imperative'),
+    sub(/^Drafts\b/,         'Draft',         'verb:3ps-to-imperative'),
+    sub(/^Produces\b/,       'Produce',       'verb:3ps-to-imperative'),
+    sub(/^Processes\b/,      'Process',       'verb:3ps-to-imperative'),
+    sub(/^Tracks\b/,         'Track',         'verb:3ps-to-imperative'),
+    sub(/^Trains\b/,         'Train',         'verb:3ps-to-imperative'),
+    // ── Punctuation / structural repairs ──────────────────────────────────────
+    sub(/\bof\s*[–—]\s+(?=[a-zA-Z])/g,  'of ',  'punctuation:em-dash-repair'),
+    sub(/\bfor\s*[–—]\s+(?=[a-zA-Z])/g, 'for ', 'punctuation:em-dash-repair'),
+    sub(/\s*[–—]\s*$/,                   '',     'punctuation:orphan-dash'),
+    sub(/\bhands-\s*on\b/gi,                  'hands-on',                    'punctuation:broken-hyphen'),
+    sub(/\bhands-\s*with\b/gi,               'hands-on experience with',    'punctuation:broken-hyphen'),
+    sub(/\bhands-\s*in\b/gi,                 'hands-on experience in',      'punctuation:broken-hyphen'),
+    sub(/\bhands-\s*across\b/gi,             'hands-on experience across',  'punctuation:broken-hyphen'),
+    sub(/\bhands-\s*(?!on\b)(?=[a-zA-Z])/gi, 'hands-on ',                  'punctuation:broken-hyphen'),
+    sub(/,\s*and\s*$/,                   '', 'punctuation:trailing-cleanup'),
+    sub(/\s+and\s*$/,                    '', 'punctuation:trailing-cleanup'),
+    sub(/,\s*$/,                         '', 'punctuation:trailing-cleanup'),
+    // ── AI buzzword substitutions ──────────────────────────────────────────────
+    sub(/\bleveraging\b/gi,                 'using',          'phrase:leverage'),
+    sub(/\bleveraged\b/gi,                  'used',           'phrase:leverage'),
+    sub(/\bleverage\b/gi,                   'use',            'phrase:leverage'),
+    sub(/\bspearheaded\b/gi,                'led',            'phrase:spearheaded'),
+    sub(/\bspearhead\b/gi,                  'lead',           'phrase:spearheaded'),
+    sub(/\butilized\b/gi,                   'used',           'phrase:utilize'),
+    sub(/\butilised\b/gi,                   'used',           'phrase:utilize'),
+    sub(/\butilize\b/gi,                    'use',            'phrase:utilize'),
+    sub(/\butilise\b/gi,                    'use',            'phrase:utilize'),
+    sub(/\bfacilitated\b/gi,                'enabled',        'phrase:facilitate'),
+    sub(/\bfacilitate\b/gi,                 'enable',         'phrase:facilitate'),
+    sub(/\bsynergy\b/gi,                    'collaboration',  'phrase:synergy'),
+    sub(/\bsynergies\b/gi,                  'collaboration',  'phrase:synergy'),
+    sub(/\binnovative solutions?\b/gi,      'practical solutions', 'phrase:ai-buzzword'),
+    sub(/\bbest practices?\b/gi,            'proven methods',      'phrase:ai-buzzword'),
+    sub(/\bknowledge sharing\b/gi,          'documentation',       'phrase:ai-buzzword'),
+    sub(/\bstaying up[- ]to[- ]date\b/gi,   'keeping current',     'phrase:ai-buzzword'),
+    sub(/\bdrive meaningful change\b/gi,    'improve outcomes',    'phrase:ai-buzzword'),
+    sub(/\bpassion for\b/gi,                'focus on',            'phrase:ai-buzzword'),
+    sub(/\bresults[- ]driven\b/gi,          'delivery-focused',    'phrase:ai-buzzword'),
+    sub(/\bdetail[- ]oriented\b/gi,         'thorough',            'phrase:ai-buzzword'),
+    sub(/\bgo[- ]getter\b/gi,               'self-starter',        'phrase:ai-buzzword'),
+    sub(/\bgreenfielded\b/gi,               'built',               'phrase:jargon'),
+    sub(/\bgreenfiel(?:ding|s)\b/gi,        'building',            'phrase:jargon'),
+    sub(/\bscaffolded\b/gi,                 'established',         'phrase:jargon'),
+    sub(/\bscaffolding\b/gi,                'establishing',        'phrase:jargon'),
+    sub(/\bmaterialized\b/gi,               'developed',           'phrase:jargon'),
+    sub(/\bmaterialize[sd]?\b/gi,           'develop',             'phrase:jargon'),
+    sub(/\bactioned\b/gi,                   'completed',           'phrase:jargon'),
+    sub(/\bactioning\b/gi,                  'completing',          'phrase:jargon'),
+    sub(/\bideated\b/gi,                    'developed',           'phrase:jargon'),
+    sub(/\bideating\b/gi,                   'developing',          'phrase:jargon'),
+    sub(/\bsolutioned\b/gi,                 'resolved',            'phrase:jargon'),
+    sub(/\bsolutioning\b/gi,                'resolving',           'phrase:jargon'),
+    sub(/\bDeployed troubleshooting\b/gi,                                'Performed troubleshooting and maintenance on', 'phrase:jargon'),
+    sub(/\bDeployed\s+(analysis|review|audit|research)\b/gi,            'Conducted $1',                                'phrase:jargon'),
+    // ── Jobseeker-voice openers (should never appear in CV bullets) ────────────
+    sub(/^Eager to\b/gim,                                               '', 'phrase:jobseeker-voice'),
+    sub(/^Looking to\b/gim,                                             '', 'phrase:jobseeker-voice'),
+    sub(/^Aiming to\b/gim,                                              '', 'phrase:jobseeker-voice'),
+    sub(/^Hoping to\b/gim,                                              '', 'phrase:jobseeker-voice'),
+    sub(/[,\s]+(?:and\s+)?eager\s+to\s+(?:apply|learn|contribute|join|grow|develop|bring|use|leverage|gain|expand|leverage|utilise|utilize)\b[^.;]*/gi, '', 'phrase:jobseeker-voice'),
+    sub(/\bseeking to (?:use|apply|leverage|bring|contribute|join|gain|grow|develop|expand|utilise|utilize)\b/gi, '', 'phrase:jobseeker-voice'),
+    sub(/\baiming to (?:use|apply|leverage|bring|contribute|join|gain|grow|develop|expand)\b/gi,                  '', 'phrase:jobseeker-voice'),
+    sub(/\blooking to (?:use|apply|leverage|bring|contribute|join|gain|grow|develop|expand)\b/gi,                 '', 'phrase:jobseeker-voice'),
+    sub(/\bto drive business growth\b/gi,                               '', 'phrase:jobseeker-voice'),
+    sub(/\bfostering teamwork\b/gi,                                     '', 'phrase:filler'),
+    sub(/\bdemonstrating strong analytical skills\b/gi,                 '', 'phrase:filler'),
+    sub(/\battention to detail\b/gi,                                    '', 'phrase:filler'),
+    sub(/\bproblem-solving abilities\b/gi,                              '', 'phrase:filler'),
+    sub(/\bto drive project efficiency\b/gi,                            '', 'phrase:filler'),
+    sub(/\bfostering a collaborative\b/gi,                              '', 'phrase:filler'),
+    sub(/\bfostering collaboration\b/gi,                                '', 'phrase:filler'),
+    sub(/\binitiative delivery\b/gi,        'project delivery',  'phrase:filler'),
+    sub(/\btimely initiative\b/gi,          'timely project',    'phrase:filler'),
+    sub(/\bensure(?:s|d)? timely delivery\b/gi, 'deliver on time',       'phrase:filler'),
+    sub(/\bensure(?:s|d)? timely\b/gi,      'deliver on time for',       'phrase:filler'),
+    sub(/\bteam player\b/gi,                'collaborator',              'phrase:filler'),
+    sub(/\bdynamic\s+/gi,                   '',                          'phrase:filler'),
+    sub(/\bend[- ]to[- ]end\s+/gi,          '',                          'phrase:filler'),
+    sub(/,\s*ensuring\s+[^.;:!?]+/gi,       '',                          'phrase:filler'),
+    sub(/,\s*and\s+(?:incorporating|supporting|utilizing|utilising|applying|implementing|integrating|leveraging|using)\s+[^.;:!?]+/gi, '', 'phrase:filler'),
     // ── Missing-preposition repairs ────────────────────────────────────────────
     // LLM omits "to" in time-bound clauses: "turnaround time under 48 hours"
     // → "turnaround time to under 48 hours". Matches are case-insensitive.
-    [/\bturnaround time under\b/gi, 'turnaround time to under'],
-    [/\bcompletion time under\b/gi,  'completion time to under'],
-    [/\bresponse time under\b/gi,    'response time to under'],
-    [/\bdelivery time under\b/gi,    'delivery time to under'],
-    [/\bresolution time under\b/gi,  'resolution time to under'],
-    [/\bprocessing time under\b/gi,  'processing time to under'],
+    sub(/\bturnaround time under\b/gi, 'turnaround time to under', 'grammar:missing-preposition'),
+    sub(/\bcompletion time under\b/gi,  'completion time to under', 'grammar:missing-preposition'),
+    sub(/\bresponse time under\b/gi,    'response time to under',   'grammar:missing-preposition'),
+    sub(/\bdelivery time under\b/gi,    'delivery time to under',   'grammar:missing-preposition'),
+    sub(/\bresolution time under\b/gi,  'resolution time to under', 'grammar:missing-preposition'),
+    sub(/\bprocessing time under\b/gi,  'processing time to under', 'grammar:missing-preposition'),
 ];
 
 /**
@@ -185,7 +213,7 @@ export function cleanImportedText(input: string): { cleaned: string; changes: st
     if (!input || typeof input !== 'string') return { cleaned: input || '', changes: [] };
     let out = input;
     const changes: string[] = [];
-    for (const [pattern, replacement] of [...SUBSTITUTIONS, ...GOVERNANCE_SUBSTITUTIONS]) {
+    for (const { pattern, replacement } of [...SUBSTITUTIONS, ...GOVERNANCE_SUBSTITUTIONS]) {
         const matches = out.match(pattern);
         if (matches && matches.length) {
             const sample = matches[0];
@@ -227,7 +255,7 @@ function escapeRegexLiteral(s: string): string {
 }
 
 const LOCAL_BANNED_KEYS = new Set<string>(
-    SUBSTITUTIONS.map(([re]) => re.source.toLowerCase())
+    SUBSTITUTIONS.map(s => s.pattern.source.toLowerCase())
 );
 
 export async function cleanImportedTextRemote(input: string): Promise<{ cleaned: string; changes: string[] }> {
@@ -598,6 +626,26 @@ function flipLeadingVerb(bullet: string, target: 'present' | 'past'): { text: st
             return { text: prefix + replacement + boundary + bullet.slice(m[0].length), changed: true };
         }
     }
+    // ── NLP fallback for verbs not in VERB_TENSE_MAP ─────────────────────────
+    // Catches irregular and uncommon verbs (drove, fought, grew, ran…) that the
+    // static lookup table doesn't cover. Only fires when NLP is pre-loaded via
+    // initNlp() — degrades silently to the existing behaviour when it isn't.
+    const wordTense = detectWordTense(lower);
+    if (target === 'past' && wordTense === 'present') {
+        const conjugated = conjugateWord(firstWord, 'past');
+        if (conjugated) {
+            const replacement = matchCase(firstWord, conjugated);
+            return { text: prefix + replacement + boundary + bullet.slice(m[0].length), changed: true };
+        }
+    }
+    if (target === 'present' && wordTense === 'past') {
+        const conjugated = conjugateWord(firstWord, 'present');
+        if (conjugated) {
+            const replacement = matchCase(firstWord, conjugated);
+            return { text: prefix + replacement + boundary + bullet.slice(m[0].length), changed: true };
+        }
+    }
+
     return { text: bullet, changed: false };
 }
 
@@ -736,18 +784,32 @@ function detectTenseMismatch(cv: CVData): string[] {
         const bullets = role.responsibilities || [];
         for (const b of bullets) {
             // Only check the LEADING VERB (first word) for tense.
-            // Checking the whole bullet causes false positives when action words
-            // like "design", "support", or "deliver" appear mid-sentence
-            // (e.g. "Supported design of…" matches PRESENT_VERB_HINTS on "design").
+            // Primary path: use NLP when loaded — handles irregular verbs and avoids
+            // false-positives on adjectives ending in -ed (e.g. "talented" ≠ past verb).
+            // Fallback: original PRESENT_VERB_HINTS / PAST_VERB_HINTS regex approach.
             const firstWord = b.trim().split(/\s+/)[0] || '';
-            const hasPresent = PRESENT_VERB_HINTS.test(firstWord);
-            const hasPast    = PAST_VERB_HINTS.test(firstWord);
-            if (hasPresent && hasPast) {
-                issues.push(`Mixed tense in "${role.jobTitle} @ ${role.company}": "${b.slice(0, 60)}…"`);
-            } else if (isCurrent && hasPast && !hasPresent) {
+            let wordTense: 'present' | 'past' | 'unknown';
+
+            if (isNlpReady()) {
+                wordTense = detectWordTense(firstWord);
+            } else {
+                // Legacy regex path: checking only the LEADING VERB avoids false
+                // positives when action words like "design" appear mid-sentence
+                // (e.g. "Supported design of…" would match PRESENT_VERB_HINTS on "design").
+                const hasPresent = PRESENT_VERB_HINTS.test(firstWord);
+                const hasPast    = PAST_VERB_HINTS.test(firstWord);
+                if (hasPresent && hasPast) wordTense = 'unknown'; // ambiguous
+                else if (hasPresent) wordTense = 'present';
+                else if (hasPast)    wordTense = 'past';
+                else                 wordTense = 'unknown';
+            }
+
+            if (wordTense === 'unknown') continue;
+
+            if (isCurrent && wordTense === 'past') {
                 issues.push(`Current role "${role.jobTitle}" uses past tense bullet — should be present.`);
-                break; // one warning per role
-            } else if (!isCurrent && hasPresent && !hasPast) {
+                break; // one warning per role is enough
+            } else if (!isCurrent && wordTense === 'present') {
                 issues.push(`Past role "${role.jobTitle}" uses present tense bullet — should be past.`);
                 break;
             }

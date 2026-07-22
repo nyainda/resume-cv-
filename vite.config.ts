@@ -40,6 +40,8 @@ export default defineConfig(() => {
                 id.includes('/services/cvDownloadService')) return 'chunk-pdf';
             // Template gallery — large, deferred until user opens it
             if (id.includes('/components/TemplateGallery')) return 'chunk-templates';
+            // compromise.js NLP — ~200KB, only loaded during quality polish passes
+            if (id.includes('node_modules/compromise')) return 'vendor-nlp';
           },
         },
       },
