@@ -126,6 +126,15 @@ const FIELD_KEYWORDS: Record<Exclude<CVField, 'general'>, string[]> = {
     // ── Technology & Data ───────────────────────────────────────────────────────
     tech:               ['software engineer', 'software developer', 'backend', 'frontend', 'full-stack', 'devops', 'react', 'node.js', 'kubernetes', 'cloud engineer', 'site reliability', 'api development', 'microservices', 'firmware', 'mobile developer'],
     data_analytics:     ['data analyst', 'data scientist', 'business intelligence', 'bi developer', 'tableau', 'power bi', 'looker', 'data pipeline', 'data warehouse', 'etl', 'sql analyst', 'machine learning engineer', 'nlp', 'deep learning', 'data engineering', 'analytics engineer'],
+    frontend_web:       ['frontend developer', 'front-end', 'react developer', 'vue developer', 'angular developer', 'ui engineer', 'web developer', 'css', 'html', 'typescript', 'responsive design', 'component library', 'ui/ux'],
+    backend_eng:        ['backend developer', 'back-end', 'api engineer', 'rest api', 'graphql', 'server-side', 'node.js developer', 'django', 'spring boot', 'microservices', 'database engineer', 'backend engineer'],
+    fullstack_eng:      ['full stack', 'full-stack', 'fullstack', 'end-to-end engineer', 'react and node', 'next.js developer'],
+    mobile_eng:         ['ios developer', 'android developer', 'mobile engineer', 'react native', 'flutter', 'swift', 'kotlin', 'xcode', 'mobile app developer'],
+    ml_ai_eng:          ['machine learning engineer', 'ai engineer', 'deep learning', 'pytorch', 'tensorflow', 'llm', 'model training', 'nlp engineer', 'computer vision', 'mlops', 'generative ai'],
+    devops_infra:       ['devops engineer', 'platform engineer', 'site reliability engineer', 'sre', 'cloud infrastructure', 'kubernetes', 'docker', 'terraform', 'ci/cd', 'infrastructure engineer', 'cloud engineer'],
+    security_eng:       ['security engineer', 'cybersecurity', 'appsec', 'penetration testing', 'pentest', 'soc analyst', 'siem', 'zero trust', 'vulnerability management', 'information security', 'devsecops'],
+    qa_eng:             ['qa engineer', 'quality assurance', 'test automation', 'sdet', 'selenium', 'cypress', 'test engineer', 'software tester', 'manual testing', 'e2e testing'],
+    product_mgmt:       ['product manager', 'product owner', 'product lead', 'roadmap', 'backlog', 'epics', 'user stories', 'agile', 'scrum', 'stakeholder management', 'go-to-market', 'product strategy'],
     // ── Business & Commercial ──────────────────────────────────────────────────
     sales:              ['sales', 'business development', 'account manager', 'quota', 'pipeline', 'b2b', 'territory', 'commercial', 'key account', 'client acquisition'],
     marketing:          ['marketing', 'brand', 'campaign', 'digital marketing', 'seo', 'sem', 'social media', 'content strategy', 'growth hacking', 'market research', 'copywriting', 'advertising', 'pr'],
@@ -153,10 +162,11 @@ export function detectField(jd: string | undefined, profile?: UserProfile): CVFi
         const pf = profile.preferredField as CVField;
         // Validate it's a known leaf (guards against stale localStorage values)
         const VALID_FIELDS: CVField[] = [
-            'irrigation','drought_management','tech','data_analytics','civil_engineering',
-            'construction','architecture','manufacturing','logistics','ngo','government',
+            'irrigation','drought_management','tech','data_analytics',
+            'frontend_web','backend_eng','fullstack_eng','mobile_eng','ml_ai_eng','devops_infra','security_eng','qa_eng',
+            'civil_engineering','construction','architecture','manufacturing','logistics','ngo','government',
             'sales','marketing','finance','legal','healthcare','education','hr',
-            'consulting','operations','hospitality','media','general',
+            'consulting','operations','product_mgmt','hospitality','media','general',
         ];
         if (VALID_FIELDS.includes(pf)) return pf;
     }
@@ -252,7 +262,7 @@ export function detectFieldWithSource(
     if (profile?.detectedField) {
         const df = profile.detectedField as CVField;
         if (VALID_FIELDS.includes(df)) {
-            return { field: df, source: { kind: 'title-match', titles: [profile.detectedField] } };
+            return { field: df, source: { kind: 'auto-detected', score: 10, evidence: [`detectedField: ${profile.detectedField}`] } };
         }
     }
 
@@ -519,6 +529,60 @@ const FIELD_EXAMPLES: Record<CVField, string[]> = {
         'Shipped {N} API features that cut response time by roughly {N}% for {N}+ daily users.',
         'Debugged the legacy authentication system — login failures dropped to near zero within a week.',
         'Sole engineer on the v{N} rewrite — delivered on time with zero rework after handover.',
+    ],
+    frontend_web: [
+        'Rebuilt the {FEATURE} component in React — reduced bundle size by roughly {N}% and cut render time to under {N}ms.',
+        'Shipped {N} UI features per sprint across {N} products — zero accessibility regressions flagged in audit.',
+        'Migrated {N} pages from {STACK} to {STACK} — Lighthouse scores improved from {N} to {N} across all routes.',
+        'Built and documented a {N}-component design-system library adopted by {N} product teams.',
+    ],
+    backend_eng: [
+        'Designed a REST API serving {N}M requests/day — p99 latency under {N}ms with {N}% uptime.',
+        'Refactored the {SERVICE} service from monolith to microservices — deployment frequency up {N}× in {N} months.',
+        'Built a database migration framework that reduced schema change risk — zero failed migrations in {N} months.',
+        'Optimised {N} slow queries in {DB} — aggregate query time cut by roughly {N}% across peak traffic.',
+    ],
+    fullstack_eng: [
+        'Delivered {N} end-to-end features across React frontend and {STACK} backend — released to {N}K users without incident.',
+        'Owned the full stack for {PRODUCT} — from database schema to pixel-perfect UI, solo in {N} months.',
+        'Cut page load time by roughly {N}% by moving {N} heavy queries server-side and caching at the CDN layer.',
+        'Shipped {N} user-facing features per quarter while maintaining {N}% test coverage on both client and server.',
+    ],
+    mobile_eng: [
+        'Shipped {N} iOS/Android releases — {N}+ downloads within {N} months, {N}-star average rating on both stores.',
+        'Reduced app startup time by roughly {N}% through lazy-loading and background prefetch optimisations.',
+        'Implemented offline-first sync for {N} core flows — {N}% of users on poor connectivity saw zero data loss.',
+        'Collaborated with design to deliver {N} new screens — {N}% reduction in user-reported navigation complaints.',
+    ],
+    ml_ai_eng: [
+        'Trained a {MODEL_TYPE} model achieving {N}% precision on {TASK} — deployed to {N}K daily active users.',
+        'Reduced model inference latency by roughly {N}% through quantisation and batch-processing pipeline changes.',
+        'Built an MLOps pipeline that cut model deployment time from {N} days to {N} hours.',
+        'Fine-tuned a {MODEL} for {DOMAIN} classification — F1 score improved from {N} to {N} on held-out test set.',
+    ],
+    devops_infra: [
+        'Migrated {N} services to Kubernetes — infrastructure costs reduced by roughly {N}%, deployment time cut by {N}×.',
+        'Built a CI/CD pipeline across {N} repos — build-to-production cycle shortened from {N} days to {N} hours.',
+        'Achieved {N}% uptime across {N} production services — on-call incidents down {N}% after implementing SLOs.',
+        'Automated infrastructure provisioning with Terraform — manual provisioning effort dropped to near zero.',
+    ],
+    security_eng: [
+        'Led {N} penetration-testing engagements — identified and remediated {N} critical vulnerabilities pre-release.',
+        'Implemented zero-trust network architecture across {N} services — lateral movement risk eliminated.',
+        'Reduced mean time to detect (MTTD) from {N} hours to {N} minutes by tuning SIEM alert rules.',
+        'Conducted security reviews for {N} product releases — zero severity-1 findings in the following {N} months.',
+    ],
+    qa_eng: [
+        'Built an end-to-end test suite covering {N}% of critical user journeys — regression cycle cut from {N} days to {N} hours.',
+        'Introduced contract testing across {N} microservices — integration bugs caught in CI, not production.',
+        'Reduced manual QA effort by roughly {N}% by automating {N} smoke tests with Cypress.',
+        'Partnered with {N} squads to define acceptance criteria — defect escape rate dropped by roughly {N}% in one quarter.',
+    ],
+    product_mgmt: [
+        'Launched {PRODUCT} to {N}K users in {N} months — {N}% adoption within first quarter, exceeding target by {N}%.',
+        'Owned the {N}-item roadmap across {N} engineering squads — {N}% of committed features shipped on schedule.',
+        'Ran {N} discovery interviews and {N} usability tests — insights drove a {N}% improvement in activation rate.',
+        'Prioritised backlog of {N} features using impact/effort scoring — engineering velocity up roughly {N}% quarter on quarter.',
     ],
     civil_engineering: [
         'Supervised construction of a {N} km road section — delivered {N} days ahead of programme at {REVENUE} project value.',

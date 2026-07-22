@@ -34,9 +34,12 @@ export interface WorkExperience {
   id: string;
   company: string;
   jobTitle: string;
+  location?: string;
   startDate: string;
   endDate: string;
   responsibilities: string;
+  /** Alias for responsibilities used by some import paths and legacy fixtures. */
+  description?: string;
   pointCount?: number; // Number of bullet points to generate (e.g., 3, 4, 5, 6, 8)
 }
 

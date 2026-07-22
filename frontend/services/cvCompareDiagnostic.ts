@@ -115,12 +115,13 @@ const FIXTURE = {
     summary: 'Water Resources Engineer with 6 years across rural infrastructure projects in East Africa. Delivered KES 480M in irrigation works covering 12 counties.',
     workExperience: [
       {
-        jobTitle:  'Senior Water Resources Engineer',
-        company:   'Trans-Sahara Engineering Consultants',
-        location:  'Nairobi, Kenya',
-        startDate: '2022-03',
-        endDate:   'Present',
-        description: 'Lead engineer on AfDB-funded smallholder irrigation programme: 4 county schemes, USD 8.2M total, 38,000 beneficiaries. Designed gravity-fed networks in EPANET, ran community baseline surveys, supervised contractor mobilisation.',
+        id:           'fixture-we-1',
+        jobTitle:     'Senior Water Resources Engineer',
+        company:      'Trans-Sahara Engineering Consultants',
+        location:     'Nairobi, Kenya',
+        startDate:    '2022-03',
+        endDate:      'Present',
+        responsibilities: 'Lead engineer on AfDB-funded smallholder irrigation programme: 4 county schemes, USD 8.2M total, 38,000 beneficiaries. Designed gravity-fed networks in EPANET, ran community baseline surveys, supervised contractor mobilisation.',
       },
     ],
   },
@@ -172,7 +173,7 @@ ${FIXTURE.jd}
 CURRENT ROLE:
 Title: ${FIXTURE.profile.workExperience[0].jobTitle}
 Company: ${FIXTURE.profile.workExperience[0].company}
-Description: ${FIXTURE.profile.workExperience[0].description}
+Description: ${FIXTURE.profile.workExperience[0].responsibilities}
 
 OUTPUT-ONLY OVERRIDE: Reply with a JSON object that has exactly one key called bullets whose value is an array of exactly ${FIXTURE.bulletCount} strings. Each string is one achievement bullet. Honor every rule above (verb pool, banned phrases, rhythm sequence, length). Do NOT include any other keys. NO markdown fences, NO commentary.`;
 

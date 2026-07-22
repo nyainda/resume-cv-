@@ -194,7 +194,7 @@ const NotificationDrawer: React.FC<Props> = ({ isOpen, onClose, darkMode: dark, 
                         </div>
                         <div className="min-w-0 flex-1">
                           <p className={`text-xs font-semibold truncate ${dark ? 'text-zinc-200' : 'text-zinc-800'}`}>
-                            {cv.label || (cv.cvData as any)?.personalInfo?.name || 'Untitled CV'}
+                            {cv.label || cv.cvData?.experience?.[0]?.jobTitle || 'Untitled CV'}
                           </p>
                           <p className={`text-[10px] mt-0.5 ${dark ? 'text-zinc-500' : 'text-zinc-400'}`}>
                             {cv.createdAt ? timeAgo(new Date(cv.createdAt).getTime()) : '—'}
