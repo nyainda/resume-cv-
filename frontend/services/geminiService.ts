@@ -2,7 +2,7 @@ import { GoogleGenAI, GenerateContentResponse } from '@google/genai';
 import { truncate } from '../utils/textTruncate';
 import { UserProfile, CVData, PersonalInfo, JobAnalysisResult, CVGenerationMode, ScholarshipFormat, EnhancedJobAnalysis } from '../types';
 import { groqChat, groqChatStream, GROQ_LARGE, GROQ_FAST, getLastAiEngine, getSelectedProvider, getClaudeModel, getGroqApiKey } from './groqService';
-import { purifyCV, purifyText, cleanImportedText, purifyProfile, purifyInboundCV, revertCorruptedMetrics, enforceOpenerDiversity, applyRemoteBannedPhrasesToCV, enforceTenseConsistency, normalizeCurrencyInCV, type PurifyReport } from './cvPurificationPipeline';
+import { purifyCV, purifyText, cleanImportedText, purifyProfile, purifyInboundCV, revertCorruptedMetrics, enforceOpenerDiversity, applyRemoteBannedPhrasesToCV, enforceTenseConsistency, type PurifyReport } from './cvPurificationPipeline';
 import { remotePrePurify } from './cvPurifyClient';
 import { detectField, detectFieldWithSource, lockRealNumbers, buildPromptAnchorBlock, fixPronounsInCV } from './cvPromptHelpers';
 import { logGeneration, quickHash } from './telemetryService';
@@ -270,6 +270,61 @@ export function invalidateCVCache(): void {
 
 // ─── PRE-GENERATION PIPELINE ─────────────────────────────────────────────────
 // Implements Blocks A, B, C, D from the Master AI Generation Instructions.
+
+/**
+ * Normalises wrong currency symbols/codes to the detected market currency.
+ *
+ * Anchor-wins rule: the FIRST bullet of each role is always exempt — it is
+ * typically a scope-anchor bullet that pins a specific portfolio/contract
+ * figure the user entered themselves. A specific anchor ("$2M exactly")
+ * always beats the general currency rule ("use KES").
+ *
+ * All other bullets and the professional summary are normalised
+ * deterministically. Only fires when detectedCurrency is a known non-NONE
+ * code, and only rewrites tokens whose currency differs from the detected one.
+ */
+function _normalizeCurrencyInCV(cv: CVData, detectedCurrency: string): CVData {
+    if (!detectedCurrency || detectedCurrency === 'NONE') return cv;
+
+    // All supported codes except the detected one — these are the "wrong" ones.
+    const KNOWN_CODES = ['USD', 'GBP', 'EUR', 'NGN', 'ZAR', 'UGX', 'TZS', 'AED', 'CAD', 'AUD', 'INR', 'KES'];
+    const wrongCodes = KNOWN_CODES.filter(c => c !== detectedCurrency);
+
+    // Symbol → code mapping for symbol-first amounts ("$2M", "£50K", "€1.5M", "₦800K").
+    const SYMBOL_TO_CODE: Record<string, string> = {
+        '$': 'USD', '£': 'GBP', '€': 'EUR', '₦': 'NGN', '₹': 'INR',
+    };
+    const wrongSymbolEntries = Object.entries(SYMBOL_TO_CODE).filter(([, code]) => code !== detectedCurrency);
+
+    const normalizeText = (text: string): string => {
+        let out = text;
+        // 1. Wrong currency code followed by digit: "USD 2M" → "KES 2M"
+        if (wrongCodes.length > 0) {
+            out = out.replace(
+                new RegExp(`\\b(${wrongCodes.join('|')})\\s*(\\d)`, 'g'),
+                `${detectedCurrency} $2`,
+            );
+        }
+        // 2. Wrong currency symbol followed by digit: "$2M" → "KES 2M"
+        for (const [sym] of wrongSymbolEntries) {
+            const escaped = sym.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            out = out.replace(new RegExp(`${escaped}\\s*(\\d)`, 'g'), `${detectedCurrency} $1`);
+        }
+        return out;
+    };
+
+    return {
+        ...cv,
+        summary: normalizeText(cv.summary || ''),
+        experience: (cv.experience || []).map(role => ({
+            ...role,
+            // idx 0 = scope-anchor bullet — exempt (anchor wins over general rule).
+            responsibilities: (role.responsibilities || []).map(
+                (bullet, idx) => idx === 0 ? bullet : normalizeText(bullet),
+            ),
+        })),
+    };
+}
 
 /** BLOCK A — Detect currency from job description and profile location. */
 function detectCurrency(jd: string, location: string): string {
@@ -3760,6 +3815,13 @@ ${lines}
     //   finalize (source-fidelity vs profile) → pronoun fix.
     // Telemetry + worker leak-queue feed run inside the onPurifyReport hook.
     if (purpose === 'job' || purpose === 'general') {
+        // Detect currency for the normalisation pass (cheap pure-regex, same
+        // logic as the Groq validator above — re-detected here so valCurrency
+        // scope stays inside its own try/catch block).
+        const _polishCurrency = detectCurrency(
+            purpose === 'job' ? jd : '',
+            profile.personalInfo?.location || '',
+        );
         cvData = await runQualityPolishPasses(cvData, {
             runHumanizer: true,
             bulletCount: { type: 'profile-pointcount', profile },
@@ -3767,6 +3829,7 @@ ${lines}
             engineBrief,
             finalize: { profile },
             reconciledSkills: _reconciledSkills,
+            detectedCurrency: _polishCurrency,
             onPurifyReport: (report) => {
                 // ── TELEMETRY — fire-and-forget. ──
                 try {
@@ -5993,7 +6056,7 @@ async function runQualityPolishPasses(
     cvData: CVData,
     opts: QualityPolishOpts,
 ): Promise<CVData> {
-    const { runHumanizer = true, bulletCount, carryProfile, engineBrief, finalize, onPurifyReport, onLeakSummary, reconciledSkills } = opts;
+    const { runHumanizer = true, bulletCount, carryProfile, engineBrief, finalize, onPurifyReport, onLeakSummary, reconciledSkills, detectedCurrency } = opts;
     let out = cvData;
 
     // 1. Humanizer pass — fixes short bullets, banned phrases in summary,
@@ -6165,6 +6228,19 @@ async function runQualityPolishPasses(
     out = purified.cv;
     // Accumulate purifier warning count for quality score penalty at step 9.
     const _purifyWarnings = (purified.report.leaks ?? []).filter(l => !l.fixedBy || l.fixedBy === 'none').length;
+
+    // 6b. Currency normalisation — swap wrong currency symbols/codes to the
+    //     detected market currency. The first bullet of each role (scope-anchor)
+    //     is always exempt so a pinned "$2M exactly" value is never overwritten
+    //     by the general "use KES" rule (anchor wins).
+    if (detectedCurrency && detectedCurrency !== 'NONE') {
+        try {
+            out = _normalizeCurrencyInCV(out, detectedCurrency);
+            console.debug(`[Polish 6b] Currency normalisation applied (target: ${detectedCurrency}).`);
+        } catch (e) {
+            console.debug('[Polish 6b] Currency normalisation skipped (non-fatal):', e);
+        }
+    }
 
     // 7. Telemetry / leak reporting hook (caller owns what to do with the report).
     if (onPurifyReport) {
