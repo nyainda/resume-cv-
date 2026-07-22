@@ -1865,7 +1865,7 @@ function buildStaleProfileRefreshInstruction(
         `${w.jobTitle || ''} ${w.company || ''} ${
             typeof w.responsibilities === 'string'
                 ? w.responsibilities
-                : (w.responsibilities || []).join(' ')
+                : ((w.responsibilities as unknown as string[]) || []).join(' ')
         }`
     ).join(' ').toLowerCase();
     const roleSignals: Array<{ name: string; hits: number; keywords: string[] }> = ROLE_TRACKS.map(s => ({
@@ -1894,7 +1894,7 @@ function buildStaleProfileRefreshInstruction(
     );
     const bulletCount = typeof currentRole.responsibilities === 'string'
         ? currentRole.responsibilities.split('\n').filter(Boolean).length
-        : (currentRole.responsibilities || []).length;
+        : ((currentRole.responsibilities as unknown as string[]) || []).length;
     const projectCount = (profile.projects || []).length;
     const likelyStale = monthsInRole >= 24 && (bulletCount <= 4 || projectCount <= 1);
     if (!likelyStale) return '';
@@ -2199,7 +2199,7 @@ async function _expandHollowBullets(
 
     const profileContext = userProfile
         ? [
-            userProfile.personalInfo?.summary,
+            userProfile.summary,   // summary lives on UserProfile, not personalInfo
             (userProfile.workExperience || []).slice(0, 2)
                 .map(w => `${w.jobTitle} at ${w.company}`).join(', '),
           ].filter(Boolean).join(' | ')
@@ -3199,7 +3199,7 @@ ${kwLines}
             seniority: engineBrief.seniority?.level ?? '',
             field: engineBrief.field?.field ?? '',
             voice: engineBrief.voice.primary?.name ?? '',
-            verbPoolSample: engineBrief.verb_pool.slice(0, 12),
+            verbPoolSample: engineBrief.verb_pool.slice(0, 12).map(v => v.verb),
         });
         _traceBuilder.recordTimingMark('briefMs');
     }
@@ -5572,15 +5572,15 @@ function getScholarshipValuePack(description: string) {
 /** Extended profile for scholarship prompts — includes awards, publications, volunteer work from customSections */
 function compactProfileForScholarship(profile: UserProfile): string {
     const awardItems = (profile.customSections ?? [])
-        .filter(s => /award|honor|honour|prize|scholar|recognit|certif/i.test(s.title))
+        .filter(s => /award|honor|honour|prize|scholar|recognit|certif/i.test(s.label))
         .flatMap(s => s.items.slice(0, 6).map(i => (i as any).content || (i as any).title || '').filter(Boolean));
 
     const volunteerItems = (profile.customSections ?? [])
-        .filter(s => /volunteer|community|civic|ngo|charity|service|social impact/i.test(s.title))
+        .filter(s => /volunteer|community|civic|ngo|charity|service|social impact/i.test(s.label))
         .flatMap(s => s.items.slice(0, 6).map(i => (i as any).content || (i as any).title || '').filter(Boolean));
 
     const publicationItems = (profile.customSections ?? [])
-        .filter(s => /publicat|research|paper|journal|thesis|dissert|conference|proceedings/i.test(s.title))
+        .filter(s => /publicat|research|paper|journal|thesis|dissert|conference|proceedings/i.test(s.label))
         .flatMap(s => s.items.slice(0, 8).map(i => (i as any).content || (i as any).title || '').filter(Boolean));
 
     const p: Record<string, unknown> = {

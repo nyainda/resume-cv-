@@ -51,7 +51,7 @@ function profileStrength(p: UserProfile): number {
     const roles = realRoles(p).length;
     if (roles >= 1) score += 15;
     if (roles >= 2) score += 5;
-    if (realRoles(p).some(r => r.description?.trim().length > 30)) score += 10;
+    if (realRoles(p).some(r => r.responsibilities?.trim().length > 30)) score += 10;
     const skillCount = realSkillCount(p);
     if (skillCount >= 3)  score += 10;
     if (skillCount >= 10) score += 5;
@@ -87,7 +87,7 @@ function strengthTips(p: UserProfile): string[] {
         tips.push({ msg: 'Add at least one work experience', pts: 15 });
     else if (roles === 1)
         tips.push({ msg: 'Add a second work experience', pts: 5 });
-    if (roles > 0 && !realRoles(p).some(r => r.description?.trim().length > 30))
+    if (roles > 0 && !realRoles(p).some(r => r.responsibilities?.trim().length > 30))
         tips.push({ msg: 'Add bullet points to your experience', pts: 10 });
     const sc = realSkillCount(p);
     if (sc < 3)

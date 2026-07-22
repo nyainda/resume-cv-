@@ -2451,7 +2451,7 @@ export interface PurifyLeak {
     fieldLocation?: string;
     fixedBy?: 'substitution' | 'tense_flip' | 'jitter' | 'pursuing_strip' | 'duplicate_strip'
         | 'polish' | 'canonicalise' | 'dedupe' | 'synonym_sub' | 'instruction_leak_strip'
-        | 'semantic_dedup' | 'none';
+        | 'semantic_dedup' | 'conjunction_verb_fix' | 'none';
     contextSnippet?: string;
     /** AI provider whose output produced this leak — set by the caller after
      *  purifyCV returns. Lets telemetry attribute leaks to a specific engine. */

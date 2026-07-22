@@ -88,13 +88,15 @@ export interface LeakRecord {
         | 'duplicate_bullet'
         // Style governance (detect-only — see cvStyleGovernance.ts)
         | 'opener_category_monotone' | 'all_verb_led' | 'verb_cluster_dominance'
-        | 'bare_metric_opener' | 'context_missing' | 'meaning_cluster_repetition';
+        | 'bare_metric_opener' | 'context_missing' | 'meaning_cluster_repetition'
+        // Seniority coherence (detect-only — see cvSeniorityCoherence.ts)
+        | 'seniority_overreach' | 'seniority_underreach';
     phrase: string;
     occurrences?: number;
     fieldLocation?: string;
     fixedBy?: 'substitution' | 'tense_flip' | 'jitter' | 'pursuing_strip' | 'duplicate_strip'
         | 'polish' | 'canonicalise' | 'dedupe' | 'synonym_sub' | 'instruction_leak_strip'
-        | 'semantic_dedup' | 'none';
+        | 'semantic_dedup' | 'conjunction_verb_fix' | 'none';
     contextSnippet?: string;
     /** AI provider (e.g. 'Workers AI', 'Groq', 'Cerebras') whose output
      *  produced this leak. Lets the leaks-summary endpoint break down

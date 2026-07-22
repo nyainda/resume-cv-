@@ -551,7 +551,7 @@ export async function classifyRoleFieldAsync(
  */
 export async function classifyAndSaveAllRoles(
   workExperience: Array<{ jobTitle: string }>,
-  source: 'pdf_import' | 'manual_form' = 'pdf_import',
+  source: 'pdf_import' | 'manual_form' | 'json_import' = 'pdf_import',
 ): Promise<void> {
   const titles = workExperience.map(r => r.jobTitle).filter(Boolean);
   if (titles.length === 0) return;

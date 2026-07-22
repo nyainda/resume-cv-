@@ -52,7 +52,7 @@ export function scoreCVCompleteness(cv: CVData | null, profile: UserProfile | nu
         {
             label: 'Education institution',
             weight: 3,
-            filled: !!(cv?.education?.some(e => e.institution?.trim())),
+            filled: !!(cv?.education?.some(e => (e.institution ?? e.school)?.trim())),
         },
     ];
 

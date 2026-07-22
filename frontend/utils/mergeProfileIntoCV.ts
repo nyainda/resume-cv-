@@ -127,8 +127,8 @@ export function mergeProfileIntoCV(
 
   return {
     ...currentCV,
-    // personalInfo always updates — contact details are never AI-generated.
-    personalInfo: newProfile.personalInfo ?? currentCV.personalInfo,
+    // Note: personalInfo lives on UserProfile, not CVData — contact details
+    // are merged at the profile layer, not here.
     summary: summaryChanged
       ? (newProfile.summary || currentCV.summary)
       : currentCV.summary,

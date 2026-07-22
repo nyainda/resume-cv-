@@ -26,7 +26,8 @@ export interface PersonalInfo {
   linkedin: string;
   website: string;
   github: string;
-  photo?: string; // Base64 encoded image or URL
+  photo?: string;  // Base64 encoded image or URL
+  title?: string;  // Current job title / professional headline (used by some templates)
 }
 
 export interface WorkExperience {
@@ -211,6 +212,7 @@ export interface CVExperience {
 export interface CVEducation {
   degree: string;
   school: string;
+  institution?: string;   // alias for school — accepted on import, rendered as school
   year: string;           // graduation / end year, e.g. "2022"
   startYear?: string;     // enrolment year, e.g. "2019" — used to build "2019 – 2022" date range
   description?: string;

@@ -391,6 +391,7 @@ export interface BuildBriefInput {
     yearsExperience?: number;
     field?: string;
     bulletCount?: number;
+    currentTitle?: string;
     section?: 'current_role' | 'past_role' | 'internship' | 'summary';
 }
 
@@ -1092,7 +1093,7 @@ export async function workerRaceLLM(
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface WorkerProxyLLMOptions {
-    provider: 'claude' | 'gemini';
+    provider: 'claude' | 'gemini' | 'groq';
     apiKey: string;
     model?: string;
     temperature?: number;
@@ -1184,7 +1185,7 @@ export async function workerProxyStream(
     task: string,
     prompt: string,
     opts: {
-        provider: 'claude' | 'gemini';
+        provider: 'claude' | 'gemini' | 'groq';
         apiKey: string;
         model?: string;
         temperature?: number;

@@ -69,7 +69,6 @@ export const VERB_SYNONYMS: Record<string, string[]> = {
   identified:    ['discovered', 'uncovered', 'detected', 'pinpointed', 'recognized'],
   resolved:      ['fixed', 'addressed', 'eliminated', 'corrected', 'remediated'],
   defined:       ['established', 'crafted', 'shaped', 'structured', 'formulated'],
-  drove:         ['led', 'spearheaded', 'propelled', 'championed', 'catalyzed'],
 };
 
 // Weak verbs that undermine impact regardless of variety

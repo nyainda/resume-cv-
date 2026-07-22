@@ -70,7 +70,7 @@ export async function syncVaultFromServer(): Promise<void> {
     // Merge: server wins on updated_at
     for (const sj of data.jobs) {
       const lj = localById.get(sj.id);
-      if (!lj || sj.updated_at >= lj.updated_at) {
+      if (!lj || sj.updatedAt >= lj.updatedAt) {
         localById.set(sj.id, sj);
       }
     }
