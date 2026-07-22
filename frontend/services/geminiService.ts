@@ -2112,7 +2112,161 @@ function applyFidelityAgainstSourceCV(cvData: CVData, sourceCV: CVData): CVData 
 // ─── Silent Quality Guardian ──────────────────────────────────────────────────
 // Runs after every polish pass to catch anything that slipped through.
 // Applies all deterministic fixes silently — never surfaces to the user.
-// Unfixable issues (hollow bullets needing AI expansion) are debug-logged only.
+// AI-assisted fixes (gerund truncation) run on pass 1 only — no hallucination:
+// the model is only allowed to insert the missing object noun using words
+// implied by the job title, company, and verb. Every repair is validated
+// before being applied (numbers unchanged, not >2× original length, regex
+// no longer fires). Any failure falls back silently.
+
+/**
+ * Local copy of the gerund-no-object pattern (mirrors cvValidationEngine.ts)
+ * so the guardian can re-validate repaired bullets without a cross-module import.
+ */
+const _GERUND_NO_OBJECT_RX =
+    /\b(?:and|or)\s+(?:installing|implementing|deploying|designing|developing|building|integrating|delivering|commissioning|configuring|managing|operating)\s+(?:across|in|at|for|on|from|into|through|over|under|within)\b/gi;
+
+/**
+ * AI-assisted gerund-truncation repair.
+ *
+ * Fires when the validator flags `incomplete_gerund_phrase` — bullets like
+ * "commissioning 12+ drip and installing across farms" where the LLM dropped
+ * the direct-object noun ("systems", "units", "infrastructure", etc.).
+ *
+ * No-hallucination contract (enforced via prompt + post-validation):
+ *  • The model may ONLY insert 1–3 words that are implied by the job title,
+ *    company name, or the verb itself — never invented facts.
+ *  • Numbers must be identical before and after repair.
+ *  • Repaired bullet must not exceed 2× the original length.
+ *  • The gerund-no-object regex must no longer fire on the repaired text.
+ *  • Any violation of the above → the original bullet is kept as-is.
+ *
+ * Uses GROQ_FAST at temperature 0 for determinism and low cost.
+ */
+async function _repairGerundTruncations(
+    cv: CVData,
+    violations: Array<{ ruleId: string; location: string }>,
+): Promise<CVData> {
+    // ── 1. Map violations to bullet positions ──────────────────────────────
+    const targets: Array<{
+        roleIdx: number;
+        bulletIdx: number;
+        bullet: string;
+        jobTitle: string;
+        company: string;
+    }> = [];
+
+    for (const v of violations) {
+        const m = v.location.match(/experience\[(\d+)\]\.responsibilities\[(\d+)\]/);
+        if (!m) continue;
+        const ri = parseInt(m[1], 10);
+        const bi = parseInt(m[2], 10);
+        const role = cv.experience?.[ri];
+        const bullet = (role?.responsibilities as string[] | undefined)?.[bi];
+        if (!role || typeof bullet !== 'string' || !bullet.trim()) continue;
+        targets.push({
+            roleIdx: ri,
+            bulletIdx: bi,
+            bullet,
+            jobTitle: role.jobTitle || '',
+            company:  role.company  || '',
+        });
+    }
+
+    if (targets.length === 0) return cv;
+
+    // ── 2. Build tight batch prompt ────────────────────────────────────────
+    const items = targets
+        .map((t, idx) =>
+            `[${idx}] Role: ${t.jobTitle} at ${t.company}\nBullet: ${t.bullet}`,
+        )
+        .join('\n\n');
+
+    const systemMsg =
+        'You are a precise CV copy-editor. Return only valid JSON. Never add facts.';
+
+    const userMsg =
+        `Each bullet below has a truncated gerund phrase — the direct-object noun was dropped by the AI that generated it (e.g. "installing across farms" instead of "installing irrigation systems across farms").
+
+YOUR ONLY JOB: insert the missing 1–3 word object noun.
+
+HARD RULES — any violation means you return the bullet unchanged:
+1. You may ONLY use nouns that are directly implied by the job title, company name, or the gerund verb itself. No invented facts.
+2. Never add, change, or remove any number, percentage, or currency figure.
+3. Never rewrite the rest of the bullet. Only insert the missing object noun.
+4. If you are not certain what the missing noun is, return the bullet exactly as given.
+
+Return a JSON array of strings, one per input bullet, in the same order:
+["repaired bullet 0", "repaired bullet 1", ...]
+
+Input bullets:
+${items}`;
+
+    // ── 3. Call LLM ────────────────────────────────────────────────────────
+    let parsed: unknown;
+    try {
+        const raw = await groqChat(
+            GROQ_FAST,
+            systemMsg,
+            userMsg,
+            { temperature: 0, json: true, maxTokens: 600 },
+        );
+        parsed = JSON.parse(raw);
+    } catch (e) {
+        console.debug('[Guardian/GerundRepair] LLM call or parse failed (non-fatal):', e);
+        return cv;
+    }
+
+    if (!Array.isArray(parsed) || parsed.length !== targets.length) {
+        console.debug('[Guardian/GerundRepair] Unexpected response shape — skipping.');
+        return cv;
+    }
+
+    // ── 4. Apply with safety gates ─────────────────────────────────────────
+    // Deep-clone experience so we can mutate safely.
+    const updatedExp = (cv.experience || []).map(r => ({
+        ...r,
+        responsibilities: [...((r.responsibilities as string[]) || [])],
+    }));
+
+    let applied = 0;
+    for (let i = 0; i < targets.length; i++) {
+        const t = targets[i];
+        const repaired = String((parsed as unknown[])[i] ?? '').trim();
+        if (!repaired || repaired === t.bullet) continue;
+
+        // Gate A: numbers must be identical
+        const origNums = (t.bullet.match(/\d+/g)  || []).slice().sort().join(',');
+        const repNums  = (repaired.match(/\d+/g) || []).slice().sort().join(',');
+        if (origNums !== repNums) {
+            console.debug(`[Guardian/GerundRepair] Gate A failed (numbers changed) at [${t.roleIdx}][${t.bulletIdx}] — keeping original.`);
+            continue;
+        }
+
+        // Gate B: not more than 2× the original length
+        if (repaired.length > t.bullet.length * 2) {
+            console.debug(`[Guardian/GerundRepair] Gate B failed (too long) at [${t.roleIdx}][${t.bulletIdx}] — keeping original.`);
+            continue;
+        }
+
+        // Gate C: regex must no longer fire on the repaired text
+        _GERUND_NO_OBJECT_RX.lastIndex = 0;
+        if (_GERUND_NO_OBJECT_RX.test(repaired)) {
+            console.debug(`[Guardian/GerundRepair] Gate C failed (pattern still fires) at [${t.roleIdx}][${t.bulletIdx}] — keeping original.`);
+            continue;
+        }
+
+        updatedExp[t.roleIdx].responsibilities[t.bulletIdx] = repaired;
+        applied++;
+        console.debug(
+            `[Guardian/GerundRepair] ✓ [${t.roleIdx}][${t.bulletIdx}]: "${t.bullet}" → "${repaired}"`,
+        );
+    }
+
+    if (applied === 0) return cv;
+
+    console.debug(`[Guardian/GerundRepair] Applied ${applied} gerund repair(s).`);
+    return { ...cv, experience: updatedExp };
+}
 
 /**
  * Trim an overlong bullet at the last clean sentence boundary (period or
@@ -2147,7 +2301,10 @@ function _trimBulletAtBoundary(text: string, maxWords = 45): string {
  *  • current_role_tense        → enforceTenseConsistency (present imperatives)
  *  • hollow_bullets (empty str)→ strip truly blank bullets; genuinely short ones logged
  *
- * Unfixable without AI (logged to debug only, never surfaced to user):
+ * AI-assisted fixes (pass 1 only, no hallucination — see _repairGerundTruncations):
+ *  • incomplete_gerund_phrase  → insert missing object noun via GROQ_FAST @ temp 0
+ *
+ * Still unfixable without more context (logged only):
  *  • hollow_bullets (< 6 words but non-empty) — need content expansion
  */
 async function _runSilentQualityGuardian(
@@ -2237,6 +2394,26 @@ async function _runSilentQualityGuardian(
             const hollowRemaining = warns.filter(v => v.ruleId === 'hollow_bullets');
             if (hollowRemaining.length > 0) {
                 console.debug(`[Guardian pass ${pass}] ${hollowRemaining.length} role(s) still have short bullets — needs AI expansion (logged for telemetry).`);
+            }
+        }
+
+        // ── Fix 5: AI gerund-truncation repair (pass 1 only) ──────────────
+        // Fires for "installing across farms" → "installing irrigation systems
+        // across farms". No-hallucination enforced: only the missing object noun,
+        // numbers must be identical, length gate, regex must no longer fire.
+        if (pass === 1 && ruleIds.includes('incomplete_gerund_phrase')) {
+            try {
+                const gerundViolations = warns.filter(v => v.ruleId === 'incomplete_gerund_phrase');
+                const preFix: CVData = JSON.parse(JSON.stringify(out));
+                out = await _repairGerundTruncations(out, gerundViolations);
+                const repaired = revertCorruptedMetrics(out, preFix);
+                if (repaired.reverted.length > 0) {
+                    console.debug(`[Guardian pass ${pass}] Gerund repair reverted ${repaired.reverted.length} corrupted metric(s).`);
+                    out = repaired.cv;
+                }
+                fixed += gerundViolations.length; // count as attempted so loop continues
+            } catch (e) {
+                console.debug('[Guardian pass 1] Gerund repair skipped (non-fatal):', e);
             }
         }
 
