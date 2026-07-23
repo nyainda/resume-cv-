@@ -4576,7 +4576,7 @@ export const extractProfileTextFromFile = async (base64Data: string, mimeType: s
     if (provider === 'groq') return viaGroq();
     if (provider === 'claude' && claudeKey) return viaClaude();
     if (provider === 'gemini') { try { return await viaGemini(); } catch (e) { if (!claudeKey) throw e; /* fall through to Claude below */ } }
-    if (provider === 'workers-ai' && isImage) return viaWorkersAi();
+    if (provider === 'workers-ai') return viaWorkersAi();  // viaWorkersAi() will throw for non-image PDFs with a clear message
 
     // Gemini failed + Claude available — use Claude as same-tier fallback.
     if (claudeKey) return viaClaude();
