@@ -29,3 +29,9 @@ id = "RygCMwncPz2RW0cw5PvIp"
 uri = "file://frontend/public/og-image.png"
 type = "image"
 title = "ProCV OG Image (1408×768 PNG)"
+
+[[outputs]]
+id = "kRnh5GGqGUrPsHjdNnJXN"
+uri = "file://sarah-mitchell-cv.pdf"
+type = "pdf"
+title = "Sarah Mitchell — Head of Product @ Stripe (AI-generated)"
