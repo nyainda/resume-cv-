@@ -347,7 +347,7 @@ export function applyRemoteBannedPhrasesToCV(
                 ? (p as any).bullets.map((b: string) => applyToText(b))
                 : (p as any).bullets,
         })),
-        education: (cv.education || []).map(e => ({
+        education: (Array.isArray(cv.education) ? cv.education : []).map(e => ({
             ...e,
             description: applyToText(e.description || ''),
         })),
@@ -363,7 +363,7 @@ function gatherCVText(cv: CVData): string {
     const parts: string[] = [];
     if (cv.summary) parts.push(cv.summary);
     (cv.experience || []).forEach(e => (e.responsibilities || []).forEach(b => parts.push(b)));
-    (cv.education || []).forEach(e => e.description && parts.push(e.description));
+    (Array.isArray(cv.education) ? cv.education : []).forEach(e => e.description && parts.push(e.description));
     (cv.projects || []).forEach(p => p.description && parts.push(p.description));
     return parts.join(' \n ');
 }
@@ -932,7 +932,7 @@ export function jitterRoundNumbers(cv: CVData): { cv: CVData; changes: string[] 
             ...e,
             responsibilities: (e.responsibilities || []).map(jit),
         })),
-        education: (cv.education || []).map(e => ({ ...e, description: jit(e.description || '') })),
+        education: (Array.isArray(cv.education) ? cv.education : []).map(e => ({ ...e, description: jit(e.description || '') })),
         projects: (cv.projects || []).map(p => ({ ...p, description: jit(p.description || '') })),
     };
     return { cv: out, changes };
@@ -1032,8 +1032,8 @@ export function revertCorruptedMetrics(
         return p;
     });
 
-    const education = (newCV.education || []).map((e, ei) => {
-        const orig = (originalCV.education || [])[ei];
+    const education = (Array.isArray(newCV.education) ? newCV.education : []).map((e, ei) => {
+        const orig = (Array.isArray(originalCV.education) ? originalCV.education : [])[ei];
         if (orig && hasCorruptedMetric(e.description || '') && !hasCorruptedMetric(orig.description || '')) {
             reverted.push(`education: ${e.degree || `#${ei + 1}`}`);
             return { ...e, description: orig.description || '' };
@@ -2692,6 +2692,28 @@ export function stripInstructionLeakPreamble(text: string): { text: string; stri
     return { text, stripped: null };
 }
 
+/**
+ * Defensive normalization: LLMs occasionally return array fields as plain objects
+ * (`{}`) or omit them entirely. `(x || []).map` is not enough — if `x` is `{}`
+ * it is truthy so `|| []` is skipped, and `.map` is not a function on a plain
+ * object. Call this once at the entry of every exported function that maps over
+ * CV arrays to guarantee the invariant before any `.map()` call.
+ */
+export function normalizeCVArrays(cv: CVData): CVData {
+    const arr = <T>(v: unknown): T[] => (Array.isArray(v) ? (v as T[]) : []);
+    return {
+        ...cv,
+        skills:          arr(cv.skills),
+        experience:      arr(cv.experience),
+        education:       arr(cv.education),
+        projects:        arr(cv.projects),
+        certifications:  arr(cv.certifications),
+        customSections:  arr(cv.customSections),
+        publications:    arr(cv.publications),
+        awards:          arr((cv as any).awards),
+    };
+}
+
 export function purifyCV(
     cv: CVData,
     opts?: { skipWorkerDuplicatePasses?: boolean },
@@ -2706,6 +2728,9 @@ export function purifyCV(
         leaks: [],
     };
     if (!cv) return { cv, report: emptyReport };
+    // Normalize all array fields so every downstream .map() call is safe even
+    // when the LLM returned {} instead of [] for an array field.
+    cv = normalizeCVArrays(cv);
 
     const leaks: PurifyLeak[] = [];
     let substitutionsMade = 0;
@@ -2740,7 +2765,7 @@ export function purifyCV(
             bullets: (p.bullets || []).map((b, j) =>
                 leakStripField(b, `projects[${i}].bullets[${j}]`)),
         })),
-        education: (cv.education || []).map((e, i) => ({
+        education: (Array.isArray(cv.education) ? cv.education : []).map((e, i) => ({
             ...e,
             description: leakStripField(e.description || '', `education[${i}].description`),
         })),
@@ -2777,7 +2802,7 @@ export function purifyCV(
     const subTrackMaybe = (text: string, fieldLocation: string): string =>
         skipDup ? (text || '') : subTrack(text, fieldLocation);
 
-    const cleanedEducation = (cv.education || []).map((e, idx) => {
+    const cleanedEducation = (Array.isArray(cv.education) ? cv.education : []).map((e, idx) => {
         const sub = subTrackMaybe(e.description || '', `education[${idx}].description`);
         const stripped = stripPursuingForCompletedDegree(sub, e.year);
         if (stripped !== sub) {
@@ -2993,7 +3018,7 @@ export function purifyCV(
             bullets: (p.bullets || []).map((b, j) =>
                 polish(b, `projects[${i}].bullets[${j}]`)),
         })),
-        education: (working.education || []).map((ed, i) => ({
+        education: (Array.isArray(working.education) ? working.education : []).map((ed, i) => ({
             ...ed, description: polish(ed.description || '', `education[${i}].description`),
         })),
     };
@@ -3369,7 +3394,7 @@ export function purifyProfile(profile: UserProfile): UserProfile {
             ...e,
             responsibilities: splitMergedResponsibilities(sub(e.responsibilities || '')),
         })),
-        education: (profile.education || []).map(e => ({ ...e })),
+        education: (Array.isArray(profile.education) ? profile.education : []).map(e => ({ ...e })),
         projects: (profile.projects || []).map(p => ({
             ...p,
             description: sub(p.description || ''),

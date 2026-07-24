@@ -958,6 +958,15 @@ The "cv" field must ALWAYS be present — even when all checks pass.
     // restore them from the pre-validation cvData so the user never loses content.
     const safeValidatorMerge = (validatedCv: any): CVData => {
         if (!validatedCv || typeof validatedCv !== 'object') return cvData;
+        // Normalize: LLM may return array fields as {} instead of []. Fix before
+        // passing the merged CV into the purification pipeline to prevent
+        // "(t.education || []).map is not a function" crashes.
+        const toA = (v: unknown) => Array.isArray(v) ? v : [];
+        if (!Array.isArray(validatedCv.education))      validatedCv.education      = toA(null);
+        if (!Array.isArray(validatedCv.skills))         validatedCv.skills         = toA(null);
+        if (!Array.isArray(validatedCv.experience))     validatedCv.experience     = toA(null);
+        if (!Array.isArray(validatedCv.projects))       validatedCv.projects       = toA(null);
+        if (!Array.isArray(validatedCv.certifications)) validatedCv.certifications = toA(null);
 
         let merged = { ...validatedCv };
 
