@@ -36,6 +36,7 @@ export type OpenerCategory =
     | 'timeframe'     // "In Q3 2023…", "Over 2 years…"
     | 'collaboration' // "With the security team…", "Partnering with…"
     | 'outcome'       // "Top performer…", "Ranked #1…", "Awarded…"
+    | 'noun'          // "Payment failure rates dropped…", "Cart abandonment fell 34%…"
     | 'fragment';     // ≤5 words — short punchy fact: "Zero downtime. 18 months."
 
 // ─── Issue types ──────────────────────────────────────────────────────────────
@@ -73,6 +74,12 @@ const NUMBER_WORDS = new Set([
 
 const SCOPE_RX    = /^(across|for|throughout|covering|spanning|serving|supporting)\b/i;
 const CONTEXT_RX  = /^(as|after|during|following|while|when|upon|having|given|since|once|before)\b/i;
+// Noun-context detection: metric/process noun as sentence subject, change verb as predicate.
+// Catches "Payment failure rates dropped…", "Cart abandonment fell 34%…", "Load time
+// decreased from 4.2s to 1.1s…". These were previously misclassified as 'verb' because
+// the classifier's default fallback didn't distinguish noun subjects from action verbs.
+const NOUN_SUBJECT_RX = /^[A-Z][a-z]+(?:\s+[a-z]+)?\s+(?:rates?|times?|costs?|revenue|margins?|volumes?|scores?|ratios?|adoption|retention|churn|attrition|errors?|failures?|abandonment|performance|throughput|latency|uptime|satisfaction|spend|headcount|conversion|load|response|availability|capacity|efficiency|accuracy)\b/i;
+const CHANGE_PREDICATE_RX = /\b(?:dropped?|fell|grew|rose|increased?|decreased?|improved?|reduced?|declined?|jumped?|plummeted?|halved?|doubled?|tripled?|climbed?|shrunk?|shrank|surged?|dipped?)\b/i;
 const TIMEFRAME_RX = /^(?:in\s+(?:q[1-4]|20\d{2}|19\d{2}|january|february|march|april|may|june|july|august|september|october|november|december)|over\s+(?:the\s+)?(?:\d+|two|three|four|five|six|seven|eight)|within\s+(?:\d+|one|two|three|four|six|twelve)|by\s+(?:20\d{2}|q[1-4])|from\s+20\d{2})\b/i;
 const COLLAB_RX   = /^(?:with\s+(?:the|a|an|my|our)\s+|partnering\s+with|working\s+alongside|alongside|together\s+with|in\s+partnership|in\s+collaboration|collaborating\s+with|jointly\s+with)\b/i;
 const OUTCOME_RX  = /^(?:top\s+performer|ranked|awarded|recognised|recognized|promoted|selected|certified|chosen|winner|recipient)\b/i;
@@ -111,6 +118,11 @@ export function classifyOpener(bullet: string): OpenerCategory {
 
     // Outcome/recognition openers: "Top performer…", "Ranked #1…"
     if (OUTCOME_RX.test(s)) return 'outcome';
+
+    // Noun-context opener: performance/metric noun as grammatical subject, change verb
+    // as predicate. e.g. "Payment failure rates dropped from 2.4% to 0.6%…"
+    // Must pass both checks to avoid false positives on regular sentences.
+    if (NOUN_SUBJECT_RX.test(s) && CHANGE_PREDICATE_RX.test(s)) return 'noun';
 
     // Default: verb opener (starts with an action verb — the most common AI pattern)
     return 'verb';

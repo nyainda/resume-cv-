@@ -390,9 +390,21 @@ export function scoreAtsCoverage(cv: CVData, jd: string): AtsKeywordReport {
     let evidenceCount = 0;  // matched keywords that appear in bullets
 
     const testInText = (term: string, text: string) => {
+        const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        if (term.includes('/')) {
+            // Slash-delimited terms (a/b, ci/cd, psd2/fca): \b doesn't anchor
+            // correctly around the '/' character, causing false "missing" reports
+            // even when the term is present. Fix: match slash OR whitespace/dash
+            // between components, AND check the slash-stripped form as a fallback.
+            const flexible = escaped.replace(/\//g, '[/\\s-]?');
+            const stripped = term.replace(/\//g, '').replace(/\s+/g, ' ').trim()
+                .replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            return new RegExp(`(?:^|[^a-zA-Z0-9])${flexible}(?:[^a-zA-Z0-9]|$)`, 'i').test(text)
+                || new RegExp(`\\b${stripped}\\b`, 'i').test(text);
+        }
         const pattern = term.includes(' ')
-            ? term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-            : `\\b${term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`;
+            ? escaped
+            : `\\b${escaped}\\b`;
         return new RegExp(pattern, 'i').test(text);
     };
 

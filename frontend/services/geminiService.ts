@@ -3441,10 +3441,13 @@ RULE: Bullets for any ROLE_N must draw EXCLUSIVELY from that role's own "_role":
 
             ① SUMMARY — Versatile Value Proposition (3–4 sentences, 60–80 words):
                - Sentence 1 (WHO + SENIORITY): Job title + years of experience + primary domain. Specific, not generic. Start with the title or number, never "I" or "A".
+                 CRITICAL — NEVER open the summary with: "Accomplished", "Experienced", "Seasoned", or "Dedicated" followed by a job title. These are clichés that immediately signal AI generation to any experienced recruiter. Open with the job title, a year count, or the single strongest quantified result from the candidate's record.
+                 ✗ Bad:  "Accomplished product leader with 9 years of experience…"
+                 ✓ Good: "Senior Product Manager with 9 years lifting conversion and retention at scale — most recently lifting activation from 31% to 58% across a 2.1M-user fintech platform."
                - Sentence 2 (PROOF): Single most impressive, quantified achievement. Must contain a real number or a specific named outcome.
                - Sentence 3 (RANGE): Breadth across functions, industries, or skills that makes them valuable across contexts.
                - Sentence 4 (PROMISE, optional): The type of value they consistently deliver — one concrete fact, never a cliché.
-               - BANNED IN SUMMARY: "passionate about", "detail-oriented", "results-driven", "dynamic", "innovative", "go-getter", "team player", "seeking an opportunity", "seeking to use", "seeking to apply", "seeking to bring", "looking to", "looking for", "aiming to", "hoping to", "eager to join", "excited to contribute". The summary must state what the candidate DELIVERS, not what they WANT — write from the employer's perspective.
+               - BANNED IN SUMMARY: "passionate about", "detail-oriented", "results-driven", "dynamic", "innovative", "go-getter", "team player", "seeking an opportunity", "seeking to use", "seeking to apply", "seeking to bring", "looking to", "looking for", "aiming to", "hoping to", "eager to join", "excited to contribute", "Accomplished [title]", "Experienced [title]", "Seasoned [title]", "Dedicated [title]". The summary must state what the candidate DELIVERS, not what they WANT — write from the employer's perspective.
                - NEVER use invented verbs anywhere in the CV: "Greenfielded", "Scaffolded" (non-software), "Materialized" (as in "materialized solutions"), "Actioned", "Ideated", "Solutioned". Use standard strong verbs instead.
                - SUMMARY SOURCE RULE (non-negotiable): Every sentence in the summary must be built from the candidate's ACTUAL work experience and education listed in their profile. NEVER copy phrases, role requirements, objectives, or language from the job description into the summary. The target job title may appear once as an alignment signal — nothing else from the JD belongs in the summary.
 
@@ -3596,10 +3599,12 @@ RULE: Bullets for any ROLE_N must draw EXCLUSIVELY from that role's own "_role":
             ① PROFESSIONAL SUMMARY — The "3P Formula" (55–75 words, 3–4 sentences):
                ATS NOTE: The summary is parsed FIRST by every ATS system — it carries the highest keyword weight of any section. The 3 most critical JD keywords MUST appear verbatim in this section.
                HOOK (Sentence 1): [Years of experience as a number] + [EXACT job title from JD] + [primary domain/industry]. Never start with "I" or "A". Start with the number or the role title.
-                 Example: "Water Resources Engineer with 6 years delivering rural infrastructure projects across East Africa."
+                 NEVER open with "Accomplished", "Experienced", "Seasoned", or "Dedicated [title]" — these clichés signal AI generation instantly to recruiters. Lead with the year count or role title.
+                 ✗ Bad:  "Accomplished product leader with 9 years of experience…"
+                 ✓ Good: "Senior Product Manager with 9 years lifting activation from 31% to 58% across a 2.1M-user fintech platform."
                PROOF (Sentence 2): Their single strongest, most-quantified achievement that DIRECTLY addresses what the JD needs. Must contain a number within the market metric ceilings stated above. Use XYZ formula: "Accomplished [X] as measured by [Y] by doing [Z]."
                PROMISE (Sentence 3): Why hiring them solves the employer's specific problem — connect their skills to the JD's explicit requirements. Name the company's context from Block D if available.
-               BANNED IN SUMMARY: "passionate", "dynamic", "results-driven", "detail-oriented", "innovative", "seasoned professional", "proactive", "go-getter", "versatile", "seeking to", "looking to", "aiming to", "hoping to", "eager to join", "excited to contribute". The summary speaks from the employer's perspective — it states what value the candidate DELIVERS, never what the candidate WANTS.
+               BANNED IN SUMMARY: "passionate", "dynamic", "results-driven", "detail-oriented", "innovative", "seasoned professional", "proactive", "go-getter", "versatile", "seeking to", "looking to", "aiming to", "hoping to", "eager to join", "excited to contribute", "Accomplished [title]", "Experienced [title]", "Seasoned [title]", "Dedicated [title]". The summary speaks from the employer's perspective — it states what value the candidate DELIVERS, never what the candidate WANTS.
                NEVER use invented verbs anywhere in the CV: "Greenfielded", "Scaffolded" (non-software), "Materialized" (as in "materialized solutions"), "Actioned", "Ideated", "Solutioned". Use plain strong verbs: Built, Led, Delivered, Managed, Developed, Implemented, Designed, Negotiated, etc.
 
             ② EXPERIENCE — Every bullet is proof of fit:

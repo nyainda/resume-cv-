@@ -552,6 +552,41 @@ const VERB_TENSE_MAP: Array<{ present: string; past: string }> = [
     { present: 'Fires',         past: 'Fired' },
     { present: 'Closes',        past: 'Closed' },
     { present: 'Opens',         past: 'Opened' },
+    // ── Additional past-tense → present-tense entries ──────────────────────
+    // These fill the gap identified in the pipeline audit: the NLP fallback is
+    // unreliable under race conditions, so common past-tense verbs must also
+    // live in the static table to guarantee deterministic correction in current roles.
+    { present: 'Redesigns',     past: 'Redesigned' },
+    { present: 'Rebuilds',      past: 'Rebuilt' },
+    { present: 'Replaces',      past: 'Replaced' },
+    { present: 'Introduces',    past: 'Introduced' },
+    { present: 'Revamps',       past: 'Revamped' },
+    { present: 'Restructures',  past: 'Restructured' },
+    { present: 'Consolidates',  past: 'Consolidated' },
+    { present: 'Transforms',    past: 'Transformed' },
+    { present: 'Expands',       past: 'Expanded' },
+    { present: 'Recruits',      past: 'Recruited' },
+    { present: 'Sources',       past: 'Sourced' },
+    { present: 'Aligns',        past: 'Aligned' },
+    { present: 'Prioritises',   past: 'Prioritised' },
+    { present: 'Prioritizes',   past: 'Prioritized' },
+    { present: 'Defines',       past: 'Defined' },
+    { present: 'Evaluates',     past: 'Evaluated' },
+    { present: 'Enables',       past: 'Enabled' },
+    { present: 'Governs',       past: 'Governed' },
+    { present: 'Transitions',   past: 'Transitioned' },
+    { present: 'Accelerates',   past: 'Accelerated' },
+    { present: 'Renegotiates',  past: 'Renegotiated' },
+    { present: 'Revises',       past: 'Revised' },
+    { present: 'Overhauls',     past: 'Overhauled' },
+    { present: 'Repositions',   past: 'Repositioned' },
+    { present: 'Redefines',     past: 'Redefined' },
+    { present: 'Reengineers',   past: 'Reengineered' },
+    { present: 'Formulates',    past: 'Formulated' },
+    { present: 'Spearheads',    past: 'Spearheaded' },
+    { present: 'Champions',     past: 'Championed' },
+    { present: 'Steers',        past: 'Steered' },
+    { present: 'Unifies',       past: 'Unified' },
 ];
 
 function isCurrentRole(role: { endDate?: string }): boolean {

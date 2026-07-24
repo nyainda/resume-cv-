@@ -492,9 +492,12 @@ function probeText(text: string, where: string, issues: CvQualityIssue[]): void 
 // word with a recognisable action stem (≥5 chars to the "ed" suffix).
 const PASSIVE_VOICE_RX = /\b(was|were)\s+([a-z]{3,}ed)\b/i;
 
-// A bullet contains a numeric metric if it has a standalone digit, optionally
-// followed by common suffixes (%  K  M  B  x  million  billion  thousand).
-const METRIC_RX = /\b\d[\d,.]*\s*(?:%|percent|K\b|M\b|B\b|million|billion|thousand|x\b)?/i;
+// A bullet contains a performance metric if it has a number with a meaningful unit.
+// The unit is now REQUIRED (not optional) to exclude bare count nouns like
+// "3 providers", "14 integrations", "5 meetings" that inflate metric density.
+// Currency prefix ($£€) is always a metric regardless of suffix.
+// "from X to Y" patterns (e.g. "from 31% to 58%") also qualify.
+const METRIC_RX = /(?:[$£€¥₦₹]\s*\d[\d,.]*|\b\d[\d,.]*\s*(?:%|percent|K\b|M\b|B\b|million|billion|thousand|x\b|×)|\bfrom\s+\d[\d,.]*(?:\s*%)?(?:\s+to\s+\d[\d,.]*)|(?:users?|customers?|clients?|merchants?|transactions?|downloads?|subscribers?|signups?|accounts?)\b[^.]{0,40}\d[\d,.]*)/i;
 
 export function auditCvQuality(cv: CvLikeForAudit, opts?: { purifierWarnings?: number }): CvQualityReport {
     const t0 = (typeof performance !== 'undefined' ? performance.now() : Date.now());
