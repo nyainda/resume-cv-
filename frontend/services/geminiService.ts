@@ -190,8 +190,10 @@ const CV_RULES_VERSION = '2.5'; // bumped: 15-rule reminder, TITLE_FIELD_MAP, de
 const CV_CACHE_MAX = 12;
 const CV_CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutes
 
+import { cvCache as _cvCache, invalidateCVCache } from './cvCache';
+export { invalidateCVCache };
 interface CacheEntry { result: CVData; ts: number; }
-const cvCache = new Map<string, CacheEntry>();
+const cvCache = _cvCache as Map<string, CacheEntry>;
 
 function cloneCVData(data: CVData): CVData {
     try {
@@ -264,10 +266,7 @@ function cvCacheSet(key: string, result: CVData): void {
     cvCache.set(key, { result: cloneCVData(result), ts: Date.now() });
 }
 
-/** Call this when the user saves their profile — invalidates all cached CVs for that profile. */
-export function invalidateCVCache(): void {
-    cvCache.clear();
-}
+// invalidateCVCache is imported from ./cvCache and re-exported above.
 
 // ─── PRE-GENERATION PIPELINE ─────────────────────────────────────────────────
 // Implements Blocks A, B, C, D from the Master AI Generation Instructions.

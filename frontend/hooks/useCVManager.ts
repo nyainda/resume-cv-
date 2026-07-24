@@ -8,7 +8,7 @@ import { auditCvQuality } from '../services/cvNumberFidelity';
 import { saveCVData, deleteCVData } from '../services/storage/cvDataStore';
 import { profileToCV } from '../utils/profileToCV';
 import { isSameProfileIdentity, mergeProfileIntoCV } from '../utils/mergeProfileIntoCV';
-import { invalidateCVCache } from '../services/geminiService';
+import { invalidateCVCache } from '../services/cvCache';
 import { syncProfileToCache } from '../services/profileCacheClient';
 import { enqueueSlotSync } from '../services/storage/syncQueue';
 import { canAddProfileSlot } from '../services/accountTierService';

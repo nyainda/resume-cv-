@@ -11,6 +11,7 @@ export default defineConfig(() => {
       emptyOutDir: true,
       target: 'esnext',           // modern syntax → smaller output, no polyfill bloat
       reportCompressedSize: false, // skip brotli sizing pass → faster CI builds
+      chunkSizeWarningLimit: 600,  // mammoth (Word parser) is ~502kB but fully isolated
       cssCodeSplit: true,          // per-chunk CSS → each lazy route only loads its styles
       rollupOptions: {
         output: {

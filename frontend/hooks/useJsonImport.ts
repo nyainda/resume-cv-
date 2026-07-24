@@ -8,7 +8,7 @@ import { profileToCV } from '../utils/profileToCV';
 import { isSameProfileIdentity, mergeProfileIntoCV } from '../utils/mergeProfileIntoCV';
 import { syncProfileToCache } from '../services/profileCacheClient';
 import { enqueueSlotSync } from '../services/storage/syncQueue';
-import { invalidateCVCache } from '../services/geminiService';
+import { invalidateCVCache } from '../services/cvCache';
 import { canAddProfileSlot } from '../services/accountTierService';
 import type { AppView } from './useAppNavigation';
 import { useToast } from './useToast';

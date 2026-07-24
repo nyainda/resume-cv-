@@ -3,10 +3,8 @@
 // queue flushing, dark-mode toggle, prefs sync, and Drive error notifications.
 
 import { useEffect } from 'react';
-import { loadRules } from '../services/geminiService';
 import { prewarmFontEmbedCache } from '../services/getCVHtml';
 import { prefetchVersions as prefetchPromptVersions } from '../services/promptRegistryClient';
-import { prefetchRuleConfigs } from '../services/ruleRegistryClient';
 import { sanitiseStaleQueue, enqueuePrefsSync, flushSyncQueue } from '../services/storage/syncQueue';
 import { useToast } from './useToast';
 
@@ -25,18 +23,19 @@ export function useBootEffects({
 }: UseBootEffectsConfig): void {
   const toast = useToast();
 
-  // Fetch CV pipeline rules from the CF Worker at boot
+  // Fetch CV pipeline rules from the CF Worker at boot — dynamic import
+  // keeps geminiService out of the main bundle entry point.
   useEffect(() => {
-    loadRules().catch(() => {});
+    import('../services/geminiService').then(m => m.loadRules()).catch(() => {});
   }, []);
 
   // Boot-time pre-warming: sanitise stale queue, warm fonts,
-  // fetch prompt versions and rule configs
+  // fetch prompt versions and rule configs — ruleRegistryClient loaded lazily.
   useEffect(() => {
     sanitiseStaleQueue();
     prewarmFontEmbedCache();
     prefetchPromptVersions();
-    prefetchRuleConfigs();
+    import('../services/ruleRegistryClient').then(m => m.prefetchRuleConfigs()).catch(() => {});
   }, []);
 
   // Apply dark mode class to document root

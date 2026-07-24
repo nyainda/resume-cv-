@@ -9,7 +9,7 @@ import {
   STARStory,
 } from '../types';
 import { useStorage } from './useStorage';
-import { invalidateCVCache } from '../services/geminiService';
+import { invalidateCVCache } from '../services/cvCache';
 import { syncProfileToCache } from '../services/profileCacheClient';
 import { normalizeCVData } from '../utils/cvDataUtils';
 import {
