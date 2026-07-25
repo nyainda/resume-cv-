@@ -38,11 +38,21 @@ export function getPageFraction(contentHeightPx: number): number {
 }
 
 /**
- * If pageFraction is below this threshold the content is close enough to one
- * page that auto-compression kicks in automatically.  Above it the content
- * genuinely needs two pages and the balanced-two-page expander runs instead.
+ * If pageFraction is below this threshold auto-compression kicks in first.
+ * Above it the content is sent directly to the balanced-two-page expander.
+ *
+ * Why 1.5:
+ *   The two-phase compressor can recover up to ~25 % of natural content height
+ *   (spacing level 3 saves ~132 px on a typical CV; CSS zoom 0.85 then applies
+ *   on top).  For CVs with more sections the spacing saving is proportionally
+ *   larger, so content well above 1.3× can still be squeezed onto one page.
+ *   Keeping the threshold at 1.3 was too conservative — it sent 1.3–1.5× CVs
+ *   straight to 2-page balance mode before the compressor even got a chance.
+ *   At 1.5, content in the 1.3–1.5× band tries compression first; if it
+ *   succeeds, great — if not, the "Too much" banner shows and the user can
+ *   turn off the 1-Page toggle to drop into balance-2 mode.
  */
-export const AUTO_ONE_PAGE_THRESHOLD = 1.3;
+export const AUTO_ONE_PAGE_THRESHOLD = 1.5;
 
 /**
  * The balanced-two-page expander stops once page 2 is at least this full.
