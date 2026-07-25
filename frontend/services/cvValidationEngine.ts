@@ -42,7 +42,12 @@ export interface ValidationOpts {
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const SKILLS_MAX = 15;
-const BULLET_MIN_WORDS = 6;
+// Aligned with cvQualityGate.ts — a bullet under 8 words lacks the minimum
+// space to convey action, object, and any context. The philosophy here is
+// "information richness, not word count": 8 words is the floor below which
+// it is physically impossible to answer even two of the five questions
+// (what/how/where/scale/result) that make a bullet worth reading.
+const BULLET_MIN_WORDS = 8;
 const BULLET_MAX_WORDS = 50;
 
 const SEEKING_PATTERNS: RegExp[] = [

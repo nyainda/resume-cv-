@@ -661,52 +661,163 @@ const CVToolkit: React.FC<CVToolkitProps> = ({
                                         <p className="text-xs text-rose-500 bg-rose-50 dark:bg-rose-900/20 rounded-lg px-3 py-2">{validationError}</p>
                                     )}
 
-                                    {fullValidation && (
-                                        <div className="grid grid-cols-3 gap-3">
-                                            {/* Bullets */}
-                                            <div className={`rounded-xl border p-3 text-center ${fullValidation.bullets?.passed ? 'border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/20' : 'border-rose-200 dark:border-rose-800 bg-rose-50 dark:bg-rose-900/20'}`}>
-                                                <p className="text-lg font-black" style={{ color: fullValidation.bullets?.passed ? '#10b981' : '#ef4444' }}>
-                                                    {fullValidation.bullets ? (fullValidation.bullets.passed ? '✓' : '✗') : '—'}
-                                                </p>
-                                                <p className="text-[10px] font-bold text-zinc-600 dark:text-zinc-400 mt-0.5">Bullets</p>
-                                                {fullValidation.bullets && (
-                                                    <p className="text-[10px] text-zinc-500 dark:text-zinc-500 mt-0.5">
-                                                        {fullValidation.bullets.issues?.length ?? 0} issue{(fullValidation.bullets.issues?.length ?? 0) !== 1 ? 's' : ''}
-                                                    </p>
-                                                )}
-                                            </div>
+                                    {fullValidation && (() => {
+                                        // Reconstruct bullet list in same order as handleRunValidation
+                                        const allBullets = currentCV
+                                            ? currentCV.experience.flatMap(exp => exp.responsibilities || [])
+                                            : [];
 
-                                            {/* Voice */}
-                                            <div className={`rounded-xl border p-3 text-center ${fullValidation.voice?.passed ? 'border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/20' : 'border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20'}`}>
-                                                <p className="text-lg font-black" style={{ color: fullValidation.voice?.passed ? '#10b981' : '#f59e0b' }}>
-                                                    {fullValidation.voice ? `${fullValidation.voice.score}` : '—'}
-                                                </p>
-                                                <p className="text-[10px] font-bold text-zinc-600 dark:text-zinc-400 mt-0.5">Voice</p>
+                                        // Pull information_density issues out of the voice result
+                                        const densityIssues = (fullValidation.voice?.issues ?? []).filter(
+                                            (iss: any) => iss.issue === 'information_density'
+                                        ) as Array<{
+                                            bullet: number;
+                                            score: number;
+                                            signals: string[];
+                                            missing_signals: string[];
+                                            word_count: number;
+                                        }>;
+
+                                        // Friendly labels for the 5 signal names (from the philosophy doc)
+                                        const SIGNAL_LABELS: Record<string, string> = {
+                                            action:            'Strong opening verb',
+                                            object:            'Clear what was acted on',
+                                            context_or_method: 'How it was done / tools used',
+                                            scope:             'Scale, numbers, or reach',
+                                            outcome:           'What changed / result',
+                                        };
+                                        const ALL_SIGNALS = Object.keys(SIGNAL_LABELS);
+
+                                        return (
+                                            <>
+                                                <div className="grid grid-cols-3 gap-3">
+                                                    {/* Bullets */}
+                                                    <div className={`rounded-xl border p-3 text-center ${fullValidation.bullets?.passed ? 'border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/20' : 'border-rose-200 dark:border-rose-800 bg-rose-50 dark:bg-rose-900/20'}`}>
+                                                        <p className="text-lg font-black" style={{ color: fullValidation.bullets?.passed ? '#10b981' : '#ef4444' }}>
+                                                            {fullValidation.bullets ? (fullValidation.bullets.passed ? '✓' : '✗') : '—'}
+                                                        </p>
+                                                        <p className="text-[10px] font-bold text-zinc-600 dark:text-zinc-400 mt-0.5">Bullets</p>
+                                                        {fullValidation.bullets && (
+                                                            <p className="text-[10px] text-zinc-500 dark:text-zinc-500 mt-0.5">
+                                                                {fullValidation.bullets.issues?.length ?? 0} issue{(fullValidation.bullets.issues?.length ?? 0) !== 1 ? 's' : ''}
+                                                            </p>
+                                                        )}
+                                                    </div>
+
+                                                    {/* Voice */}
+                                                    <div className={`rounded-xl border p-3 text-center ${fullValidation.voice?.passed ? 'border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/20' : 'border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20'}`}>
+                                                        <p className="text-lg font-black" style={{ color: fullValidation.voice?.passed ? '#10b981' : '#f59e0b' }}>
+                                                            {fullValidation.voice ? `${fullValidation.voice.score}` : '—'}
+                                                        </p>
+                                                        <p className="text-[10px] font-bold text-zinc-600 dark:text-zinc-400 mt-0.5">Voice</p>
+                                                        {fullValidation.voice && (
+                                                            <p className="text-[10px] text-zinc-500 dark:text-zinc-500 mt-0.5">
+                                                                {fullValidation.voice.passed ? 'Passed' : `${(fullValidation.voice.summary?.critical ?? 0) + (fullValidation.voice.summary?.high ?? 0)} critical`}
+                                                            </p>
+                                                        )}
+                                                    </div>
+
+                                                    {/* Semantic */}
+                                                    <div className={`rounded-xl border p-3 text-center ${(fullValidation.semantic?.score ?? 0) >= 70 ? 'border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/20' : (fullValidation.semantic?.score ?? 0) >= 50 ? 'border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20' : 'border-rose-200 dark:border-rose-800 bg-rose-50 dark:bg-rose-900/20'}`}>
+                                                        <p className="text-lg font-black" style={{ color: (fullValidation.semantic?.score ?? 0) >= 70 ? '#10b981' : (fullValidation.semantic?.score ?? 0) >= 50 ? '#f59e0b' : '#ef4444' }}>
+                                                            {fullValidation.semantic != null ? `${fullValidation.semantic.score ?? 0}%` : '—'}
+                                                        </p>
+                                                        <p className="text-[10px] font-bold text-zinc-600 dark:text-zinc-400 mt-0.5">Semantic</p>
+                                                        {fullValidation.semantic && (
+                                                            <p className="text-[10px] text-zinc-500 dark:text-zinc-500 mt-0.5">
+                                                                {fullValidation.semantic.missing?.length ?? 0} missing kw
+                                                            </p>
+                                                        )}
+                                                    </div>
+
+                                                    {!fullValidation.complete && (
+                                                        <p className="col-span-3 text-[10px] text-amber-500 text-center">Some sections unavailable — worker may be cold-starting.</p>
+                                                    )}
+                                                </div>
+
+                                                {/* ── Information Density breakdown ── */}
+                                                {/* Shows which bullets are "information-thin" according to the CF worker's
+                                                    5-signal check: action / object / context_or_method / scope / outcome.
+                                                    Philosophy: every sentence should EARN its place — not by being long,
+                                                    but by answering at least 3 of the 5 questions. */}
                                                 {fullValidation.voice && (
-                                                    <p className="text-[10px] text-zinc-500 dark:text-zinc-500 mt-0.5">
-                                                        {fullValidation.voice.passed ? 'Passed' : `${(fullValidation.voice.summary?.critical ?? 0) + (fullValidation.voice.summary?.high ?? 0)} critical`}
-                                                    </p>
-                                                )}
-                                            </div>
+                                                    <div className="mt-3 rounded-xl border border-zinc-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 overflow-hidden">
+                                                        <div className="flex items-center justify-between px-4 py-2.5 border-b border-zinc-100 dark:border-neutral-700 bg-zinc-50 dark:bg-neutral-900/40">
+                                                            <div>
+                                                                <p className="text-xs font-bold text-zinc-800 dark:text-zinc-100">
+                                                                    Information Density
+                                                                    <span className="ml-2 font-normal text-zinc-400 dark:text-zinc-500">
+                                                                        (CF worker · 5-signal check)
+                                                                    </span>
+                                                                </p>
+                                                                <p className="text-[10px] text-zinc-400 dark:text-zinc-500 mt-0.5">
+                                                                    A strong bullet answers ≥3 of: <em>what / how / where / scale / result</em>.
+                                                                    Not about length — about richness.
+                                                                </p>
+                                                            </div>
+                                                            <span className={`text-[11px] font-bold px-2 py-1 rounded-lg ${
+                                                                densityIssues.length === 0
+                                                                    ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300'
+                                                                    : 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300'
+                                                            }`}>
+                                                                {densityIssues.length === 0
+                                                                    ? '✓ All rich'
+                                                                    : `${densityIssues.length} thin bullet${densityIssues.length !== 1 ? 's' : ''}`}
+                                                            </span>
+                                                        </div>
 
-                                            {/* Semantic */}
-                                            <div className={`rounded-xl border p-3 text-center ${(fullValidation.semantic?.score ?? 0) >= 70 ? 'border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/20' : (fullValidation.semantic?.score ?? 0) >= 50 ? 'border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20' : 'border-rose-200 dark:border-rose-800 bg-rose-50 dark:bg-rose-900/20'}`}>
-                                                <p className="text-lg font-black" style={{ color: (fullValidation.semantic?.score ?? 0) >= 70 ? '#10b981' : (fullValidation.semantic?.score ?? 0) >= 50 ? '#f59e0b' : '#ef4444' }}>
-                                                    {fullValidation.semantic != null ? `${fullValidation.semantic.score ?? 0}%` : '—'}
-                                                </p>
-                                                <p className="text-[10px] font-bold text-zinc-600 dark:text-zinc-400 mt-0.5">Semantic</p>
-                                                {fullValidation.semantic && (
-                                                    <p className="text-[10px] text-zinc-500 dark:text-zinc-500 mt-0.5">
-                                                        {fullValidation.semantic.missing?.length ?? 0} missing kw
-                                                    </p>
+                                                        {densityIssues.length === 0 ? (
+                                                            <p className="px-4 py-3 text-xs text-emerald-600 dark:text-emerald-400">
+                                                                Every bullet answered at least 3 of the 5 questions. Good information density throughout.
+                                                            </p>
+                                                        ) : (
+                                                            <div className="divide-y divide-zinc-100 dark:divide-neutral-700">
+                                                                {densityIssues.map((iss, idx) => {
+                                                                    const bulletText = allBullets[iss.bullet] ?? '';
+                                                                    return (
+                                                                        <div key={idx} className="px-4 py-3 space-y-2">
+                                                                            {/* Bullet preview */}
+                                                                            <p className="text-xs text-zinc-700 dark:text-zinc-300 italic leading-snug line-clamp-2">
+                                                                                "{bulletText || `Bullet #${iss.bullet + 1}`}"
+                                                                            </p>
+                                                                            {/* Score bar */}
+                                                                            <div className="flex items-center gap-2">
+                                                                                <span className="text-[10px] font-bold text-zinc-500 w-14 shrink-0">{iss.score}/5 signals</span>
+                                                                                <div className="flex-1 h-1.5 rounded-full bg-zinc-100 dark:bg-neutral-700 overflow-hidden">
+                                                                                    <div
+                                                                                        className="h-full rounded-full"
+                                                                                        style={{
+                                                                                            width: `${(iss.score / 5) * 100}%`,
+                                                                                            backgroundColor: iss.score >= 3 ? '#10b981' : iss.score >= 2 ? '#f59e0b' : '#ef4444',
+                                                                                        }}
+                                                                                    />
+                                                                                </div>
+                                                                            </div>
+                                                                            {/* Signal checklist */}
+                                                                            <div className="flex flex-wrap gap-1.5">
+                                                                                {ALL_SIGNALS.map(sig => {
+                                                                                    const found = iss.signals.includes(sig);
+                                                                                    return (
+                                                                                        <span key={sig} className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                                                                                            found
+                                                                                                ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300'
+                                                                                                : 'bg-rose-100 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400'
+                                                                                        }`}>
+                                                                                            {found ? '✓' : '✗'} {SIGNAL_LABELS[sig]}
+                                                                                        </span>
+                                                                                    );
+                                                                                })}
+                                                                            </div>
+                                                                        </div>
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                        )}
+                                                    </div>
                                                 )}
-                                            </div>
-
-                                            {!fullValidation.complete && (
-                                                <p className="col-span-3 text-[10px] text-amber-500 text-center">Some sections unavailable — worker may be cold-starting.</p>
-                                            )}
-                                        </div>
-                                    )}
+                                            </>
+                                        );
+                                    })()}
                                 </div>
                             </>
                         );
