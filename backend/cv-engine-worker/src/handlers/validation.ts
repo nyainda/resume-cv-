@@ -232,7 +232,81 @@ export function computeVoiceValidation(bullets: string[], brief: any): any {
         issues.push({ issue: 'too_many_metrics', ratio: +metricRatio.toFixed(2), preference: pref, severity: 'low' });
     }
 
-    // 6. Repeated verbs across bullets
+    // 6. Information density — reward complete, concise bullets rather than
+    // blindly pushing every bullet toward a longer word count. A strong bullet
+    // should answer at least three useful questions: what was done, what was
+    // acted on, how/where it was done, at what scale, and what changed.
+    //
+    // This intentionally does not require a number. "Designed irrigation
+    // layouts using AutoCAD across Central Kenya" is information-rich without
+    // one, while "Responsible for managing different projects in various
+    // regions" is long but still thin.
+    const densityStopWords = new Set([
+        'a', 'an', 'and', 'as', 'at', 'be', 'been', 'by', 'for', 'from', 'in',
+        'into', 'is', 'it', 'of', 'on', 'or', 'the', 'to', 'was', 'were', 'with',
+    ]);
+    const actionWords = new Set([
+        'accelerated', 'analysed', 'analyzed', 'architected', 'assessed', 'audited',
+        'automated', 'built', 'coached', 'collaborated', 'commissioned', 'conducted',
+        'consolidated', 'created', 'debugged', 'defined', 'delivered', 'deployed',
+        'designed', 'diagnosed', 'directed', 'documented', 'engineered', 'evaluated',
+        'executed', 'expanded', 'generated', 'grew', 'implemented', 'improved',
+        'increased', 'integrated', 'launched', 'led', 'managed', 'migrated',
+        'monitored', 'negotiated', 'optimised', 'optimized', 'organised', 'organized',
+        'overhauled', 'planned', 'produced', 'reduced', 'redesigned', 'restructured',
+        'reviewed', 'resolved', 'scaled', 'secured', 'shipped', 'streamlined',
+        'supported', 'tested', 'trained', 'validated', 'wrote',
+    ]);
+    const contextOrMethodPattern = /\b(using|via|through|with|across|alongside|within|under|between|during|on behalf of|in partnership with|for)\b/i;
+    const scopePattern = /\b\d[\d,.]*\s*(?:%|k|m|b|x|×|\+)?\b|\b(?:team|teams|client|clients|customer|customers|user|users|project|projects|site|sites|region|regions|county|counties|country|countries|farm|farms|account|accounts|portfolio|department|departments|budget|locations?|markets?)\b/i;
+    const outcomePattern = /\b(?:reduc(?:e|ed|ing)|increas(?:e|ed|ing)|improv(?:e|ed|ing)|sav(?:e|ed|ing)|grew|grow|boost(?:ed|ing)?|cut|cutting|accelerat(?:e|ed|ing)|eliminat(?:e|ed|ing)|rais(?:e|ed|ing)|deliver(?:ed|ing)?|achiev(?:e|ed|ing)|strengthen(?:ed|ing)|enabl(?:e|ed|ing)|success(?:ful|fully)?|efficien(?:cy|t)|performance|quality|accuracy|reliability|adoption|retention|satisfaction|handover|on[- ]time|within budget)\b/i;
+    const dutyOpenerPattern = /^(responsible\s+for|was\s+responsible|help(?:ed)?\s+(?:with|to)|assisted?\s+with|worked\s+on|tasked\s+with|involved\s+in|participated?\s+in|duties\s+included)\b/i;
+    const informationDensity: Array<{
+        bullet: number;
+        score: number;
+        signals: string[];
+        word_count: number;
+    }> = [];
+
+    bullets.forEach((bullet, i) => {
+        const text = String(bullet || '').trim();
+        const words = text.toLowerCase().match(/[a-z][a-z'-]*/g) || [];
+        const firstWord = words[0] || '';
+        const contentWords = words.slice(1).filter(w => !densityStopWords.has(w));
+        const signals: string[] = [];
+
+        if (actionWords.has(firstWord) || /\b(?:ing|ed|ate|ise|ize|ify)$/i.test(firstWord)) {
+            signals.push('action');
+        }
+        if (contentWords.length >= 2) signals.push('object');
+        if (contextOrMethodPattern.test(text)) signals.push('context_or_method');
+        if (scopePattern.test(text)) signals.push('scope');
+        if (outcomePattern.test(text) || /\d/.test(text)) signals.push('outcome');
+
+        const score = signals.length;
+        informationDensity.push({ bullet: i, score, signals, word_count: words.length });
+
+        // Short bullets are allowed to be punchy, but once a bullet is at least
+        // the normal minimum length it should carry at least three signals.
+        // Keep this high so the existing targeted voice repair path handles it.
+        // A padded duty statement is not information-dense simply because it
+        // mentions generic scope words. It needs to be rewritten around the
+        // actual action, object, method/context, and/or result.
+        if (words.length >= 8 && (score < 3 || dutyOpenerPattern.test(text))) {
+            issues.push({
+                bullet: i,
+                issue: 'information_density',
+                score,
+                signals,
+                word_count: words.length,
+                missing_signals: ['action', 'object', 'context_or_method', 'scope', 'outcome']
+                    .filter(signal => !signals.includes(signal)),
+                severity: 'high',
+            });
+        }
+    });
+
+    // 7. Repeated verbs across bullets
     const verbCounts: Record<string, number> = {};
     firstWords.forEach((w, i) => {
         if (!w) return;
@@ -252,7 +326,17 @@ export function computeVoiceValidation(bullets: string[], brief: any): any {
         issues.filter(i => i.bullet !== undefined && (i.severity === 'critical' || i.severity === 'high')).map(i => i.bullet)
     ));
 
-    return { passed, score, summary, issues, rhythm_match_ratio, avg_word_count: +avgWc.toFixed(1), metric_ratio: +metricRatio.toFixed(2), failing_bullets: failingBullets };
+    return {
+        passed,
+        score,
+        summary,
+        issues,
+        rhythm_match_ratio,
+        avg_word_count: +avgWc.toFixed(1),
+        metric_ratio: +metricRatio.toFixed(2),
+        information_density: informationDensity,
+        failing_bullets: failingBullets,
+    };
 }
 
 export async function embedBatch(env: Env, texts: string[]): Promise<number[][]> {

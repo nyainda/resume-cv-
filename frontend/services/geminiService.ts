@@ -4500,6 +4500,7 @@ async function enforceVoiceConsistency(cvData: CVData, brief: CVBrief): Promise<
                 issue.issue === 'avoided_verb_for_field' ? `verb "${(issue as any).verb}" is wrong for this field — replace it` :
                 issue.issue === 'verb_outside_pool' ? `verb "${(issue as any).verb}" is not in the approved pool — pick from the pool` :
                 issue.issue === 'repeated_verb' ? `verb "${(issue as any).verb}" is repeated — pick a different approved verb` :
+                issue.issue === 'information_density' ? `bullet is information-thin (${(issue as any).score ?? 0}/5 signals: ${((issue as any).signals || []).join(', ') || 'none'}). Add missing factual context, method, scope, or outcome using only the original meaning — never invent facts or numbers` :
                 // ── Priority 2: rhythm_drift is now advisory only ──────────
                 // We switched to constraint-mode rhythm (≥1 punchy + ≥1 narrative,
                 // no 3 same in a row) so individual bullet length mismatches against

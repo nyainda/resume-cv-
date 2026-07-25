@@ -267,6 +267,12 @@ export interface ValidateVoiceResult {
     rhythm_match_ratio: number;
     avg_word_count: number;
     metric_ratio: number;
+    information_density?: Array<{
+        bullet: number;
+        score: number;
+        signals: string[];
+        word_count: number;
+    }>;
     failing_bullets: number[];
 }
 

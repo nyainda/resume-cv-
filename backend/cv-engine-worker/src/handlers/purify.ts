@@ -154,6 +154,12 @@ export const _CV_HUMANIZATION_INSTRUCTION_HEADER = `
     - Three sentences of similar length in a row = failure. Break the pattern.
     - Start at least 2 sentences per section with a number or a past-tense verb for natural variation.
 
+    INFORMATION DENSITY (mandatory — do not confuse length with substance):
+    - Every experience bullet should answer at least 3 of these questions: What did the candidate do? What did they work on? How/with what method? Where or at what scale? What changed as a result?
+    - Short bullets may stay short when they carry clear action, object, and scope/context.
+    - Long bullets are not automatically good. Rewrite padded duty statements such as "Responsible for managing..." into direct, factual achievements.
+    - Use only facts supported by the candidate's profile. Never invent metrics, tools, clients, regions, or outcomes to make a bullet appear richer.
+
     BANNED PHRASES (zero tolerance — replace with specific facts):
     "delve", "robust", "seamlessly", "synergy", "leverage" (max once in whole document), "cutting-edge", "state-of-the-art", "passionate about", "in today's fast-paced world", "it is worth noting", "navigate the landscape", "groundbreaking", "thought leader", "game-changer", "dynamic", "innovative" (show it, don't say it), "results-driven", "detail-oriented", "team player", "go-getter", "proactive", "best-in-class", "holistic", "moving the needle", "at the end of the day", "take it to the next level", "excited to", "transformative", "impactful" (prove impact with numbers instead).
     BANNED IN SUMMARY (zero tolerance — summary must state what the candidate DELIVERS, not what they WANT): "Looking to", "Looking for", "Seeking to", "Seeking for", "Aiming to", "Aiming for", "Hoping to", "I am looking", "In search of", "eager to join", "excited to contribute", "seeking an opportunity", "seeking to use", "seeking to apply", "seeking to bring".
