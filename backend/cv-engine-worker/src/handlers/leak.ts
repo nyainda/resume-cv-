@@ -7,6 +7,33 @@ const LEAK_REPORT_MAX_PHRASES = 100;
 const LEAK_PHRASE_MAX_LEN = 80;
 const LEAK_PHRASE_MIN_LEN = 3;
 
+/**
+ * Rejects internal diagnostic / quality-analysis strings that should never
+ * appear in the banned-phrase list.  These patterns match output produced by
+ * the CV quality reporting pipeline (bullet stats, role-index labels, etc.)
+ * that can accidentally surface in the leak-candidate table if a user's CV
+ * text happens to include copy-pasted report output.
+ *
+ * Examples that must be rejected:
+ *   "role[3] (national cereals and produce board): 5 bullets, mean 13w, stddev 2.2"
+ *   "irrigation systems intern @ xyz corporation: 0 of 5 bullets have a number"
+ */
+function isDiagnosticString(phrase: string): boolean {
+    const p = phrase.toLowerCase();
+    return (
+        // Internal role-index label: role[N] (...)
+        /role\[\d+\]/.test(p) ||
+        // Bullet stats: "5 bullets, mean 13w" or "bullets, mean"
+        /\bbullets?,\s*mean\b/.test(p) ||
+        // Standard deviation marker
+        /\bstddev\b/.test(p) ||
+        // "N of N bullets have" — quality metric sentence
+        /\d+\s+of\s+\d+\s+bullets?\s+have\b/.test(p) ||
+        // "job title @ company: N of N" — quality report header
+        (/\s@\s/.test(p) && /:\s*\d+\s+of\s+\d+/.test(p))
+    );
+}
+
 export async function handleLeakReport(request: Request, env: Env): Promise<Response> {
     const body = await safeJson(request);
     const phrases: string[] = Array.isArray(body?.phrases)
@@ -17,6 +44,7 @@ export async function handleLeakReport(request: Request, env: Env): Promise<Resp
 
     const cleaned = Array.from(new Set(phrases))
         .filter(p => p.length >= LEAK_PHRASE_MIN_LEN && p.length <= LEAK_PHRASE_MAX_LEN)
+        .filter(p => !isDiagnosticString(p))
         .slice(0, LEAK_REPORT_MAX_PHRASES);
     if (cleaned.length === 0) return json({ error: 'no_valid_phrases' }, request, env, 400);
 
@@ -101,6 +129,15 @@ export async function handleLeakCandidatesDecide(request: Request, env: Env): Pr
         ).bind(id).first<{ phrase: string }>();
         if (!row?.phrase) { skipped++; continue; }
 
+        // Reject diagnostic / quality-analysis strings that must never enter the banned list
+        if (isDiagnosticString(row.phrase)) {
+            await env.CV_DB.prepare(
+                `UPDATE cv_leak_candidates SET status='rejected', decided_at=datetime('now'), decided_by='auto_diagnostic_filter' WHERE id = ?`
+            ).bind(id).run();
+            skipped++;
+            continue;
+        }
+
         try {
             const newId = crypto.randomUUID();
             await env.CV_DB.prepare(
@@ -132,6 +169,14 @@ export async function runLeakPromotionCron(env: Env): Promise<void> {
         if (bannedSet.has(cand.phrase)) {
             await env.CV_DB.prepare(
                 `UPDATE cv_leak_candidates SET status='promoted', decided_at=datetime('now'), decided_by='cron_already_banned' WHERE id = ?`
+            ).bind(cand.id).run();
+            skipped++;
+            continue;
+        }
+        // Reject diagnostic / quality-analysis strings silently
+        if (isDiagnosticString(cand.phrase)) {
+            await env.CV_DB.prepare(
+                `UPDATE cv_leak_candidates SET status='rejected', decided_at=datetime('now'), decided_by='cron_diagnostic_filter' WHERE id = ?`
             ).bind(cand.id).run();
             skipped++;
             continue;
