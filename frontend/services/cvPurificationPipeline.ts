@@ -3687,6 +3687,16 @@ export function enforceRhythmBalance(cv: CVData): CVData {
         let changed = false;
 
         // ── Step 1: Create a PUNCHY bullet (≤14 w) ───────────────────────────
+        // Words that must NEVER be the last word before the period — they leave
+        // the sentence grammatically incomplete (dangling article/preposition).
+        const UNSAFE_TRAIL = new Set([
+            'the','a','an','this','that','these','those','our','their','its','my',
+            'through','by','via','using','for','with','in','on','at','from','to',
+            'across','within','between','among','after','before','during','over',
+            'under','around','about','of','as','than','like','such','and','or',
+            'but','so','yet','nor','both','either','neither','not','also','then',
+        ]);
+
         if (counts.punchy === 0) {
             let shortestIdx = -1, shortestLen = Infinity;
             for (let i = 1; i < newBullets.length; i++) {
@@ -3696,17 +3706,80 @@ export function enforceRhythmBalance(cv: CVData): CVData {
             }
             if (shortestIdx >= 0) {
                 const words = newBullets[shortestIdx].trim().split(/\s+/).filter(Boolean);
-                let cutAt = Math.min(12, words.length - 1);
-                for (let w = 8; w < Math.min(14, words.length); w++) {
+
+                // Safe cut-point resolution (priority order):
+                //   1. Clause separator (comma / semicolon / em-dash) in words 7–13 → cut there.
+                //   2. "to + infinitive" boundary in words 7–15 → cut before it (purpose clause).
+                //   3. Elaboration connectors (while/across/within/through) in words 8–14 → cut before.
+                //   4. Right after a metric token (%, currency, number+unit) in words 6–12 → cut after it.
+                //   5. Fall back to word 11, backing up past UNSAFE_TRAIL words.
+                //
+                // After any strategy, verify the last word is not in UNSAFE_TRAIL.
+                // If no safe cut ≥8 words is found, skip (leave bullet unchanged).
+
+                // Metrics: a token containing %, £$€, or digit+unit
+                const isMetric = (w: string) => /[%£$€¥₦]|^\d[\d,.]*(?:M|K|B|m|k)?$/.test(w.replace(/[,]/g, ''));
+
+                let cutAt = -1;
+
+                // Strategy 1: clause separator
+                for (let w = 7; w < Math.min(14, words.length); w++) {
                     if (/[,;–—]$/.test(words[w])) { cutAt = w; break; }
                 }
-                const shortened = words.slice(0, cutAt).join(' ').replace(/[,;–—]$/, '') + '.';
-                const shortenedLen = shortened.split(/\s+/).length;
-                if (shortenedLen >= 8 && shortenedLen <= 14) {
-                    newBullets[shortestIdx] = shortened;
-                    counts.punchy++;
-                    counts.standard--;
-                    changed = true;
+
+                // Strategy 2: "to + infinitive" boundary (cut BEFORE "to").
+                // Start from word 4 so we catch early purpose clauses like
+                // "Coordinate X to ensure…" where "to" falls at word 4 or 5.
+                if (cutAt < 0) {
+                    for (let w = 4; w < Math.min(15, words.length - 1); w++) {
+                        if (words[w].toLowerCase() === 'to' &&
+                            /^[a-z]/.test(words[w + 1] ?? '') &&
+                            !/^(the|a|an|this|that)$/i.test(words[w + 1] ?? '')) {
+                            const candidate = w - 1;
+                            if (candidate >= 7) { cutAt = candidate; break; }
+                        }
+                    }
+                }
+
+                // Strategy 3: elaboration connectors (cut BEFORE them).
+                // Only fire when cutting there leaves ≥8 words.
+                if (cutAt < 0) {
+                    const ELAB = new Set(['while', 'across', 'within', 'through', 'throughout', 'alongside', 'via']);
+                    for (let w = 8; w < Math.min(14, words.length); w++) {
+                        if (ELAB.has(words[w].toLowerCase()) && w - 1 >= 7) {
+                            cutAt = w - 1; break;
+                        }
+                    }
+                }
+
+                // Strategy 4: right after the FIRST metric token (%, currency, number+unit).
+                // Use the first rather than last so we don't strand a bare % at end.
+                if (cutAt < 0) {
+                    for (let w = 5; w < Math.min(13, words.length); w++) {
+                        if (isMetric(words[w]) && w >= 7) { cutAt = w; break; }
+                    }
+                }
+
+                // Strategy 5: word 11 fallback
+                if (cutAt < 0) cutAt = Math.min(11, words.length - 1);
+
+                // Back up past UNSAFE_TRAIL words to leave a clean trailing content word
+                while (cutAt > 7 && UNSAFE_TRAIL.has((words[cutAt] ?? '').toLowerCase().replace(/[^a-z]/g, ''))) {
+                    cutAt--;
+                }
+
+                if (cutAt >= 7) {
+                    // Strip any trailing punctuation from the last word (comma, semicolon,
+                    // em-dash, or existing period) before appending a clean period.
+                    const rawSlice = words.slice(0, cutAt + 1).join(' ');
+                    const shortened = rawSlice.replace(/[,;–—.!?]+$/, '') + '.';
+                    const shortenedLen = shortened.split(/\s+/).length;
+                    if (shortenedLen >= 8 && shortenedLen <= 14) {
+                        newBullets[shortestIdx] = shortened;
+                        counts.punchy++;
+                        counts.standard--;
+                        changed = true;
+                    }
                 }
             }
         }
