@@ -677,10 +677,18 @@ function _applySubstitutions(text: string, rules: Array<[RegExp, string]>): { te
     if (!text) return { text: text || '', count: 0 };
     let out = text;
     let count = 0;
-    for (const [pattern, replacement] of rules) {
-        const before = out;
-        out = out.replace(pattern, replacement);
-        if (out !== before) count++;
+    // Multi-pass: re-run until stable (max 3) so substitution chains resolve fully
+    // e.g. "participated in" → "contributed to" → "drove" in a single call.
+    let changed = true;
+    let iterations = 0;
+    while (changed && iterations < 3) {
+        changed = false;
+        iterations++;
+        for (const [pattern, replacement] of rules) {
+            const before = out;
+            out = out.replace(pattern, replacement);
+            if (out !== before) { count++; changed = true; }
+        }
     }
     out = out.replace(/\s{2,}/g, ' ').replace(/\s+([.,;:!?])/g, '$1');
     const before2 = out;
@@ -806,8 +814,8 @@ function _purifyField(text: string): { text: string; subs: number } {
 }
 
 export async function handlePurifyCv(request: Request, env: Env): Promise<Response> {
-    let body: { cv?: any };
-    try { body = await request.json() as { cv?: any }; }
+    let body: { cv?: any; profile_skills?: string[]; profile?: any };
+    try { body = await request.json() as { cv?: any; profile_skills?: string[]; profile?: any }; }
     catch { return json({ error: 'invalid_json' }, request, env, 400); }
 
     const cv = body?.cv;
@@ -854,15 +862,10 @@ export async function handlePurifyCv(request: Request, env: Env): Promise<Respon
         bullets: (p.bullets || []).map((b: string) => _stripFirstPerson(b)),
     }));
 
-    out.experience = (out.experience || []).map((e: any) => {
-        const current = _isCurrent(e.endDate);
-        if (!current) return e;
-        return {
-            ...e,
-            responsibilities: (e.responsibilities || []).map((b: string) => _normTPS(b)),
-        };
-    });
-
+    // _flipLead runs first: flips past→present (third-person) or present→past
+    // _normTPS runs second: converts any third-person present verbs to bare imperative
+    // (e.g. _flipLead: "Reduced"→"Reduces"; _normTPS: "Reduces"→"Reduce")
+    // This order ensures current-role bullets consistently use bare imperative.
     out.experience = (out.experience || []).map((e: any) => {
         const target: 'present' | 'past' = _isCurrent(e.endDate) ? 'present' : 'past';
         const newBullets = (e.responsibilities || []).map((b: string) => {
@@ -873,6 +876,17 @@ export async function handlePurifyCv(request: Request, env: Env): Promise<Respon
             return mid.text;
         });
         return { ...e, responsibilities: newBullets };
+    });
+
+    // _normTPS after _flipLead: normalises third-person verbs ("Leads"→"Lead") so
+    // the whole current role is bare-imperative. Past roles are skipped.
+    out.experience = (out.experience || []).map((e: any) => {
+        const current = _isCurrent(e.endDate);
+        if (!current) return e;
+        return {
+            ...e,
+            responsibilities: (e.responsibilities || []).map((b: string) => _normTPS(b)),
+        };
     });
 
     // ── Project tense enforcement ────────────────────────────────────────────
@@ -959,6 +973,29 @@ export async function handlePurifyCv(request: Request, env: Env): Promise<Respon
         return true;
     });
     if (skillDedupCount > 0) changes.push(`skill_dedup: ${skillDedupCount} duplicate(s) removed`);
+
+    // ── Skill reconciliation pass (Fix 1: skill hallucination) ───────────────
+    // When the caller sends profile_skills, keep only skills that are evidenced
+    // in the profile OR appear verbatim in the experience bullets. Skills the LLM
+    // invented from JD keywords alone are silently dropped.
+    const incomingProfileSkills: string[] = Array.isArray(body?.profile_skills) ? body.profile_skills : [];
+    if (incomingProfileSkills.length > 0) {
+        const normProfileSkills = new Set(incomingProfileSkills.map(s => normaliseSkill(s)));
+        const expText = JSON.stringify(out.experience || []).toLowerCase();
+        let skillDropCount = 0;
+        out.skills = (out.skills || []).filter((s: string) => {
+            const lower = normaliseSkill(s);
+            // Keep if it exactly matches a profile skill
+            if (normProfileSkills.has(lower)) return true;
+            // Keep if any profile skill is a substring (handles "React.js" ↔ "React")
+            if ([...normProfileSkills].some(ps => lower.includes(ps) || ps.includes(lower))) return true;
+            // Keep if the skill text appears anywhere in the generated experience
+            if (expText.includes(lower)) return true;
+            skillDropCount++;
+            return false;
+        });
+        if (skillDropCount > 0) changes.push(`skill_reconciliation: ${skillDropCount} ungrounded skill(s) removed`);
+    }
 
     // ── Final visible-text gate ───────────────────────────────────────────────
     // Runs after ALL cleaning passes. Scans every user-visible field and emits
@@ -1213,6 +1250,22 @@ export function runFinalVisibleTextGate(cv: any): GateResult {
         const projDesc = String(proj?.description || '');
         if (GATE_PLACEHOLDER.test(projDesc)) {
             flag(`projects[${pi}].description`, 'placeholder_text', projDesc.slice(0, 80), 'critical');
+        }
+    }
+
+    // ── 6. Scope anchor check (Fix 7: scope anchors missing in older roles) ──
+    // Every role's FIRST bullet must set scope (team size, budget, client count,
+    // geographic coverage, etc.). Flag roles where the first bullet is a task
+    // or achievement instead of a scope statement.
+    const SCOPE_SIGNAL = /\b(\d+[\s\-]*(person|people|engineer|engineer|member|staff|report|client|account|country|market|site|user|region)s?\b|team\s+of\s+\d|managing\s+\d|leading\s+\d|budget|portfolio|p&l|revenue\s+of|\d+\s*countries|\d+\s*regions|\d+\s*clients|\d+\s*accounts)/i;
+    for (let ei = 0; ei < experience.length; ei++) {
+        const role = experience[ei];
+        const bullets: string[] = Array.isArray(role?.responsibilities) ? role.responsibilities : [];
+        if (bullets.length > 0) {
+            const firstBullet = String(bullets[0] || '').trim();
+            if (firstBullet && !SCOPE_SIGNAL.test(firstBullet)) {
+                flag(`experience[${ei}].responsibilities[0]`, 'missing_scope_anchor', firstBullet.slice(0, 80), 'medium');
+            }
         }
     }
 

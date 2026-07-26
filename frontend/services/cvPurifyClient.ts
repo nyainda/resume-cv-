@@ -75,11 +75,15 @@ const NULL_GATE: WorkerGateResult = {
  * Runs substitution, tense enforcement, and voice fidelity passes server-side.
  * Also runs the final visible-text gate (scans all fields for critical issues).
  *
+ * Pass `profileSkills` (the candidate's raw profile skill list) so the Worker
+ * can drop any skills the LLM hallucinated from JD keywords rather than the
+ * candidate's actual experience.
+ *
  * Returns the cleaned CV, a list of changes made, and the gate verdict.
  * On any failure, returns the original CV unchanged so the local pipeline
  * can continue — gate is null when the worker was unreachable.
  */
-export async function remotePrePurify(cv: CVData): Promise<RemotePurifyResult> {
+export async function remotePrePurify(cv: CVData, profileSkills?: string[]): Promise<RemotePurifyResult> {
     if (!ENGINE_URL || !_circuitAlive()) {
         return { cv, changes: [], gate: null, fromWorker: false };
     }
@@ -88,10 +92,13 @@ export async function remotePrePurify(cv: CVData): Promise<RemotePurifyResult> {
     const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
 
     try {
+        const body: Record<string, unknown> = { cv };
+        if (profileSkills && profileSkills.length > 0) body.profile_skills = profileSkills;
+
         const res = await fetch(`${ENGINE_URL}/api/cv/purify-cv`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ cv }),
+            body: JSON.stringify(body),
             signal: ctrl.signal,
         });
 

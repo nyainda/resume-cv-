@@ -75,6 +75,17 @@ export async function buildBriefData(env: Env, body: any): Promise<any> {
     const profileHay = stringify(profile).toLowerCase();
     const jdPresent  = jd.length > 50;
 
+    // Extract the candidate's own job title (most recent role) for title-based
+    // field boosting. A "Senior Software Engineer" should land in tech_software
+    // even when the JD contains heavy data/analytics language. Title hits are
+    // weighted at +5 each — above JD keyword weight (×3) — so the candidate's
+    // actual identity wins over JD vocabulary when there is a genuine conflict.
+    const candidateJobTitle = (
+        (Array.isArray(profile?.experience) && profile.experience[0]?.jobTitle)
+            ? String(profile.experience[0].jobTitle)
+            : (profile?.headline || profile?.title || '')
+    ).toLowerCase();
+
     // Explicit field: direct lookup by name (safe even if name doesn't exist in KV)
     const explicitFieldRow = (fieldRows || []).find(f => f.field === explicitField) || null;
 
@@ -86,6 +97,11 @@ export async function buildBriefData(env: Env, body: any): Promise<any> {
             const jdHits      = (jdHay.match(re) || []).length;
             const profileHits = (profileHay.match(re) || []).length;
             score += jdPresent ? (jdHits * 3 + profileHits) : (jdHits + profileHits);
+            // Title-based boost: candidate's own job title is the strongest field signal.
+            if (candidateJobTitle) {
+                const titleHits = (candidateJobTitle.match(re) || []).length;
+                score += titleHits * 5;
+            }
         }
         return { field: f.field, score, row: f };
     }).sort((a, b) => b.score - a.score);

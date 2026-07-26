@@ -6611,7 +6611,7 @@ async function runQualityPolishPasses(
     let workerPurifiedCleanly = false;
     _dispatchPolishStage('purifying');
     try {
-        const pre = await remotePrePurify(out);
+        const pre = await remotePrePurify(out, carryProfile?.skills ?? []);
         out = pre.cv;
         workerPurifiedCleanly = pre.fromWorker;
 
