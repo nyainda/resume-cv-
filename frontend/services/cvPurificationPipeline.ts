@@ -1968,6 +1968,128 @@ function stripSummaryTargetingClause(text: string): { text: string; changed: boo
     return { text: out, changed: true };
 }
 
+/**
+ * Map of irregular past-tense verbs that cannot be derived by simple rule
+ * from their "-ed" form, mapped directly to their gerund (-ing) form.
+ */
+const IRREGULAR_PAST_TO_GERUND: Record<string, string> = {
+    'led': 'leading',         'drove': 'driving',      'grew': 'growing',
+    'fell': 'falling',        'rose': 'rising',         'gave': 'giving',
+    'brought': 'bringing',    'made': 'making',         'cut': 'cutting',
+    'kept': 'keeping',        'ran': 'running',         'built': 'building',
+    'went': 'going',          'came': 'coming',         'took': 'taking',
+    'got': 'getting',         'put': 'putting',         'set': 'setting',
+    'hit': 'hitting',         'let': 'letting',         'won': 'winning',
+    'met': 'meeting',         'paid': 'paying',         'held': 'holding',
+    'left': 'leaving',        'lost': 'losing',         'sold': 'selling',
+    'told': 'telling',        'found': 'finding',       'felt': 'feeling',
+    'meant': 'meaning',       'heard': 'hearing',       'stood': 'standing',
+    'sent': 'sending',        'spent': 'spending',      'sat': 'sitting',
+    'became': 'becoming',     'began': 'beginning',     'bore': 'bearing',
+    'gave': 'giving',         'had': 'having',          'was': 'being',
+    'were': 'being',          'said': 'saying',         'saw': 'seeing',
+    'rose': 'rising',         'chose': 'choosing',      'drew': 'drawing',
+    'knew': 'knowing',        'threw': 'throwing',      'grew': 'growing',
+    'bought': 'buying',       'taught': 'teaching',     'caught': 'catching',
+    'brought': 'bringing',    'thought': 'thinking',    'fought': 'fighting',
+    'sought': 'seeking',      'read': 'reading',        'spread': 'spreading',
+    'beat': 'beating',        'fit': 'fitting',         'hurt': 'hurting',
+    'cost': 'costing',        'led': 'leading',
+    // Commonly irregular in CV context
+    'helped': 'helping',      'resulted': 'resulting',  'arose': 'arising',
+};
+
+/**
+ * Convert a past-tense verb to its gerund (-ing) form.
+ *
+ * Strategy (in order):
+ *   1. Check the irregular table — covers all genuinely irregular English past forms.
+ *   2. Regular "-ed" verbs: strip the trailing "d" (leaving the stem with silent-e
+ *      intact, e.g. "reduced" → "reduce", "dropped" → "droppe", "resulted" → "resulte")
+ *      then call the existing gerundSynonym() which handles the silent-e rule:
+ *        • "reduce"   → "reducing"   ✓
+ *        • "droppe"   → "dropping"   ✓  (silent-e drop → "dropp" + "ing")
+ *        • "resulte"  → "resulting"  ✓  (silent-e drop → "result" + "ing")
+ *        • "improve"  → "improving"  ✓
+ *        • "generate" → "generating" ✓
+ *   3. Returns null if neither rule applies (caller skips the join).
+ */
+function pastToGerund(past: string): string | null {
+    const lower = past.toLowerCase();
+    if (IRREGULAR_PAST_TO_GERUND[lower]) return IRREGULAR_PAST_TO_GERUND[lower];
+    // Regular: remove trailing "d" from the "-ed" suffix, then gerundSynonym handles the rest
+    if (lower.length > 3 && lower.endsWith('ed')) {
+        return gerundSynonym(lower.slice(0, -1)); // e.g. "reduced" → gerundSynonym("reduce") → "reducing"
+    }
+    return null;
+}
+
+/**
+ * Joins a two-sentence bullet when the second sentence is a result/outcome
+ * clause starting with "This" or "It" — the single most common AI pattern
+ * that produces choppy, logically disconnected bullet text.
+ *
+ * Pattern detected:
+ *   "Action sentence. This verb-ed result."   (or "It verb-ed result.")
+ *
+ * Transformation applied:
+ *   "Action sentence, gerunding result."
+ *
+ * Examples:
+ *   • "Managed the payment platform. This reduced failures by 40%."
+ *     → "Managed the payment platform, reducing failures by 40%."
+ *
+ *   • "Redesigned the auth service. It improved latency by 30%."
+ *     → "Redesigned the auth service, improving latency by 30%."
+ *
+ *   • "Led the API migration. This resulted in 99.9% uptime."
+ *     → "Led the API migration, resulting in 99.9% uptime."
+ *
+ * Safety rules:
+ *   – Only fires on exactly two sentences (split by ". ").
+ *   – Only fires when the second sentence starts with "This/It" + a
+ *     convertible past-tense verb (known irregular or regular "-ed").
+ *   – Leaves bullet unchanged if gerund conversion fails (unknown irregular).
+ *   – Does NOT fire on "This is / It is" (copula — these are definitional,
+ *     not outcome clauses).
+ */
+function joinOutcomeSentences(text: string): { text: string; changed: boolean } {
+    if (!text) return { text: text || '', changed: false };
+
+    // Split on ". " to get potential sentences — but avoid splitting on
+    // known abbreviations by requiring the preceding word to be ≥3 chars.
+    // Simple heuristic: look for exactly one ". " between two content words.
+    const splitRx = /^(.+?[a-zA-Z0-9])\.\s+((?:This|It)\s+.+)$/s;
+    const m = text.replace(/\.\s*$/, '').match(splitRx);
+    if (!m) return { text, changed: false };
+
+    const s1 = m[1].trim();
+    const s2 = m[2].trim();
+
+    // Must start with "This <verb>" or "It <verb>" (not "This is" / "It is" copula)
+    const resultM = s2.match(/^(?:This|It)\s+(\w+)\s*(.*?)\.?\s*$/is);
+    if (!resultM) return { text, changed: false };
+
+    const [, verbWord, restRaw] = resultM;
+    // Skip copula — "This is/was/were/are" → not an outcome clause
+    if (/^(?:is|was|were|are|has|had|have|does|did)$/i.test(verbWord)) {
+        return { text, changed: false };
+    }
+
+    const gerund = pastToGerund(verbWord);
+    if (!gerund) return { text, changed: false };
+
+    const rest = restRaw.trim();
+    const joined = rest
+        ? `${s1}, ${gerund} ${rest}.`
+        : `${s1}, ${gerund}.`;
+
+    // Sanity: joined sentence shouldn't be absurdly long (>55 words → skip)
+    if (joined.split(/\s+/).length > 55) return { text, changed: false };
+
+    return { text: joined, changed: true };
+}
+
 /** Composite polish pass for a single bullet — order matters. */
 function polishBullet(bullet: string): { text: string; fixes: string[] } {
     const fixes: string[] = [];
@@ -2010,12 +2132,16 @@ function polishBullet(bullet: string): { text: string; fixes: string[] } {
     // doesn't mask a still-dangling clause ("…, achieving water savings").
     apply('unquantified_metric_verb', stripUnquantifiedMetricGerund);
     apply('whitespace_dashes', normaliseWhitespaceAndDashes);
+    // join_outcome: convert two-sentence "Action. This verb-ed result." bullets
+    // into a single flowing sentence "Action, gerunding result." — runs BEFORE
+    // trailing_period so the merged sentence gets a clean single period, and
+    // BEFORE mid_sentence_cap (no mid-sentence period left to capitalise after
+    // the join succeeds).
+    apply('join_outcome',     joinOutcomeSentences);
     apply('trailing_period',  ensureTrailingPeriod);
     apply('capitalise',       capitaliseFirst);
-    // mid_sentence_cap: capitalise the first letter of every sentence WITHIN
-    // the bullet (e.g. two-sentence narrative bullets). Runs after capitaliseFirst
-    // so the opening is already correct, and after trailing_period so the
-    // sentence-terminator is in place before we scan for ". [a-z]" patterns.
+    // mid_sentence_cap: safety net for any two-sentence bullets where the join
+    // didn't apply — ensures the second sentence still starts with a capital.
     apply('mid_sentence_cap', fixMidSentenceCapitalization);
     return { text: cur, fixes };
 }

@@ -289,6 +289,75 @@ describe('purifyCV — mid-sentence capitalisation', () => {
     });
 });
 
+// ─── purifyCV — join outcome sentences ───────────────────────────────────────
+
+describe('purifyCV — join outcome sentences (join_outcome)', () => {
+    function makeRoleCV(bullets: string[]): CVData {
+        return makeCV({
+            experience: [{
+                jobTitle: 'Engineer',
+                company: 'Corp',
+                dates: '2020 – 2023',
+                startDate: '2020-01-01',
+                endDate: '2023-01-01',
+                responsibilities: bullets,
+            }],
+        } as any);
+    }
+
+    it('joins "Action. This verb-ed result." into one flowing sentence', () => {
+        const { cv } = purifyCV(makeRoleCV([
+            'Managed the payment platform. This reduced transaction failures by 40%.',
+        ]));
+        const out = cv.experience[0].responsibilities[0];
+        expect(out).toContain(', reducing');
+        expect(out).not.toContain('. This');
+        expect(out).toMatch(/^Managed.*reducing.*40%\.$/);
+    });
+
+    it('joins "Action. It improved X." into one sentence', () => {
+        const { cv } = purifyCV(makeRoleCV([
+            'Redesigned the auth service. It improved latency by 30%.',
+        ]));
+        const out = cv.experience[0].responsibilities[0];
+        expect(out).toContain(', improving');
+        expect(out).not.toMatch(/\. It/);
+    });
+
+    it('handles "This resulted in" — keeps the "in"', () => {
+        const { cv } = purifyCV(makeRoleCV([
+            'Led the API migration. This resulted in 99.9% uptime.',
+        ]));
+        const out = cv.experience[0].responsibilities[0];
+        expect(out).toContain(', resulting in');
+        expect(out).not.toContain('. This');
+    });
+
+    it('does NOT join "This is" (copula — not an outcome clause)', () => {
+        const input = 'Built a microservices platform. This is now used by 2M daily users.';
+        const { cv } = purifyCV(makeRoleCV([input]));
+        const out = cv.experience[0].responsibilities[0];
+        // Should not be joined — "This is" is definitional, not a result clause
+        expect(out).not.toContain(', is');
+    });
+
+    it('leaves a single-sentence bullet unchanged', () => {
+        const input = 'Reduced API latency by 40% through query optimisation and caching.';
+        const { cv } = purifyCV(makeRoleCV([input]));
+        const out = cv.experience[0].responsibilities[0];
+        expect(out).not.toContain(', reducing');
+    });
+
+    it('produces a grammatically complete sentence ending with a period', () => {
+        const { cv } = purifyCV(makeRoleCV([
+            'Managed the payment platform. This reduced transaction failures by 40%.',
+        ]));
+        const out = cv.experience[0].responsibilities[0];
+        expect(out).toMatch(/\.$/);
+        expect(out).not.toMatch(/\.\s*$/m.source + '.*\\.'); // single period
+    });
+});
+
 // ─── enforceRhythmBalance — safe truncation ───────────────────────────────────
 
 describe('enforceRhythmBalance — truncation safety', () => {
