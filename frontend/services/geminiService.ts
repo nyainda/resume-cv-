@@ -3,7 +3,7 @@ import { initNlp } from './nlpTense';
 import { truncate } from '../utils/textTruncate';
 import { UserProfile, CVData, PersonalInfo, JobAnalysisResult, CVGenerationMode, ScholarshipFormat, EnhancedJobAnalysis } from '../types';
 import { groqChat, groqChatStream, GROQ_LARGE, GROQ_FAST, getLastAiEngine, getSelectedProvider, getClaudeModel, getGroqApiKey } from './groqService';
-import { purifyCV, purifyText, cleanImportedText, purifyProfile, purifyInboundCV, revertCorruptedMetrics, enforceOpenerDiversity, applyRemoteBannedPhrasesToCV, enforceTenseConsistency, type PurifyReport } from './cvPurificationPipeline';
+import { purifyCV, purifyText, cleanImportedText, purifyProfile, purifyInboundCV, revertCorruptedMetrics, enforceOpenerDiversity, enforceRhythmBalance, enforceScopeAnchors, applyRemoteBannedPhrasesToCV, enforceTenseConsistency, type PurifyReport } from './cvPurificationPipeline';
 import { remotePrePurify } from './cvPurifyClient';
 import { detectField, detectFieldWithSource, lockRealNumbers, buildPromptAnchorBlock, fixPronounsInCV } from './cvPromptHelpers';
 import { logGeneration, quickHash } from './telemetryService';
@@ -6784,6 +6784,29 @@ async function runQualityPolishPasses(
         out = enforceOpenerDiversity(out);
     } catch (e) {
         console.debug('[Polish] Opener diversity pass skipped (non-fatal):', e);
+    }
+
+    // 10.6. Scope anchor enforcement — all roles (current AND past).
+    // Guarantees bullet[0] of every role establishes scope (team size, budget,
+    // project count, etc.) rather than leading with an achievement. Swaps the
+    // first scope-signal bullet to position 0 when the current first bullet is
+    // achievement-led; no-ops when no scope bullet exists (no content invented).
+    try {
+        out = enforceScopeAnchors(out);
+    } catch (e) {
+        console.debug('[Polish] Scope anchor pass skipped (non-fatal):', e);
+    }
+
+    // 10.7. Rhythm balance — deterministic punchy/narrative band enforcer.
+    // When a role's bullets all fall in the standard band (the most common LLM
+    // failure despite the prompt rule), physically reshapes two bullets:
+    //   • Shortens the shortest standard bullet to punchy (≤14 words).
+    //   • Expands the metric-richest standard bullet to narrative (≥23 words).
+    // Never touches bullet[0] (scope anchor), never invents content.
+    try {
+        out = enforceRhythmBalance(out);
+    } catch (e) {
+        console.debug('[Polish] Rhythm balance pass skipped (non-fatal):', e);
     }
 
     // 11. Silent Quality Guardian — final sweep after all polish stages.

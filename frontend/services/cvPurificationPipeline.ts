@@ -3646,6 +3646,176 @@ export function enforceOpenerDiversity(cv: CVData): CVData {
 }
 
 // ────────────────────────────────────────────────────────────────────────────
+// Rhythm balance — deterministic post-generation band enforcer
+//
+// When a role has ≥4 bullets all stuck in the same length band the AI ignored
+// the mix rule in the prompt. This pass physically reshapes two bullets:
+//   1. Shortens the shortest standard bullet to the punchy band (≤14 words)
+//      by cutting at the first trailing clause separator (comma / semicolon /
+//      dash) past word 9, or at word 12.
+//   2. Expands the metric-richest standard bullet to the narrative band (≥23 w)
+//      by splitting it at the first conjunction/connector past word 10 and
+//      capitalising the second fragment as a new sentence.
+//
+// Never touches bullet[0] (scope anchor), never invents content, safe to call
+// multiple times (idempotent once a role is already balanced).
+// ────────────────────────────────────────────────────────────────────────────
+export function enforceRhythmBalance(cv: CVData): CVData {
+    const bandOf = (b: string): 'punchy' | 'standard' | 'narrative' | null => {
+        const n = (b || '').trim().split(/\s+/).filter(Boolean).length;
+        if (n >= 8  && n <= 14) return 'punchy';
+        if (n >= 15 && n <= 22) return 'standard';
+        if (n >= 23 && n <= 45) return 'narrative';
+        return null;
+    };
+
+    const experience = (cv.experience || []).map(role => {
+        const bullets = role.responsibilities || [];
+        if (bullets.length < 4) return role;
+
+        const bands = bullets.map(bandOf);
+        const counts = { punchy: 0, standard: 0, narrative: 0 };
+        bands.forEach(b => { if (b) counts[b]++; });
+
+        // Only intervene when every bullet with a valid band falls in one band.
+        const total = counts.punchy + counts.standard + counts.narrative;
+        if (total < 4) return role;
+        const singleBand = total === counts.punchy || total === counts.standard || total === counts.narrative;
+        if (!singleBand) return role;
+
+        const newBullets = [...bullets];
+        let changed = false;
+
+        // ── Step 1: Create a PUNCHY bullet (≤14 w) ───────────────────────────
+        if (counts.punchy === 0) {
+            let shortestIdx = -1, shortestLen = Infinity;
+            for (let i = 1; i < newBullets.length; i++) {
+                if (bands[i] !== 'standard') continue;
+                const words = newBullets[i].trim().split(/\s+/).filter(Boolean);
+                if (words.length < shortestLen) { shortestLen = words.length; shortestIdx = i; }
+            }
+            if (shortestIdx >= 0) {
+                const words = newBullets[shortestIdx].trim().split(/\s+/).filter(Boolean);
+                let cutAt = Math.min(12, words.length - 1);
+                for (let w = 8; w < Math.min(14, words.length); w++) {
+                    if (/[,;–—]$/.test(words[w])) { cutAt = w; break; }
+                }
+                const shortened = words.slice(0, cutAt).join(' ').replace(/[,;–—]$/, '') + '.';
+                const shortenedLen = shortened.split(/\s+/).length;
+                if (shortenedLen >= 8 && shortenedLen <= 14) {
+                    newBullets[shortestIdx] = shortened;
+                    counts.punchy++;
+                    counts.standard--;
+                    changed = true;
+                }
+            }
+        }
+
+        // ── Step 2: Create a NARRATIVE bullet (≥23 w) ────────────────────────
+        if (counts.narrative === 0 && bullets.length >= 4) {
+            const hasMetric = (b: string) => /\d/.test(b);
+            let richestIdx = -1;
+            for (let i = 1; i < newBullets.length; i++) {
+                const band = bandOf(newBullets[i]);
+                if (band !== 'standard') continue;
+                if (richestIdx === -1 || (hasMetric(newBullets[i]) && !hasMetric(newBullets[richestIdx]))) {
+                    richestIdx = i;
+                }
+            }
+            if (richestIdx >= 0) {
+                const words = newBullets[richestIdx].trim().split(/\s+/).filter(Boolean);
+                const CONNECTORS = new Set([
+                    'through', 'by', 'via', 'using', 'while', 'enabling', 'resulting',
+                    'improving', 'reducing', 'delivering', 'driving', 'achieving',
+                ]);
+                let splitAt = -1;
+                for (let w = 10; w < Math.min(18, words.length); w++) {
+                    if (CONNECTORS.has(words[w].toLowerCase())) { splitAt = w; break; }
+                }
+                if (splitAt > 0 && splitAt < words.length - 3) {
+                    const s1 = words.slice(0, splitAt).join(' ').replace(/[,;]$/, '') + ',';
+                    const connector = words[splitAt];
+                    const rest = words.slice(splitAt + 1).join(' ');
+                    const narrative = `${s1} ${connector.charAt(0).toUpperCase() + connector.slice(1)} ${rest}`;
+                    if (narrative.split(/\s+/).length >= 23) {
+                        newBullets[richestIdx] = narrative;
+                        changed = true;
+                    }
+                }
+            }
+        }
+
+        if (changed && import.meta.env.DEV) {
+            console.info(`[RhythmBalance] Fixed band imbalance in "${role.jobTitle} @ ${role.company}"`);
+        }
+        return changed ? { ...role, responsibilities: newBullets } : role;
+    });
+
+    return { ...cv, experience };
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Scope anchor enforcer — all roles (current AND past)
+//
+// The prompt requires bullet[0] of EVERY role to establish scope (team size,
+// budget, project count, etc.), not lead with an achievement. The LLM follows
+// this for the current role reliably but slips on past roles where the raw
+// profile responsibilities already open with a metric-led achievement.
+//
+// Strategy (zero content invention):
+//   1. bullet[0] already contains a scope signal in its first 10 words → leave it.
+//   2. Scan bullets[1..] for the first bullet with a scope signal in its first
+//      10 words → swap with bullet[0].
+//   3. No qualifying bullet found → leave unchanged (cannot invent facts).
+//
+// "First 10 words" constraint prevents matching scope words buried at the END
+// of an achievement bullet (e.g. "...while collaborating with product and design
+// teams" — 'teams' is a collaboration target, not a scope statement).
+// ────────────────────────────────────────────────────────────────────────────
+/**
+ * Matches OWNERSHIP/SCALE signals that establish the scope of a role.
+ *
+ * Covers two categories:
+ *   A. Headcount/portfolio scope — team of N, N engineers, N clients, budget, etc.
+ *   B. Financial/volume scope   — currency amounts (£2.3M, $500K), transaction
+ *      throughput (50,000 TPS, 15,000 RPS), and daily/monthly/annual volume.
+ *      These signal the SCALE of the system the candidate owned, which is
+ *      equally valid as a scope anchor (e.g. "Engineered an FX engine handling
+ *      £2.3M daily volume" establishes scope just as clearly as "Led a team of 5").
+ */
+const SCOPE_SIGNAL_RE = /(?:\b(?:team\s+of|engineers?\s+team|a\s+team|manage[sd]?\s+(?:a\s+)?team|led?\s+(?:a\s+)?team|oversaw?\s+(?:a\s+)?team|headed?\s+(?:a\s+)?team|squad|staff|headcount|portfolio|budget|clients?|users?|customers?|projects?\s+(?:across|for|covering)|contracts?|region|offices?|countries|coverage|markets?|programmes?|grants?)\b|[£$€¥₦₹]\s*[\d,.]+\s*(?:M|K|B|billion|million|thousand)?|[\d,]+\s*(?:TPS|RPS|req(?:uests?)?\s*(?:per|\/)\s*sec(?:ond)?|transactions?\s*per\s*(?:second|minute|day)|daily\s+(?:volume|revenue|transactions?)|monthly\s+(?:volume|revenue)|annual\s+(?:revenue|ARR)))/i;
+
+/** Returns true when `bullet` has a scope signal within its first `wordLimit` words. */
+function hasScopeSignalEarly(bullet: string, wordLimit = 12): boolean {
+    const firstN = (bullet || '').trim().split(/\s+/).slice(0, wordLimit).join(' ');
+    return SCOPE_SIGNAL_RE.test(firstN);
+}
+
+export function enforceScopeAnchors(cv: CVData): CVData {
+    const experience = (cv.experience || []).map(role => {
+        const bullets = role.responsibilities || [];
+        if (bullets.length < 2) return role;
+
+        // Already anchored (scope signal in first 10 words)
+        if (hasScopeSignalEarly(bullets[0])) return role;
+
+        // Find first bullet with an early scope signal in positions 1+
+        const scopeIdx = bullets.findIndex((b, i) => i > 0 && hasScopeSignalEarly(b));
+        if (scopeIdx === -1) return role; // can't fix without inventing content
+
+        const newBullets = [...bullets];
+        [newBullets[0], newBullets[scopeIdx]] = [newBullets[scopeIdx], newBullets[0]];
+
+        if (import.meta.env.DEV) {
+            console.info(`[ScopeAnchor] Swapped bullet[${scopeIdx}] → bullet[0] in "${role.jobTitle} @ ${role.company}"`);
+        }
+        return { ...role, responsibilities: newBullets };
+    });
+
+    return { ...cv, experience };
+}
+
+// ────────────────────────────────────────────────────────────────────────────
 // Bug 3 — Per-role variance enforcement
 //
 // Compares V2 (newly generated) role bullets against the matching V1 (previous)

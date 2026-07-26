@@ -78,6 +78,7 @@ export const SKILL_SYNONYM_CLUSTERS: Array<{ canonical: string; aliases: string[
   { canonical: 'Agile',                aliases: ['agile', 'Agile methodology', 'Agile methodologies', 'Agile/Scrum'] },
   { canonical: 'Scrum',                aliases: ['scrum'] },
   { canonical: 'Git',                  aliases: ['git', 'Git/GitHub', 'version control', 'Version Control'] },
+  { canonical: 'Apache Kafka',          aliases: ['kafka', 'Kafka', 'Apache kafka', 'Kafka Streams', 'kafka streams'] },
   { canonical: 'Terraform',            aliases: ['terraform', 'Terraform IaC'] },
   { canonical: 'Infrastructure as Code', aliases: ['IaC', 'iac'] },
   { canonical: 'Stakeholder Management', aliases: ['Stakeholder Engagement', 'stakeholder management', 'Stakeholder Relations', 'stakeholder communication'] },
