@@ -1748,6 +1748,38 @@ function capitaliseFirst(text: string): { text: string; changed: boolean } {
 }
 
 /**
+ * Capitalises the first letter of every sentence WITHIN a bullet or summary,
+ * fixing patterns like "Managed the team. this reduced onboarding time." →
+ * "Managed the team. This reduced onboarding time."
+ *
+ * Only fires after `. ` (period + space) where the next character is a
+ * lowercase letter. Excludes known abbreviations used in professional writing
+ * (e.g., i.e., vs., No., approx.) by checking the word immediately before the
+ * dot — if it matches a known abbreviation, the lowercase is left alone.
+ *
+ * Also excluded: digits before the dot (decimal numbers like "1.5 times").
+ */
+function fixMidSentenceCapitalization(text: string): { text: string; changed: boolean } {
+    if (!text) return { text: text || '', changed: false };
+
+    // Words that, when followed by ". ", are abbreviations — NOT sentence ends.
+    const ABBREV_BEFORE_DOT = new Set([
+        'eg', 'ie', 'etc', 'vs', 'no', 'approx', 'fig', 'dept', 'mgr',
+        'sr', 'jr', 'dr', 'mr', 'mrs', 'ms', 'prof', 'inc', 'ltd', 'corp',
+        'est', 'ref', 'vol', 'pp', 'para', 'sect', 'ch', 'avg', 'max', 'min',
+    ]);
+
+    // Match: two-or-more letters (excluding single initials), then ". ", then lowercase.
+    // Does NOT match when a digit precedes the dot (decimal numbers stay untouched).
+    const out = text.replace(/([A-Za-z]{2,})\.\s+([a-z])/g, (match, beforeDot, afterChar) => {
+        if (ABBREV_BEFORE_DOT.has(beforeDot.toLowerCase())) return match;
+        return `${beforeDot}. ${afterChar.toUpperCase()}`;
+    });
+
+    return { text: out, changed: out !== text };
+}
+
+/**
  * Ensures a bullet ends with exactly one sentence-terminating period.
  *
  * Rules:
@@ -1980,6 +2012,11 @@ function polishBullet(bullet: string): { text: string; fixes: string[] } {
     apply('whitespace_dashes', normaliseWhitespaceAndDashes);
     apply('trailing_period',  ensureTrailingPeriod);
     apply('capitalise',       capitaliseFirst);
+    // mid_sentence_cap: capitalise the first letter of every sentence WITHIN
+    // the bullet (e.g. two-sentence narrative bullets). Runs after capitaliseFirst
+    // so the opening is already correct, and after trailing_period so the
+    // sentence-terminator is in place before we scan for ". [a-z]" patterns.
+    apply('mid_sentence_cap', fixMidSentenceCapitalization);
     return { text: cur, fixes };
 }
 
@@ -2028,6 +2065,7 @@ function polishSummary(text: string): { text: string; fixes: string[] } {
     apply('whitespace_dashes', normaliseWhitespaceAndDashes);
     // trailing_period SKIPPED — summaries DO end with a period.
     apply('capitalise',       capitaliseFirst);
+    apply('mid_sentence_cap', fixMidSentenceCapitalization);
     return { text: cur, fixes };
 }
 
@@ -3763,8 +3801,13 @@ export function enforceRhythmBalance(cv: CVData): CVData {
                 // Strategy 5: word 11 fallback
                 if (cutAt < 0) cutAt = Math.min(11, words.length - 1);
 
-                // Back up past UNSAFE_TRAIL words to leave a clean trailing content word
-                while (cutAt > 7 && UNSAFE_TRAIL.has((words[cutAt] ?? '').toLowerCase().replace(/[^a-z]/g, ''))) {
+                // Back up past UNSAFE_TRAIL words to leave a clean trailing content word.
+                // NOTE: the condition is >= 7 (not > 7) so we keep backing up even
+                // when cutAt reaches the minimum index — if words[7] is still an
+                // unsafe function word we decrement to 6 and the guard below skips
+                // the cut entirely rather than emitting a dangling sentence like
+                // "…across the." or "…by through.".
+                while (cutAt >= 7 && UNSAFE_TRAIL.has((words[cutAt] ?? '').toLowerCase().replace(/[^a-z]/g, ''))) {
                     cutAt--;
                 }
 

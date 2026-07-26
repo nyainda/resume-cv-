@@ -1,8 +1,9 @@
 /**
  * Unit tests for cvPurificationPipeline.ts
  *
- * Covers: removeDuplicateWords, cleanImportedText, detectPhraseRepetition.
- * The async functions (cleanImportedTextRemote, purifyCV) require network/AI
+ * Covers: removeDuplicateWords, cleanImportedText, detectPhraseRepetition,
+ *         purifyCV (sentence-level quality fixes), enforceRhythmBalance.
+ * The async functions (cleanImportedTextRemote) require network/AI
  * and are integration-tested separately.
  *
  * Pure functions — no mocking, no network, no side effects.
@@ -13,6 +14,8 @@ import {
     removeDuplicateWords,
     cleanImportedText,
     detectPhraseRepetition,
+    purifyCV,
+    enforceRhythmBalance,
 } from './cvPurificationPipeline';
 import type { CVData } from '../types';
 
@@ -232,5 +235,112 @@ describe('detectPhraseRepetition', () => {
     it('handles a CV with no experience gracefully', () => {
         const cv = makeCV({ experience: [] });
         expect(() => detectPhraseRepetition(cv)).not.toThrow();
+    });
+});
+
+// ─── purifyCV — mid-sentence capitalisation ───────────────────────────────────
+
+describe('purifyCV — mid-sentence capitalisation', () => {
+    function makeRoleCV(bullets: string[]): CVData {
+        return makeCV({
+            experience: [{
+                jobTitle: 'Engineer',
+                company: 'Corp',
+                dates: '2020 – 2023',
+                startDate: '2020-01-01',
+                endDate: '2023-01-01',
+                responsibilities: bullets,
+            }],
+        } as any);
+    }
+
+    it('capitalises the first letter after a mid-bullet full stop', () => {
+        const input = 'Managed the platform. this reduced latency by 30%.';
+        const { cv } = purifyCV(makeRoleCV([input]));
+        const result = cv.experience[0].responsibilities[0];
+        expect(result).toMatch(/\. This/);
+        expect(result).not.toMatch(/\. this/);
+    });
+
+    it('fixes multiple sentences within one narrative bullet', () => {
+        const input = 'Built the API layer. the system handled 50k requests per second. this improved reliability by 20%.';
+        const { cv } = purifyCV(makeRoleCV([input]));
+        const result = cv.experience[0].responsibilities[0];
+        // Every sentence-start after ". " must be capitalised
+        expect(result).not.toMatch(/\. [a-z]/);
+    });
+
+    it('does not capitalise after known abbreviations', () => {
+        // "approx. 30% improvement" — "approx." is an abbreviation, not a sentence end
+        const input = 'Achieved approx. 30% improvement in throughput across all regions.';
+        const { cv } = purifyCV(makeRoleCV([input]));
+        const result = cv.experience[0].responsibilities[0];
+        // Should NOT capitalise "30" (it's a digit, not a letter — no change expected here)
+        // and should NOT capitalise text after "approx."
+        expect(result).toContain('approx.');
+    });
+
+    it('leaves a single-sentence bullet unchanged', () => {
+        const input = 'Delivered a real-time analytics pipeline processing 2M events per day.';
+        const { cv } = purifyCV(makeRoleCV([input]));
+        const result = cv.experience[0].responsibilities[0];
+        // No mid-sentence period, nothing to change
+        expect(result).not.toMatch(/\. [a-z]/);
+    });
+});
+
+// ─── enforceRhythmBalance — safe truncation ───────────────────────────────────
+
+describe('enforceRhythmBalance — truncation safety', () => {
+    function makeAllStandardCV(bullets: string[]): CVData {
+        // All bullets in the 15–22 word (standard) band → rhythm balance will try
+        // to create a punchy one by truncating the shortest standard bullet.
+        return makeCV({
+            experience: [{
+                jobTitle: 'Engineer',
+                company: 'Corp',
+                dates: '2020 – 2023',
+                startDate: '2020-01-01',
+                endDate: '2023-01-01',
+                responsibilities: bullets,
+            }],
+        } as any);
+    }
+
+    it('does not produce a bullet ending with a dangling article', () => {
+        // All standard-band bullets; the shortest one ends with a clause that
+        // would leave "across the" dangling if the backup logic stopped too early.
+        const bullets = [
+            'Managed the engineering team driving product delivery across the entire organisation.',
+            'Reduced infrastructure costs by 35% through careful vendor negotiation and process reform.',
+            'Delivered the migration project on time by coordinating across the global engineering teams.',
+            'Improved developer experience significantly by introducing automated testing across the stack.',
+        ];
+        const cv = makeAllStandardCV(bullets);
+        const result = enforceRhythmBalance(cv);
+        for (const role of result.experience) {
+            for (const bullet of role.responsibilities) {
+                const lastWord = bullet.trim().replace(/[.!?]+$/, '').split(/\s+/).pop()?.toLowerCase() ?? '';
+                // Last content word must NOT be a dangling article or preposition
+                const DANGEROUS = new Set(['the','a','an','by','through','via','across','within','to','of','for','with','in','on','at','from','and','or','but','over','under','around']);
+                expect(DANGEROUS.has(lastWord)).toBe(false);
+            }
+        }
+    });
+
+    it('leaves bullets unchanged when no safe cut point exists', () => {
+        // All bullets are already punchy — no rhythm imbalance → no truncation attempted
+        const bullets = [
+            'Built the core API serving 2M users.',
+            'Reduced latency by 40% through caching.',
+            'Led the platform team across three regions.',
+            'Shipped 12 features in Q1 without incidents.',
+        ];
+        const cv = makeAllStandardCV(bullets);
+        const result = enforceRhythmBalance(cv);
+        // Bullets are already punchy, nothing should change
+        const original = cv.experience[0].responsibilities.join('|');
+        const after = result.experience[0].responsibilities.join('|');
+        expect(after).toBe(original);
     });
 });
