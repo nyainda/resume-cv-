@@ -49,6 +49,7 @@ interface BuildReportPageProps {
   jobDescription?: string;
   onGoToGenerator: () => void;
   onGoToScoreCV?: () => void;
+  onGoToProfile?: () => void;
   onApplySuggestion: (item: ReviewItem, updatedCV: CVData) => void;
   onSkipSuggestion: (itemId: string) => void;
   onFlagAction: (flag: ManualFlag) => void;
@@ -495,6 +496,7 @@ function CoachTab({
   optimizeResult,
   onUpdateCV,
   onGoToGenerator,
+  onGoToProfile,
 }: {
   cv: CVData;
   report: CVBuildReport | null;
@@ -503,6 +505,7 @@ function CoachTab({
   optimizeResult: { fixCount: number; done: boolean } | null;
   onUpdateCV?: (cv: CVData) => void;
   onGoToGenerator: () => void;
+  onGoToProfile?: () => void;
 }) {
   return (
     <div className="space-y-5">
@@ -575,6 +578,7 @@ function CoachTab({
         report={report}
         onUpdateCV={onUpdateCV}
         onGoToGenerator={onGoToGenerator}
+        onGoToProfile={onGoToProfile}
       />
     </div>
   );
@@ -588,6 +592,7 @@ export default function BuildReportPage({
   jobDescription: _jobDescription,
   onGoToGenerator,
   onGoToScoreCV,
+  onGoToProfile,
   onApplySuggestion,
   onSkipSuggestion,
   onFlagAction,
@@ -848,6 +853,7 @@ export default function BuildReportPage({
               optimizeResult={optimizeResult}
               onUpdateCV={onUpdateCV}
               onGoToGenerator={onGoToGenerator}
+              onGoToProfile={onGoToProfile}
             />
           )}
 

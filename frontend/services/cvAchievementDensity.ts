@@ -62,6 +62,14 @@ export interface RoleBreakdown {
 /** Concrete numeric metric — most reliable achievement signal */
 const METRIC_RX = /\b\d[\d,.]*\s*(%|K|M|B|x|×|\+\s*(?:years?|hrs?|hours?|days?|months?)?)\b|\d[\d,.]*\s*percent/i;
 
+/**
+ * AI-generated metric placeholders inserted by the "Convert duty bullets" coach fix.
+ * e.g. [X%], [£X], [25%], [Xk users], [X engineers], [£XM ARR], [X months].
+ * These count as achievements because the bullet has been restructured to show
+ * WHERE a real metric belongs — the user just needs to fill in the number.
+ */
+const PLACEHOLDER_METRIC_RX = /\[\s*[£$€]?\s*(?:\d+(?:[.,]\d+)?|[Xx])\s*[KkMmBb%]?\s*(?:[A-Za-z]+(?:\s+[A-Za-z]+)?)?\s*\]/;
+
 /** Before/after and causal patterns */
 const RESULT_PATTERN_RX = /\bfrom\s+\$?\d.*?\bto\s+\$?\d|\bby\s+\d[\d,.]*\s*%|\bresulting\s+in\b|\bsaving\s+\d|\bleading\s+to\b|\bdown\s+from\b|\bup\s+from\b/i;
 
@@ -94,6 +102,11 @@ function classifyBullet(text: string): { kind: BulletKind; reason: string } {
   // 1. Metric present — strongest achievement signal
   if (METRIC_RX.test(t)) {
     return { kind: 'achievement', reason: 'Contains a concrete metric' };
+  }
+
+  // 1b. AI-generated metric placeholder — bullet restructured for a number to fill in
+  if (PLACEHOLDER_METRIC_RX.test(t)) {
+    return { kind: 'achievement', reason: 'Metric placeholder present — replace [X] with the real figure' };
   }
 
   // 2. Before/after or causal result pattern

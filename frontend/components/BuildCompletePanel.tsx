@@ -186,6 +186,18 @@ export function ReviewTab({
         };
       });
       onApply(item, { ...cv, experience: newExp });
+    } else if (item.location.kind === 'summary' && item.suggested) {
+      // Replace the professional summary with the suggested text
+      onApply(item, { ...cv, summary: item.suggested });
+    } else if (item.location.kind === 'skills' && item.suggested) {
+      // Add the suggested skill if it isn't already present
+      const newSkill = item.suggested.trim();
+      const existing = cv.skills ?? [];
+      const deduped = existing.map(s => s.toLowerCase());
+      const updatedSkills = deduped.includes(newSkill.toLowerCase())
+        ? existing
+        : [...existing, newSkill];
+      onApply(item, { ...cv, skills: updatedSkills });
     } else {
       onApply(item, cv);
     }

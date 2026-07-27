@@ -34,10 +34,11 @@ import {
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 type FixAction =
-  | { kind: 'auto';         fixerId: 'aiisms' | 'verbs' }
-  | { kind: 'llm_bullets';  signalId: string }
-  | { kind: 'llm_summary';  signalId: string }
-  | { kind: 'navigate';     label: string };
+  | { kind: 'auto';             fixerId: 'aiisms' | 'verbs' }
+  | { kind: 'llm_bullets';      signalId: string }
+  | { kind: 'llm_summary';      signalId: string }
+  | { kind: 'navigate';         label: string }
+  | { kind: 'navigate_profile'; label: string };
 
 export interface CoachTip {
   priority:  'high' | 'medium' | 'low';
@@ -162,8 +163,24 @@ export function buildCoachingTips(cv: CVData, report: CVBuildReport | null): Coa
       priority: 'high',
       icon: <BarChart3 className="w-4 h-4" />,
       title: 'Convert duty bullets into achievements',
-      detail: 'More than half your bullets describe what you did (duties) not what you achieved. AI rewrites them in Result → Action → Context format.',
+      detail: 'More than half your bullets describe what you did (duties) not what you achieved. AI rewrites them in Result → Action → Context format, adding [metric] placeholders where a real number belongs.',
       fix: { kind: 'llm_bullets', signalId: 'achievement_density' },
+    });
+  }
+
+  // Skills coverage tip — fires when no JD is available and skill count is low.
+  // Without a JD the ATS tab won't surface missing keywords, so this is the
+  // only coaching signal for skills richness.
+  const skillCount = cv.skills?.length ?? 0;
+  const hasJdKeywords = (report?.atsReport?.missing?.length ?? 0) >= 4;
+  if (!hasJdKeywords && skillCount < 12) {
+    const need = 12 - skillCount;
+    tips.push({
+      priority: skillCount < 6 ? 'high' : 'medium',
+      icon: <Target className="w-4 h-4" />,
+      title: `Add ${need} more skill${need !== 1 ? 's' : ''} to reach a strong coverage score`,
+      detail: `You have ${skillCount} skill${skillCount !== 1 ? 's' : ''} listed. ATS systems and recruiters expect 12+ to signal breadth. Go to your Profile → Skills and add the tools, frameworks, and domain keywords you use regularly. Each one lifts your Skills Coverage score.`,
+      fix: { kind: 'navigate_profile', label: 'Edit Profile Skills' },
     });
   }
 
@@ -449,9 +466,10 @@ interface TipCardProps {
   cv:               CVData;
   onUpdateCV?:      (cv: CVData) => void;
   onGoToGenerator?: () => void;
+  onGoToProfile?:   () => void;
 }
 
-function TipCard({ tip, cv, onUpdateCV, onGoToGenerator }: TipCardProps) {
+function TipCard({ tip, cv, onUpdateCV, onGoToGenerator, onGoToProfile }: TipCardProps) {
   const [state, setState] = useState<ReviewState>({ phase: 'idle' });
 
   const styles = PRIORITY_STYLES[tip.priority];
@@ -639,6 +657,16 @@ function TipCard({ tip, cv, onUpdateCV, onGoToGenerator }: TipCardProps) {
                   <ArrowRight className="w-3 h-3" />
                 </button>
               )}
+              {tip.fix.kind === 'navigate_profile' && (
+                <button
+                  onClick={() => onGoToProfile?.() ?? onGoToGenerator?.()}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-white transition-opacity hover:opacity-90"
+                  style={{ background: '#1B2B4B' }}
+                >
+                  {tip.fix.label}
+                  <ArrowRight className="w-3 h-3" />
+                </button>
+              )}
             </div>
           )}
 
@@ -681,6 +709,7 @@ interface CoachingRecommendationsProps {
   report:           CVBuildReport | null;
   onUpdateCV?:      (cv: CVData) => void;
   onGoToGenerator?: () => void;
+  onGoToProfile?:   () => void;
   showHeading?:     boolean;
 }
 
@@ -689,6 +718,7 @@ export default function CoachingRecommendations({
   report,
   onUpdateCV,
   onGoToGenerator,
+  onGoToProfile,
   showHeading = true,
 }: CoachingRecommendationsProps) {
   const tips      = useMemo(() => buildCoachingTips(cv, report), [cv, report]);
@@ -715,6 +745,7 @@ export default function CoachingRecommendations({
           cv={cv}
           onUpdateCV={onUpdateCV}
           onGoToGenerator={onGoToGenerator}
+          onGoToProfile={onGoToProfile}
         />
       ))}
     </div>
