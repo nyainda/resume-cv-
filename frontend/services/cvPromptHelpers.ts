@@ -706,24 +706,28 @@ const FIELD_EXAMPLES: Record<CVField, string[]> = {
     ],
 };
 
+// ⚠ EVERY token in these examples — both {CURLY_BRACE} placeholders AND the
+// plain-English words — is illustrative scaffolding ONLY.  The LLM must NEVER
+// copy, echo, or paraphrase ANY word from these examples.  All content in the
+// generated summary must come exclusively from the candidate's own profile data.
 const SUMMARY_GOOD_EXAMPLES: string[] = [
-    'Biosystems engineer with {N} years in irrigation design and drought risk management across {REGION}. Managed {N} enterprise accounts generating {REVENUE} annually through strategic sales and technical support. Looking for a role where field experience and data-driven thinking actually matter.',
-    'Software engineer with {N} years building full-stack web applications using {STACK}. Shipped production features used by {N}+ users, cutting system response time by roughly {N}%. Looking for a role where technical depth and product thinking are both valued.',
-    'Sales engineer with {N} years generating {REVENUE} in equipment revenue across {REGION}. Managed {N} enterprise accounts while providing technical support and field surveys to close deals. Looking for a role where technical knowledge and commercial instinct work together.',
+    '{JOB_TITLE} with {N} years in {SPECIALTY_A} and {SPECIALTY_B} across {REGION}. Managed {N} {CLIENT_TYPE} accounts generating {REVENUE} annually through {METHOD_A} and {METHOD_B}. Looking for a role where {STRENGTH_A} and {STRENGTH_B} actually matter.',
+    '{JOB_TITLE} with {N} years building {PRODUCT_TYPE} using {STACK}. Shipped production features used by {N}+ users, cutting {METRIC} by roughly {N}%. Looking for a role where technical depth and product thinking are both valued.',
+    '{JOB_TITLE} with {N} years generating {REVENUE} in {PRODUCT_AREA} across {REGION}. Managed {N} {CLIENT_TYPE} accounts while providing {SERVICE_A} and {SERVICE_B} to close deals. Looking for a role where {STRENGTH_A} and {STRENGTH_B} work together.',
 ];
 
 const SUMMARY_BAD_EXAMPLES: Array<{ text: string; issue: string }> = [
-    { text: '"As a Field & Sales Engineer delivering water and energy solutions..."', issue: 'LLM opener — the summary MUST start with the job title or years of experience, NEVER with "As a", "As an", "A", "An", or "I". Drop "As a" and start directly: "Field & Sales Engineer with 2+ years…"' },
-    { text: '"Bringing expertise to a management consulting team driving agricultural transformations."', issue: 'cover-letter tailoring artifact — the summary is role-agnostic; never address the target employer or team in it. Move this sentence to the cover letter.' },
-    { text: '"2 years as Field & Sales Engineer accomplished KES 8,000,000 in revenue..."', issue: 'wrong number — added an extra zero (was 800,000)' },
-    { text: '"Looking to join a team like McKinsey to drive solutions..."', issue: 'invented company name — never name companies that are not in the profile' },
-    { text: '"Currently pursuing a Bachelor\'s degree in Agricultural Engineering..."', issue: 'wrong: candidate already graduated, and the degree name is also wrong' },
+    { text: '"As a {JOB_TITLE} delivering {DOMAIN} solutions..."', issue: 'LLM opener — the summary MUST start with the job title or years of experience, NEVER with "As a", "As an", "A", "An", or "I". Drop "As a" and start directly: "{JOB_TITLE} with {N} years…"' },
+    { text: '"Bringing expertise to a {TARGET_TEAM} driving {DOMAIN} transformations."', issue: 'cover-letter tailoring artifact — the summary is role-agnostic; never address the target employer or team in it. Move this sentence to the cover letter.' },
+    { text: '"2 years as {JOB_TITLE} accomplished {INFLATED_NUMBER} in revenue..."', issue: 'wrong number — added an extra zero to the real figure from the profile' },
+    { text: '"Looking to join a team like {INVENTED_COMPANY} to drive solutions..."', issue: 'invented company name — never name companies that are not in the profile' },
+    { text: '"Currently pursuing a Bachelor\'s degree in {WRONG_DEGREE_NAME}..."', issue: 'wrong: candidate already graduated, and the degree name does not match what is in the profile — always use the exact degree string from the DEGREES lock list' },
     { text: '"\'ve developed a strong foundation in data analysis..."', issue: 'broken pronoun — missing "I" before "\'ve"' },
     { text: '"goal is to work with stakeholders to develop early warning systems..."', issue: 'broken pronoun — missing "My" before "goal"' },
-    { text: '"Generate KES ,000 in revenue"', issue: 'broken metric — placeholder digit was not filled in' },
+    { text: '"Generate {CURRENCY} ,000 in revenue"', issue: 'broken metric — placeholder digit was not filled in' },
     { text: '"exceeding monthly targets by %"', issue: 'broken metric — bare percent with no number' },
     { text: '"coordinating with a -person field operations team"', issue: 'broken metric — missing number before unit' },
-    { text: '"Cascaded sales of Water Solutions across key projects"', issue: 'corporate-speak — does not describe what was actually done' },
+    { text: '"Cascaded sales of {PRODUCT} across key projects"', issue: 'corporate-speak — does not describe what was actually done' },
     { text: '"Critiqued rigorous testing protocols"', issue: 'wrong verb — picks an obscure synonym instead of "Conducted" or "Performed"' },
 ];
 
@@ -775,21 +779,28 @@ YEARS EXPERIENCE — computed from the actual employment dates: ${locked.yearsEx
 ${locked.currentRole ? `CURRENT ROLE — ${locked.currentRole}` : ''}
 
 === STYLE ANCHOR — GOOD BULLET EXAMPLES (${field.replace('_', ' ')}) ===
-These show TONE only. Tokens in {CURLY_BRACES} are placeholders — they
-illustrate where a number / region / stack would go. NEVER copy a
-placeholder or a number from these examples into the user's CV.
+⚠ STRUCTURAL TEMPLATE ONLY — ALL content below is fictional scaffolding.
+  • Every token in {CURLY_BRACES} is a placeholder — never copy it.
+  • Every plain-English word (job titles, domain nouns, tech terms) is also
+    illustrative — never copy or echo it into the candidate's CV.
+  • Your bullets must use ONLY the candidate's real data from the profile below.
 ${examples.map(e => `   ✅ ${e}`).join('\n')}
 
-=== SUMMARY STYLE ANCHOR — GOOD ===
+=== SUMMARY STYLE ANCHOR — STRUCTURAL TEMPLATE ONLY ===
+⚠ EVERY word below — including {CURLY_BRACE} tokens AND all plain-English
+  words — is a fictional placeholder showing STRUCTURE, not content.
+  NEVER copy, echo, or paraphrase any word from these examples.
+  Your summary must be built EXCLUSIVELY from the candidate's own profile data.
 ${SUMMARY_GOOD_EXAMPLES.map(e => `   ✅ "${e}"`).join('\n')}
 
-=== BAD EXAMPLES — never produce output that looks like these ===
+=== BAD EXAMPLES — anti-patterns; never produce output resembling these ===
+⚠ The text in each ❌ line is also example-only scaffolding — never copy it.
 ${SUMMARY_BAD_EXAMPLES.map(b => `   ❌ ${b.text}\n      └─ ${b.issue}`).join('\n')}
 
 === SUMMARY OPENER RULE (CRITICAL) ===
 The professional summary's first word MUST be either:
-  a) The candidate's job title: "Field & Sales Engineer with 2+ years…"
-  b) Their years of experience: "2+ years delivering water and energy solutions…"
+  a) The candidate's actual job title from their profile: e.g. "{CANDIDATE_JOB_TITLE} with {N} years…"
+  b) Their years of experience: e.g. "{N}+ years in {CANDIDATE_DOMAIN}…"
 NEVER start with "As a", "As an", "A", "An", "I", or "I'm".
 NEVER end the summary with a sentence that addresses the employer or names the target role/company.
 That belongs in a cover letter — the summary is role-agnostic.
@@ -798,7 +809,7 @@ That belongs in a cover letter — the summary is role-agnostic.
 Within a single role's bullets, no non-generic word may appear more than twice.
 Replace the 3rd+ occurrence with a synonym or a more specific noun.
 Example: "stakeholder" used 3 times in the same role → replace 2 of the 3 with
-"clients", "farm owners", "project sponsors", or another concrete noun.
+"clients", "decision-makers", "project sponsors", or another concrete noun from the candidate's field.
 
 === PRONOUN INTEGRITY (CRITICAL) ===
 - Every contraction must keep its pronoun: write "I've", "I'm", "I'll" — never bare "'ve", "'m", "'ll".
