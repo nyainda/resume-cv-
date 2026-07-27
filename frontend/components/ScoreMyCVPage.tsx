@@ -1076,6 +1076,7 @@ function atsEffectiveScore(report: AtsKeywordReport): { displayScore: number; wa
 interface ScoreMyCVPageProps {
   currentCV: CVData | null;
   onGoToGenerator: () => void;
+  onGoToProfile?: () => void;
   onCVUpdate?: (cv: CVData) => void;
   /** Pre-computed ARE build report — atsReport reused when no JD has been entered */
   buildReport?: import('../types/buildReport').CVBuildReport | null;
@@ -1098,7 +1099,7 @@ interface ScoreResults {
 const BULLET_FIX_SIGNALS = new Set(['verb_saturation','banned_opener','repeated_opener','pronoun_leak','passive_voice','length_uniformity']);
 const SUMMARY_FIX_SIGNALS = new Set(['summary_cliches','generic_opener']);
 
-const ScoreMyCVPage: React.FC<ScoreMyCVPageProps> = ({ currentCV, onGoToGenerator, onCVUpdate, buildReport }) => {
+const ScoreMyCVPage: React.FC<ScoreMyCVPageProps> = ({ currentCV, onGoToGenerator, onGoToProfile, onCVUpdate, buildReport }) => {
   const [jd, setJd]                     = useState('');
   const [jdExpanded, setJdExpanded]     = useState(false);
   const [scoring, setScoring]           = useState(false);
@@ -1595,6 +1596,7 @@ const ScoreMyCVPage: React.FC<ScoreMyCVPageProps> = ({ currentCV, onGoToGenerato
               report={buildReport ?? null}
               onUpdateCV={onCVUpdate}
               onGoToGenerator={onGoToGenerator}
+              onGoToProfile={onGoToProfile}
               showHeading={false}
             />
           </div>

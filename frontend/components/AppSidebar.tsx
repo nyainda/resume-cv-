@@ -229,6 +229,7 @@ const SidebarInner: React.FC<SidebarInnerProps> = ({
   _profileManagerRef,
   _showProfileManager,
   _setShowProfileManager,
+  onOpenNotifications,
 }) => {
   const dark = darkMode;
   const effectiveTier = getEffectiveTier();

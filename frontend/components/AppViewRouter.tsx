@@ -237,6 +237,7 @@ const AppViewRouter: React.FC<AppViewRouterProps> = (props) => {
                   onAutoTrack={onAutoTrack}
                   apiKeySet={apiKeySet}
                   openSettings={() => setIsSettingsOpen(true)}
+                  onGoToProfile={() => setIsEditingProfile(true)}
                   onApplyViaEmail={onApplyViaEmail}
                   onGoToInterviewPrep={onGoToInterviewPrep}
                   onRestoreProfileBullets={onRestoreProfileBullets}
@@ -288,7 +289,7 @@ const AppViewRouter: React.FC<AppViewRouterProps> = (props) => {
                   }}
                   onSkipSuggestion={() => {}}
                   onFlagAction={(flag: ManualFlag) => {
-                    if (flag.ctaAction === 'edit_profile') setIsSettingsOpen(true);
+                    if (flag.ctaAction === 'edit_profile') setIsEditingProfile(true);
                   }}
                   onUpdateCV={(updatedCV) => {
                     setCurrentCV(updatedCV);
@@ -445,6 +446,7 @@ const AppViewRouter: React.FC<AppViewRouterProps> = (props) => {
                 <ScoreMyCVPage
                   currentCV={currentCV}
                   onGoToGenerator={() => setCurrentView('generator')}
+                  onGoToProfile={() => setIsEditingProfile(true)}
                   buildReport={buildReport}
                   onCVUpdate={(cv) => {
                     setCurrentCV(cv);

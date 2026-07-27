@@ -166,6 +166,8 @@ interface CVGeneratorProps {
   onShareLinkAdded?: (link: { id: string; created_at: number; expires_at: number }) => void;
   /** Opens the pricing / upgrade modal — called when the free cap is hit */
   onUpgrade?: () => void;
+  /** Opens the profile editor for build-quality flags that need profile data */
+  onGoToProfile?: () => void;
   /** Navigates to Toolkit → Quality Audit (HR Detector) tab */
   openToolkitAtQualityAudit?: () => void;
   /** Active profile slot — used to sync quality fixes to D1 for cross-device persistence */
@@ -269,7 +271,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
   onSaveStories, onGoToInterviewPrep, onRestoreProfileBullets, importedFromJson,
   profileId, initialJobDescription, initialTargetCompany, initialTargetJobTitle,
   initialCvPurpose, initialGenerationMode, initialJdKeywords, onSlotUpdate, onPinField, onUnpinField, onShareLinkAdded,
-  onUpgrade, openToolkitAtQualityAudit, activeSlot, darkMode = false, onSaveCoverLetter, onGoToCoverLetters,
+  onUpgrade, onGoToProfile, openToolkitAtQualityAudit, activeSlot, darkMode = false, onSaveCoverLetter, onGoToCoverLetters,
   buildReport: buildReportProp,
 }) => {
   const GOLD = '#C9A84C';
@@ -3743,7 +3745,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
             // Navigate to the appropriate edit surface
             if (flag.ctaAction === 'edit_profile') {
               setShowBuildPanel(false);
-              openSettings?.();
+              onGoToProfile?.();
             }
           }}
         />
