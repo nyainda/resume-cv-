@@ -462,6 +462,7 @@ function SummaryDiffPanel({ change, onUpdate, onApply, onDiscard }: SummaryDiffP
 // ── TipCard ───────────────────────────────────────────────────────────────────
 
 interface TipCardProps {
+  key?: React.Key;
   tip:              CoachTip;
   cv:               CVData;
   onUpdateCV?:      (cv: CVData) => void;

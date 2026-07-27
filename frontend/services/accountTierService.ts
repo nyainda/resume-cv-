@@ -145,14 +145,6 @@ export const TIER_FEATURES: Record<TierFeature, { tiers: EffectiveTier[]; meta: 
       description: 'Download clean, professional PDFs with no ProCV branding. Available exclusively on the Premium plan.',
     },
   },
-  'linkedin-optimizer': {
-    tiers: ['premium'],
-    meta: {
-      label: 'LinkedIn Optimizer',
-      icon: '💼',
-      description: 'Rewrite your LinkedIn headline, summary, and experience sections to match top-performing profiles.',
-    },
-  },
   'salary-negotiation': {
     tiers: ['premium'],
     meta: {
@@ -174,7 +166,7 @@ export const TIER_FEATURES: Record<TierFeature, { tiers: EffectiveTier[]; meta: 
     meta: {
       label: 'Full Career Suite',
       icon: '🧰',
-      description: 'Unlimited access to every ProCV tool — Interview Prep, LinkedIn, Negotiation, Email Apply, Career Pivot, and more.',
+      description: 'Unlimited access to every ProCV tool — Interview Prep, Negotiation, Email Apply, Career Pivot, and more.',
     },
   },
   'bulk-export': {

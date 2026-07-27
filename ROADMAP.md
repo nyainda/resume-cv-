@@ -87,12 +87,6 @@ These are confirmed working from code audit (June 2026):
   - All deterministic — zero LLM calls, instant results
   - Nav item: "Career Pivot" in Tools group with swap-arrows icon
 
-- [ ] **2.3 — LinkedIn Score page**
-  - Basic LinkedIn headline + summary scorer (re-use `cvQualityGate` logic adapted for LinkedIn text format)
-  - Free — funnel users into the CV generation flow
-  - Competes for Resume Worded's #1 keyword ("LinkedIn resume checker") on Google
-  - **Effort:** 2 days
-
 ---
 
 ## PHASE 3 — Expand the Engine (Seed Data + Field Coverage)
@@ -163,12 +157,11 @@ These are confirmed working from code audit (June 2026):
 | 🟡 7 | 3.5 Cover letter brief injection | 3 hrs | Voice consistency across documents |
 | 🟠 8 | 2.1 Score My CV feature | 3–4 days | Direct Resume Worded killer |
 | 🟠 9 | 2.2 Career Pivot Score | 1 day | Owns career-changer market |
-| 🟠 10 | 2.3 LinkedIn Score page | 2 days | SEO + acquisition funnel |
-| ⚪ 11 | 3.1 Add 9 missing field profiles | 1 day | Global demographic coverage |
-| ⚪ 12 | 3.2 Missing seniority+field combos | 3 hrs | Better forbidden phrases per level |
-| ⚪ 13 | 3.3 Voice summary formulas | 1 day | Voice extends to summary section |
-| ⚪ 14 | 4.3 Remove download gate reset button | 30 min | Gate actually works |
-| ⚪ 15 | 4.2 Wire cv_events into generation handlers | 4 hrs | Required before any paid gating |
+| ⚪ 10 | 3.1 Add 9 missing field profiles | 1 day | Global demographic coverage |
+| ⚪ 11 | 3.2 Missing seniority+field combos | 3 hrs | Better forbidden phrases per level |
+| ⚪ 12 | 3.3 Voice summary formulas | 1 day | Voice extends to summary section |
+| ⚪ 13 | 4.3 Remove download gate reset button | 30 min | Gate actually works |
+| ⚪ 14 | 4.2 Wire cv_events into generation handlers | 4 hrs | Required before any paid gating |
 | ⚪ 16 | 4.4 Stripe integration | 2–3 days | Revenue |
 | ⚪ 17 | 4.1 SEO proxy pages | 1 week | Distribution |
 

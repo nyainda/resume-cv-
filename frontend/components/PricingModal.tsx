@@ -81,7 +81,6 @@ const FEATURE_SECTIONS: FeatureSection[] = [
             { label: 'Email Apply',                free: 'no',           byok: 'yes',     premium: 'yes'     },
             { label: 'Scholarship Essay Writer',   free: 'no',           byok: 'yes',     premium: 'yes'     },
             { label: 'Application Tracker',        free: '15 apps',      byok: 'Unlimited', premium: 'Unlimited' },
-            { label: 'LinkedIn Optimizer',         free: 'no',           byok: 'no',      premium: 'yes'     },
             { label: 'Salary Negotiation Coach',   free: 'no',           byok: 'no',      premium: 'yes'     },
             { label: 'Career Pivot Advisor',       free: 'no',           byok: 'no',      premium: 'yes'     },
         ],
@@ -240,7 +239,7 @@ export default function PricingModal({
                                         {[
                                             'Boosted / Aggressive modes',
                                             'Interview Prep, Email Apply',
-                                            'LinkedIn, Salary, Career Pivot',
+                                            'Salary, Career Pivot',
                                             'Clean PDF (no watermark)',
                                         ].map(f => (
                                             <li key={f} className="flex items-start gap-2 opacity-30">
@@ -292,7 +291,7 @@ export default function PricingModal({
                                             </li>
                                         ))}
                                         {[
-                                            'LinkedIn, Salary, Career Pivot',
+                                            'Salary, Career Pivot',
                                             'Clean PDF (no watermark)',
                                             'Bulk export · Custom domain',
                                         ].map(f => (
@@ -355,7 +354,6 @@ export default function PricingModal({
                                             'ATS gap pinning',
                                             'Interview Prep · Email Apply',
                                             'Scholarship Essay Writer',
-                                            'LinkedIn Optimizer',
                                             'Salary Negotiation Coach',
                                             'Career Pivot Advisor',
                                             'Clean PDF — no watermark',

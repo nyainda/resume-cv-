@@ -38,7 +38,6 @@ const NavIcon: Record<string, React.ReactNode> = {
   toolkit:    <Icon d={["M14.7 6.3a1 1 0 00-1.4 1.4l1.4 1.4","M12 20h9","M16.5 3.5l4 4","M3 3l18 18"]} />,
   tracker:    <Icon d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />,
   analytics:  <Icon d={["M3 3v18h18","M18 17V9","M13 17V5","M8 17v-3"]} />,
-  linkedin:   <Icon d="M16 8a6 6 0 016 6v7h-4v-7a2 2 0 00-2-2 2 2 0 00-2 2v7h-4v-7a6 6 0 016-6zM2 9h4v12H2z" />,
   interview:  <Icon d={["M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"]} />,
   salary:     <Icon d={["M12 1v22","M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"]} />,
   settings:   <Icon d={["M12 15a3 3 0 100-6 3 3 0 000 6z", "M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"]} />,
@@ -101,7 +100,6 @@ const CommandPalette: React.FC<Props> = ({
     { id: 'toolkit',    kind: 'nav', label: 'CV Toolkit',       sublabel: 'HR detector & deep audit', icon: NavIcon.toolkit,    onSelect: () => nav('toolkit') },
     { id: 'tracker',    kind: 'nav', label: 'Job Tracker',      sublabel: 'Track applications',       icon: NavIcon.tracker,    onSelect: () => nav('tracker') },
     { id: 'analytics',  kind: 'nav', label: 'Analytics',        sublabel: 'Profile views & sharing',  icon: NavIcon.analytics,  onSelect: () => nav('analytics') },
-    { id: 'linkedin',   kind: 'nav', label: 'LinkedIn Optimizer',sublabel: 'Rewrite your headline',  icon: NavIcon.linkedin,   onSelect: () => nav('linkedin') },
     { id: 'interview',  kind: 'nav', label: 'Interview Prep',   sublabel: 'Q&A practice',             icon: NavIcon.interview,  onSelect: () => nav('interview') },
     { id: 'salary',     kind: 'nav', label: 'Salary Insights',  sublabel: 'Market pay data',          icon: NavIcon.salary,     onSelect: () => nav('negotiation') },
     // ── Quick actions ───────────────────────────────────────────────────────

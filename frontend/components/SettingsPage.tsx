@@ -1081,7 +1081,6 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
                 { feature: 'Job Tracker', free: '15 applications', byok: 'Unlimited', premium: 'Unlimited' },
                 { feature: 'Boosted Writing', free: '✗', byok: '✓', premium: '✓' },
                 { feature: 'Interview Prep', free: '✗', byok: '✓', premium: '✓' },
-                { feature: 'LinkedIn Optimizer', free: '✗', byok: '✗', premium: '✓' },
                 { feature: 'Salary Negotiation', free: '✗', byok: '✗', premium: '✓' },
                 { feature: 'Career Pivot', free: '✗', byok: '✗', premium: '✓' },
                 { feature: 'Clean PDF Export', free: '✗', byok: '✗', premium: '✓' },

@@ -31,7 +31,6 @@ export type TierFeature =
   | 'clean-pdf'          // PDF without ProCV watermark (Premium only)
   | 'unlimited-pdf'      // No per-lifetime PDF download cap
   | 'interview-prep'     // Interview Prep tool
-  | 'linkedin-optimizer' // LinkedIn Profile Optimizer (Premium only)
   | 'salary-negotiation' // Salary Negotiation Coach (Premium only)
   | 'email-apply'        // Email Apply tool
   | 'career-pivot'       // Career Pivot Advisor (Premium only)

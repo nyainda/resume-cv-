@@ -213,7 +213,7 @@ const QUICK_ACTIONS = [
   { key: 'hr',        label: 'HR Detector',   view: 'toolkit' },
   { key: 'interview', label: 'Interview Prep',view: 'interview' },
   { key: 'tracker',   label: 'Job Tracker',   view: 'tracker' },
-  { key: 'more',      label: 'More Tools',    view: 'linkedin' },
+  { key: 'more',      label: 'More Tools',    view: 'toolkit' },
 ];
 
 const CURATED_TEMPLATES: { id: TemplateName; label: string }[] = [

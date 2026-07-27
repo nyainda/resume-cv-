@@ -48,7 +48,7 @@ export const PremiumGateWrapper: React.FC<PremiumGateWrapperProps> = ({
           <div>
             <h3 className="text-xl font-bold text-zinc-900 dark:text-zinc-50 mb-2">Premium Feature</h3>
             <p className="text-sm text-zinc-500 dark:text-zinc-400 max-w-sm">
-              This tool is exclusive to ProCV Premium. Upgrade to unlock it alongside clean PDFs, LinkedIn optimizer, and the full career suite.
+              This tool is exclusive to ProCV Premium. Upgrade to unlock it alongside clean PDFs and the full career suite.
             </p>
           </div>
           <button

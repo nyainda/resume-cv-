@@ -17,8 +17,7 @@ ProCV is a complete career suite built entirely in your browser. It generates ta
 | # | Tool | What it does |
 |---|------|-------------|
 | 01 | **CV Generator** | Tailors every CV to the exact job — keywords, tone, ATS score — in under 5 minutes |
-| 02 | **LinkedIn Optimizer** | Rewrites your headline, About section, and top 20 skills to match your target role |
-| 03 | **Interview Prep** | 10 tailored questions with model answers (Behavioural, Technical, Situational) + thank-you letter |
+| 02 | **Interview Prep** | 10 tailored questions with model answers (Behavioural, Technical, Situational) + thank-you letter |
 | 04 | **Portal Scanner** | 150+ company career portals scanned in one click — Greenhouse, Ashby, Lever, and direct pages |
 | 05 | **CV Toolkit** | Deep ATS analysis — weak bullets flagged, missing keywords identified, rewrites suggested |
 | 06 | **Scholarship Essays** | Personal statements and funding essays tailored to each institution's prompts |
@@ -27,7 +26,7 @@ ProCV is a complete career suite built entirely in your browser. It generates ta
 | 09 | **Application Tracker** | Kanban pipeline — interviews, follow-ups, deadlines, all in one place |
 | 10 | **Analytics** | Application velocity, response rates, and story coverage — your search quantified |
 | 11 | **Profile Manager** | Multiple career identities (software, finance, design) with full data separation |
-| 12 | **Cloud Backup** | Optional Google Drive encrypted backup — data stays local by default |
+| 11 | **Cloud Backup** | Optional Google Drive encrypted backup — data stays local by default |
 
 ---
 

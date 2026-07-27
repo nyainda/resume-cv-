@@ -10,7 +10,6 @@ import {
   InterviewNavIcon,
   NegotiationNavIcon,
   AnalyticsNavIcon,
-  LinkedInNavIcon,
   ShareNavIcon,
   RoomsNavIcon,
   HomeNavIcon,
@@ -28,7 +27,6 @@ export type AppView =
   | 'vault'
   | 'generator'
   | 'build'
-  | 'linkedin'
   | 'interview'
   | 'essays'
   | 'history'
@@ -49,7 +47,7 @@ export type AppView =
 
 const VIEW_KEY = 'procv:lastView';
 const RESTORABLE_VIEWS = [
-  'dashboard', 'rooms', 'vault', 'generator', 'build', 'linkedin', 'interview', 'essays',
+  'dashboard', 'rooms', 'vault', 'generator', 'build', 'interview', 'essays',
   'history', 'cover-letters', 'tracker', 'toolkit', 'email', 'negotiation',
   'analytics', 'score', 'pivot',
 ] as const;
@@ -68,7 +66,7 @@ const FREE_GATED_VIEWS = new Set([
  * BYOK users clicking these also see the pricing/upgrade modal.
  */
 const PREMIUM_ONLY_VIEWS = new Set([
-  'negotiation', 'pivot', 'linkedin',
+  'negotiation', 'pivot',
 ]);
 
 /** Union used by AppNavbar to mark nav items as gated (for UI badge rendering). */
@@ -207,7 +205,6 @@ export function useAppNavigation({
     {
       label: 'Tools',
       items: [
-        { id: 'linkedin', label: 'LinkedIn Profile', icon: LinkedInNavIcon },
         { id: 'pivot',    label: 'Career Pivot',     icon: PivotNavIcon },
       ],
     },

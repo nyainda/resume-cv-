@@ -8,7 +8,6 @@ import { PremiumGateWrapper } from './premium/PremiumGateWrapper';
 // ── Lazy views — each gets its own JS chunk, loaded on first navigation ────────
 const ProfileForm          = lazy(() => import('./ProfileForm'));
 const CVGenerator          = lazy(() => import('./CVGenerator'));
-const LinkedInGenerator    = lazy(() => import('./LinkedInGenerator'));
 const InterviewPrep        = lazy(() => import('./InterviewPrep'));
 const ScholarshipEssayWriter = lazy(() => import('./ScholarshipEssayWriter'));
 const DashboardHome        = lazy(() => import('./DashboardHome'));
@@ -280,7 +279,7 @@ const AppViewRouter: React.FC<AppViewRouterProps> = (props) => {
                   jobDescription={activeSlot?.jobDescription ?? (activeSlot as any)?.currentJobDescription ?? ''}
                   onGoToGenerator={() => setCurrentView('generator')}
                   onGoToScoreCV={() => setCurrentView('score')}
-                  onGoToProfile={() => setIsSettingsOpen(true)}
+                  onGoToProfile={() => setIsEditingProfile(true)}
                   onApplySuggestion={(_item, updatedCV) => {
                     setCurrentCV(updatedCV);
                     if (isAuthenticated && activeSlot) {
@@ -298,18 +297,6 @@ const AppViewRouter: React.FC<AppViewRouterProps> = (props) => {
                     }
                   }}
                 />
-              )}
-
-              {currentView === 'linkedin' && (
-                <PremiumGateWrapper feature="linkedin-optimizer" blockContent>
-                  <div className="bg-white dark:bg-neutral-800 rounded-2xl border border-zinc-200 dark:border-neutral-800 p-6 sm:p-8">
-                    <LinkedInGenerator
-                      userProfile={userProfile!}
-                      apiKeySet={apiKeySet}
-                      openSettings={() => setIsSettingsOpen(true)}
-                    />
-                  </div>
-                </PremiumGateWrapper>
               )}
 
               {currentView === 'interview' && (
