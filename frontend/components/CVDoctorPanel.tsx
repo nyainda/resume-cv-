@@ -276,7 +276,7 @@ const CVDoctorPanel: React.FC<Props> = ({ cv, jobDescription, diff, onApplyBulle
         setSummaryApplied(true);
     }, [cv, onUpdateCV, summaryApplied]);
     // Track which bullets have been batch-rewritten so they show green
-    const [batchApplied,     setBatchApplied]     = useState<Set<string>>(new Set());
+    const [_batchApplied,    setBatchApplied]     = useState<Set<string>>(new Set());
 
     // Paraphraser state
     const [paraInput,    setParaInput]    = useState('');

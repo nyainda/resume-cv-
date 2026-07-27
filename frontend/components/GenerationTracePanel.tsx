@@ -18,7 +18,7 @@
 
 import React, { useState } from 'react';
 import type { GenerationTrace, ValidationViolation } from '../services/generationTrace';
-import type { FieldDetectionSource, FieldHistoryEntry } from '../services/cvPromptHelpers';
+import type { FieldDetectionSource } from '../services/cvPromptHelpers';
 import { getFieldHistory } from '../services/cvPromptHelpers';
 
 interface GenerationTracePanelProps {

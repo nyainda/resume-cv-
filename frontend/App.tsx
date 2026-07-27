@@ -46,7 +46,6 @@ const OnboardingWizard = lazy(() => import("./components/OnboardingWizard").then
 // (dynamic import() is used at the call site in handleOnboardingComplete)
 const AdminApp = lazy(() => import("./components/admin/AdminApp"));
 const JsonImportDialog  = lazy(() => import("./components/JsonImportDialog"));
-const ImportChoiceModal = lazy(() => import("./components/ImportChoiceModal"));
 import { isCVEngineConfigured, workerExtractDoc } from "./services/cvEngineClient";
 // groqService loaded on-demand (see handleOnboardingComplete)
 import { useBootEffects } from "./hooks/useBootEffects";
@@ -281,7 +280,6 @@ const AppInner: React.FC = () => {
     setCurrentView,
     primaryNav,
     moreNavGroups,
-    allMoreItems,
     isMoreActive,
     handleNavClick,
     GATED_VIEWS,
@@ -340,7 +338,6 @@ const AppInner: React.FC = () => {
     setToolkitForceTab,
     handleSaveCV,
     handleSaveCVFromPipeline,
-    handleSaveCoverLetter,
     handleDeleteCV,
     handleSaveStories,
     handleLoadCV,
@@ -376,7 +373,6 @@ const AppInner: React.FC = () => {
   const {
     jsonImportTimestamp,
     pendingJsonImport,
-    canCreateNewJsonSlot,
     handleJsonProfileImported,
     handleConfirmUpdateCurrentProfile,
     handleConfirmCreateNewProfile,

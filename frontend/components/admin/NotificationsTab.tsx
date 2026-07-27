@@ -267,11 +267,6 @@ export default function NotificationsTab() {
     transition: 'opacity 0.15s',
   };
 
-  const eventBadgeColor = (ok: boolean | undefined, type: string) => {
-    if (ok === undefined) return theme.muted;
-    return ok ? '#22C55E' : '#EF4444';
-  };
-
   return (
     <div>
       <PageHeader

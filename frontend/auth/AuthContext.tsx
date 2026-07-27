@@ -50,7 +50,6 @@ import {
     setStorageUser,
     clearStorageUser,
     migrateToUserNamespace,
-    getUserPrefix,
 } from '../services/storage/userStorageNamespace';
 import {
     stampSignedOut,

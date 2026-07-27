@@ -1,7 +1,7 @@
 import React from 'react';
 import { SavedCV, CVData } from '../types';
 import { Button } from './ui/Button';
-import { Trash, Eye, Target } from './icons';
+import { Trash, Eye } from './icons';
 import { getCVDataCached, loadCVData } from '../services/storage/cvDataStore';
 
 interface SavedCVsProps {

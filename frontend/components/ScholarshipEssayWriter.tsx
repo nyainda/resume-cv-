@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { UserProfile } from '../types';
 import {
     generateScholarshipEssay,
@@ -237,7 +237,7 @@ const ScholarshipEssayWriter: React.FC<ScholarshipEssayWriterProps> = ({
     const [forbiddenFound, setForbiddenFound] = useState<string[]>([]);
     const [detectedScholarship, setDetectedScholarship] = useState<string | null>(null);
     const [lastGenerated, setLastGenerated] = useState<Date | null>(null);
-    const [tick, setTick] = useState(0);
+    const [_tick, setTick] = useState(0);
 
     // Tick for "last updated" refresh
     React.useEffect(() => {

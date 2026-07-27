@@ -70,7 +70,7 @@ const CommandPalette: React.FC<Props> = ({
   onOpenSettings,
   onEditProfile,
   savedCVs = [],
-  darkMode = false,
+  darkMode: _darkMode = false,
 }) => {
   const [query, setQuery] = useState('');
   const [activeIdx, setActiveIdx] = useState(0);

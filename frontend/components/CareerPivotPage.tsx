@@ -248,7 +248,6 @@ function PivotGauge({ score, color }: { score: number; color: string }) {
   const r = 40;
   const circ = 2 * Math.PI * r;
   const half = circ / 2; // semi-circle
-  const fill = (score / 100) * half;
   return (
     <svg width="110" height="62" viewBox="0 0 110 62">
       {/* track */}

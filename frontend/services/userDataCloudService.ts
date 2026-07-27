@@ -17,7 +17,7 @@
  *   GET  /api/cv/user-data      → fetch all data (restore flow)
  */
 
-import type { UserProfileSlot, UserProfile } from '../types';
+import type { UserProfileSlot } from '../types';
 import { notifySessionExpired, notifySlotOwnershipConflict } from './sessionEvents';
 
 // ─── Constants ────────────────────────────────────────────────────────────────

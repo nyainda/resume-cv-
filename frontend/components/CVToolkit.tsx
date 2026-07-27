@@ -12,7 +12,7 @@ import { useLocalStorage } from '../hooks/useLocalStorage';
 import { Button } from './ui/Button';
 import {
     CheckCircle, AlertCircle, Sparkles, RefreshCw,
-    Target, Shield, FileText, ExternalLink,
+    Target, Shield, FileText,
 } from './icons';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
@@ -71,18 +71,6 @@ const KeywordPill: React.FC<{ word: string; matched: boolean }> = ({ word, match
         }`}>
         {matched ? '✓' : '✗'} {word}
     </span>
-);
-
-// ─── Word icon for the tab ─────────────────────────────────────────────────────
-
-const WordDocIcon: React.FC<{ className?: string }> = ({ className }) => (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6z" />
-        <polyline points="14 2 14 8 20 8" />
-        <line x1="16" y1="13" x2="8" y2="13" />
-        <line x1="16" y1="17" x2="8" y2="17" />
-        <polyline points="10 9 9 9 8 9" />
-    </svg>
 );
 
 // ─── Main Component ────────────────────────────────────────────────────────────
@@ -510,9 +498,6 @@ const CVToolkit: React.FC<CVToolkitProps> = ({
                             )}
                         </div>
                     ) : hrResult ? (() => {
-                        const scoreColor = hrResult.verdictColor === 'emerald' ? '#10b981'
-                            : hrResult.verdictColor === 'teal' ? '#14b8a6'
-                            : hrResult.verdictColor === 'amber' ? '#f59e0b' : '#ef4444';
                         const badgeCls = hrResult.verdictColor === 'emerald'
                             ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
                             : hrResult.verdictColor === 'teal'

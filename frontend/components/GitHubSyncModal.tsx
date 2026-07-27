@@ -1,5 +1,5 @@
-import React, { useState, useCallback, useEffect } from 'react';
-import { CVData, PersonalInfo, TemplateName, SavedCV } from '../types';
+import React, { useState, useCallback } from 'react';
+import { CVData, PersonalInfo, SavedCV } from '../types';
 
 interface GitHubSyncModalProps {
   savedCVs: SavedCV[];

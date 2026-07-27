@@ -37,7 +37,7 @@ import type { AchievementDensityReport } from '../services/cvAchievementDensity'
 import { scoreMetricStrength } from '../services/cvMetricStrength';
 import type { MetricStrengthReport, MetricLevel } from '../services/cvMetricStrength';
 import { scoreVerbVariety } from '../services/cvVerbVariety';
-import type { VerbVarietyReport, OverusedVerb } from '../services/cvVerbVariety';
+import type { VerbVarietyReport } from '../services/cvVerbVariety';
 import { fixVerbVariety, fixAiIsms } from '../services/cvAutoFixer';
 import CoachingRecommendations from './CoachingRecommendations';
 import type { FixChange } from '../services/cvAutoFixer';
@@ -46,7 +46,6 @@ import { fixBulletsForSignal, fixSummaryForSignal, fixVerbSaturation } from '../
 // Brand tokens
 const NAV   = '#1B2B4B';
 const GOLD  = '#C9A84C';
-const CREAM = '#F8F7F4';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Score History — localStorage-backed snapshot store
@@ -413,11 +412,6 @@ const AchievementDensityCard: React.FC<{ report: AchievementDensityReport }> = (
 // MetricStrengthCard
 // ─────────────────────────────────────────────────────────────────────────────
 
-const METRIC_LEVEL_STYLE: Record<MetricLevel, { bg: string; text: string; label: string; dot: string }> = {
-  strong: { bg: 'bg-emerald-50 dark:bg-emerald-950/30', text: 'text-emerald-700 dark:text-emerald-400', label: 'Strong',  dot: '🟢' },
-  medium: { bg: 'bg-amber-50 dark:bg-amber-950/30',     text: 'text-amber-700 dark:text-amber-400',     label: 'Medium',  dot: '🟡' },
-  weak:   { bg: 'bg-red-50 dark:bg-red-950/30',         text: 'text-red-700 dark:text-red-400',         label: 'Weak',    dot: '🔴' },
-};
 
 const MetricStrengthCard: React.FC<{ report: MetricStrengthReport }> = ({ report }) => {
   const [expanded, setExpanded] = useState(false);
@@ -1362,8 +1356,6 @@ const ScoreMyCVPage: React.FC<ScoreMyCVPageProps> = ({ currentCV, onGoToGenerato
     const atsPasses = results.atsMatch && results.atsMatch.matched.length > 0 && !atsData?.warning
       ? [`${results.atsMatch.matched.length} of ${results.atsMatch.keywords.length} JD keywords found in your CV.`]
       : [];
-
-    const compositeMeta = scoreMeta(results.composite);
 
     return (
       <div className="space-y-5">

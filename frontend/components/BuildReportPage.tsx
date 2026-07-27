@@ -585,7 +585,7 @@ function CoachTab({
 export default function BuildReportPage({
   report,
   cv,
-  jobDescription,
+  jobDescription: _jobDescription,
   onGoToGenerator,
   onGoToScoreCV,
   onApplySuggestion,

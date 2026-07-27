@@ -28,7 +28,7 @@ import {
 import {
   Shield, Award, Zap, TrendingUp, Lightbulb, Sparkles,
   BarChart3, Target, AlertTriangle, CheckCircle, ArrowRight, Wrench,
-  ChevronDown, ChevronUp, Check, X,
+  ChevronDown, ChevronUp, Check,
 } from 'lucide-react';
 
 // ── Types ─────────────────────────────────────────────────────────────────────

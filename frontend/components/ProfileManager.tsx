@@ -5,7 +5,7 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { UserProfile, UserProfileSlot, ProfileColor } from '../types';
-import { canAddProfileSlot, getProfileSlotLimit, isPureFreeTier, hasByokKeys } from '../services/accountTierService';
+import { canAddProfileSlot, getProfileSlotLimit } from '../services/accountTierService';
 import { getSyncTimeAgo } from '../services/userDataCloudService';
 
 const COLORS: { id: ProfileColor; bg: string; ring: string; text: string; border: string; lightBg: string; hex: string }[] = [

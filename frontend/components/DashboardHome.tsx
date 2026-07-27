@@ -1,5 +1,5 @@
 import React, { useMemo, useEffect, useState } from 'react';
-import type { UserProfileSlot, SavedCV, SavedCoverLetter, TrackedApplication, CVData, UserProfile, TemplateName } from '../types';
+import type { UserProfileSlot, SavedCV, TrackedApplication, CVData, UserProfile, TemplateName } from '../types';
 import RealTemplateThumbnail from './TemplateThumbnail';
 import type { WorkerUser } from '../services/authService';
 import { getEffectiveTier } from '../services/accountTierService';
@@ -43,12 +43,6 @@ interface Props {
 
 /* ── Tiny inline components ────────────────────────────────────────────────── */
 
-function qualityLabel(value: number): { label: string; color: string } {
-  if (value >= 70) return { label: 'Strong',   color: '#16a34a' };
-  if (value >= 50) return { label: 'Good',     color: '#C9A84C' };
-  if (value >= 30) return { label: 'Building', color: '#d97706' };
-  return               { label: 'Early',    color: '#94a3b8' };
-}
 
 const GOLD = '#C9A84C';
 const NAVY = '#1B2B4B';
@@ -58,7 +52,6 @@ function Gauge({ value, size = 72 }: { value: number; size?: number }) {
   const r = size / 2 - 7;
   const circ = 2 * Math.PI * r;
   const dash = circ * (Math.min(value, 100) / 100);
-  const ql = qualityLabel(value);
   return (
     <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
       <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="currentColor" strokeWidth="5"
@@ -272,9 +265,7 @@ const DashboardHome: React.FC<Props> = ({
 
   // ── Derived slot data ─────────────────────────────────────────────────────
   const savedCVs: SavedCV[]                = activeSlot?.savedCVs ?? [];
-  const savedCLs: SavedCoverLetter[]       = activeSlot?.savedCoverLetters ?? [];
   const trackedApps: TrackedApplication[]  = activeSlot?.trackedApps ?? [];
-  const starStories                        = (activeSlot as any)?.starStories ?? [];
   const userProfile: UserProfile | null    = activeSlot?.profile ?? null;
 
   const recentCVs = useMemo(() =>
@@ -290,7 +281,6 @@ const DashboardHome: React.FC<Props> = ({
   // ── Share links ───────────────────────────────────────────────────────────
   const [storedLinks, setStoredLinks]   = useState<StoredShareLink[]>([]);
   const [shareStats, setShareStats]     = useState<Map<string, ShareStats>>(new Map());
-  const [copiedLinkId, setCopiedLinkId] = useState<string | null>(null);
 
   useEffect(() => {
     const slotLinks: StoredShareLink[] = (activeSlot?.sharedLinks ?? []) as StoredShareLink[];
@@ -363,8 +353,6 @@ const DashboardHome: React.FC<Props> = ({
     if (h < 17) return 'afternoon';
     return 'evening';
   })();
-
-  const ringColor = profileComplete < 50 ? '#ef4444' : profileComplete < 80 ? GOLD : '#16a34a';
 
   const profileSections = [
     { label: 'Personal Information', done: !!(userProfile?.personalInfo?.name) },
@@ -1209,7 +1197,6 @@ const DashboardHome: React.FC<Props> = ({
                     { label: 'Leadership',   value: audit.leadership_score },
                     { label: 'Skill Depth',  value: audit.skill_evidence_score },
                   ].map(s => {
-                    const color = s.value >= 70 ? '#16a34a' : s.value >= 50 ? GOLD : '#ef4444';
                     return (
                       <div key={s.label} className="flex flex-col items-center gap-1.5 p-2 rounded-xl bg-zinc-50 dark:bg-zinc-800/50">
                         <Gauge value={s.value} size={48} />

@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { getAdminDashboardStats, DashboardData } from '../../services/cvEngineClient';
 import { useAdminTheme } from './AdminContext';
-import { PageHeader, Section, LoadingBar } from './OverviewTab';
+import { PageHeader, Section } from './OverviewTab';
 
 const ENGINE_URL: string = (import.meta as any).env?.VITE_CV_ENGINE_URL ?? '';
 
@@ -54,18 +54,6 @@ const STAGES = [
   },
 ];
 
-async function pingEndpoint(url: string, headers: Record<string, string> = {}): Promise<{ ok: boolean; latency: number; status: number; detail?: string }> {
-  const t0 = performance.now();
-  try {
-    const r = await fetch(url, { headers, signal: AbortSignal.timeout(8000) });
-    const latency = Math.round(performance.now() - t0);
-    let detail: string | undefined;
-    try { const j = await r.json(); detail = j?.error || j?.message; } catch {}
-    return { ok: r.status < 500, latency, status: r.status, detail };
-  } catch (e: any) {
-    return { ok: false, latency: Math.round(performance.now() - t0), status: 0, detail: e?.message || 'Network error' };
-  }
-}
 
 interface ModelStatus { name: string; task: string; ok: boolean | null; latency: number | null; detail?: string }
 
@@ -262,7 +250,7 @@ export default function PipelineTab() {
 }
 
 function CacheCard({ title, icon, value, sub, color }: { title: string; icon: string; value: string; sub: string; color: string }) {
-  const { theme, isDark } = useAdminTheme();
+  const { theme } = useAdminTheme();
   return (
     <div style={{ padding: '16px 18px', background: theme.card, border: `1px solid ${theme.border}`, borderRadius: 12, borderTop: `3px solid ${color}` }}>
       <div style={{ fontSize: 20, marginBottom: 8 }}>{icon}</div>

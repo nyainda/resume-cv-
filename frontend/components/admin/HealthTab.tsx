@@ -114,8 +114,6 @@ function KVBudgetSection({ theme, isDark }: { theme: any; isDark: boolean }) {
     { reads: 0, writes: 0 },
   );
 
-  const readPct  = Math.min((totalAfter.reads  / FREE_TIER.reads)  * 100, 100);
-  const writePct = Math.min((totalAfter.writes / FREE_TIER.writes) * 100, 100);
   const barColor = (pct: number) => pct < 40 ? '#22C55E' : pct < 75 ? '#F59E0B' : '#EF4444';
 
   return (
@@ -232,7 +230,7 @@ export default function HealthTab() {
   // Track which endpoints were already known-bad to avoid re-alerting every manual refresh
   const alreadyAlerted = useRef<Set<string>>(new Set());
 
-  const runChecks = useCallback(async (triggeredManually = false) => {
+  const runChecks = useCallback(async (_triggeredManually = false) => {
     setChecking(true);
     setPings({});
     const results: Record<string, PingResult> = {};

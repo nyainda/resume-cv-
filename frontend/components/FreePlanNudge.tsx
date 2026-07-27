@@ -21,12 +21,10 @@ import {
   FREE_PDF_LIMIT,
   getPdfDownloadCount,
 } from '../services/accountTierService';
-import { useAuth } from '../auth/AuthContext';
 
 const PDF_DISMISS_KEY = 'procv:free-nudge:dismissed-session';
 
 function openPricing()  { window.dispatchEvent(new CustomEvent('procv:openPricing')); }
-function openSettings() { window.dispatchEvent(new CustomEvent('procv:openSettings')); }
 
 // ─── PDF-limit nudge ─────────────────────────────────────────────────────────
 

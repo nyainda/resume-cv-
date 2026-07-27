@@ -9,7 +9,7 @@ import { isPureFreeTier, getTier } from '../services/accountTierService';
 import { clearQueueForAccount } from '../services/storage/syncQueue';
 import { UsersIcon } from './nav/NavIcons';
 import {
-  FileText, Settings, User, Moon, Sun,
+  Settings, User, Moon, Sun,
 } from './icons';
 
 interface NavItem {

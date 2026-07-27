@@ -67,7 +67,7 @@ const CVPreview: React.FC<CVPreviewProps> = (props) => {
     isEditing = false,
     onDataChange = () => {},
     jobDescriptionForATS = '',
-    sidebarSections = DEFAULT_SIDEBAR_SECTIONS,
+    sidebarSections: _sidebarSections = DEFAULT_SIDEBAR_SECTIONS,
     density = 1,
     spacingLevel = 0,
     autoFit = true,

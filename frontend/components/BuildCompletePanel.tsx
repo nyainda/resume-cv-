@@ -16,7 +16,7 @@ import type { CVBuildReport, ReviewItem, ManualFlag } from '../types/buildReport
 import {
   CheckCircle, X, Wrench, Zap, Target, Layers,
   ChevronLeft, ChevronRight, AlertTriangle, CheckCheck,
-  Edit3, SkipForward, Info, TrendingUp, MinusCircle, PlusCircle,
+  Edit3, SkipForward, Info, TrendingUp, MinusCircle,
   LayoutGrid,
 } from 'lucide-react';
 
@@ -591,8 +591,6 @@ export default function BuildCompletePanel({
     });
     onSkipSuggestion(id);
   }, [onSkipSuggestion]);
-
-  const isAllClear = report.appliedCount === 0 && pendingReviewCount === 0 && report.manualFlags.length === 0;
 
   return (
     <>

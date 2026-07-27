@@ -1,7 +1,6 @@
 const GRAPH_BASE = 'https://graph.microsoft.com/v1.0';
 const LS_MS_TOKEN = 'cv_builder:ms_access_token';
 const LS_SYNC_URL = 'cv_builder:word_sync_url';
-const PDF_SERVER = `${window.location.protocol}//${window.location.hostname}:3001`;
 
 export interface OneDriveFile {
     id: string;

@@ -34,18 +34,6 @@ async function apiPost(path: string, body: object): Promise<void> {
   } catch { /* offline — localStorage is the source of truth */ }
 }
 
-async function apiPatch(path: string, body: object): Promise<void> {
-  if (!isAuthenticated()) return;
-  try {
-    await fetch(vaultApiUrl(path), {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify(body),
-    });
-  } catch { /* offline */ }
-}
-
 async function apiDelete(path: string): Promise<void> {
   if (!isAuthenticated()) return;
   try {

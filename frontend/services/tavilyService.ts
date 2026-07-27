@@ -132,14 +132,6 @@ export const PLATFORMS = {
     ] as string[],
 };
 
-// ─── Trusted domain set (allowlist) ───────────────────────────────────────────
-const TRUSTED_DOMAINS = new Set<string>([
-    ...PLATFORMS.remote,
-    ...PLATFORMS.kenya,
-    ...PLATFORMS.visa,
-    ...PLATFORMS.scholarships,
-    ...PLATFORMS.global,
-]);
 
 // ─── Known scam & low-quality domains ─────────────────────────────────────────
 const SCAM_DOMAINS = new Set([

@@ -27,7 +27,7 @@ import {
 import { stripTildeNumbers } from '../services/cvNumberFidelity';
 import {
     scoreAtsCoverage, findBestBulletForKeyword,
-    type AtsKeywordReport, type BulletCandidate,
+    type BulletCandidate,
 } from '../services/cvAtsKeywords';
 
 interface Props {

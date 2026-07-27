@@ -5,11 +5,11 @@ import { UserProfile, CVData, PersonalInfo, JobAnalysisResult, CVGenerationMode,
 import { groqChat, groqChatStream, GROQ_LARGE, GROQ_FAST, getLastAiEngine, getSelectedProvider, getClaudeModel, getGroqApiKey } from './groqService';
 import { purifyCV, purifyText, cleanImportedText, purifyProfile, purifyInboundCV, revertCorruptedMetrics, enforceOpenerDiversity, enforceRhythmBalance, enforceScopeAnchors, applyRemoteBannedPhrasesToCV, enforceTenseConsistency, type PurifyReport } from './cvPurificationPipeline';
 import { remotePrePurify } from './cvPurifyClient';
-import { detectField, detectFieldWithSource, lockRealNumbers, buildPromptAnchorBlock, fixPronounsInCV } from './cvPromptHelpers';
+import { detectFieldWithSource, lockRealNumbers, buildPromptAnchorBlock, fixPronounsInCV } from './cvPromptHelpers';
 import { logGeneration, quickHash } from './telemetryService';
 import { getGeminiKey as _rtGemini, getClaudeKey as _rtClaude } from './security/RuntimeKeys';
 import { MarketResearchResult, buildMarketIntelligencePrompt } from './marketResearch';
-import { buildBrief, validateVoice, reportLeaks, workerLLM, workerTieredLLM, workerRaceLLM, workerParallelSections, workerVisionExtract, getCachedBannedPhrases, type CVBrief, type ValidateVoiceResult, type ParallelSectionRequest } from './cvEngineClient';
+import { buildBrief, validateVoice, reportLeaks, workerTieredLLM, workerRaceLLM, workerParallelSections, workerVisionExtract, getCachedBannedPhrases, type CVBrief, type ValidateVoiceResult, type ParallelSectionRequest } from './cvEngineClient';
 import { findOverusedWords } from './cvEngine/wordFrequency';
 import { ROLE_TRACKS } from '../data/roleTracks';
 import { normaliseCustomSections } from '../utils/normaliseSectionType';
@@ -69,7 +69,6 @@ import {
     storeCVExample,
     buildReferenceBlock,
     type NarrativeAngle,
-    computeExampleQualityScore,
 } from './cvExamplesClient';
 import { getHashIfCached, getProfileCacheHash, sha256Hex } from './profileCacheClient';
 
@@ -1499,7 +1498,6 @@ let _scenarioModeOverride = '';
 let _pivotBlockTemplate = '';
 let _humanizationInstructionHeader = '';
 let _criticalRulesReminder = '';
-let _cvDataSchema = '';
 
 /**
  * Fetches the CV pipeline rules from the CF Worker and populates the module-
@@ -1596,19 +1594,6 @@ function getClaudeApiKey(): string | null {
  * backward compatibility but routing is now fully server-side via proxy-llm.
  * Returns the raw response string.
  */
-async function claudeTextCall(
-    apiKey: string,
-    system: string,
-    user: string,
-    opts: { maxTokens?: number; temperature?: number } = {},
-): Promise<string> {
-    const { callProviderViaProxy } = await import('./groqService');
-    return callProviderViaProxy('claude', apiKey, system, user, {
-        temperature: opts.temperature ?? 0.1,
-        maxTokens:   opts.maxTokens  ?? 4096,
-    });
-}
-
 /**
  * Call Claude with a file (image or PDF base64) + text prompt.
  * Routes through the CF Worker proxy to avoid the CORS block that occurs
@@ -4461,7 +4446,6 @@ async function enforceVoiceConsistency(cvData: CVData, brief: CVBrief): Promise<
     const forbidden = shuffleArray(brief.forbidden_phrases).slice(0, 20).join(', ');
     const avoidedVerbs = (brief.field?.avoided_verbs || []).join(', ') || 'none';
     const voice = brief.voice.primary;
-    const rhythm = brief.rhythm;
 
     // ── Phase B speed: per-role validate+fix is now PARALLEL ──
     // Each role mutates a different `role.responsibilities` array, so there's
@@ -5256,7 +5240,7 @@ export const generateApplicationEmail = async (
     jobTitle: string,
     companyName: string,
     keywords: string[],
-    jobDescription: string,
+    _jobDescription: string,
     toneId: EmailToneId = 'confident',
     workerVoiceTone?: string,             // auto-detected tone string from /api/cv/brief
     onChunk?: (delta: string) => void,    // optional streaming callback

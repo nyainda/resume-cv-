@@ -2,7 +2,7 @@
 import React, { lazy, Suspense, useState } from 'react';
 import { CVData, UserProfile, UserProfileSlot, SavedCV, SavedCoverLetter, TrackedApplication, STARStory } from '../types';
 import type { WorkerUser } from '../services/authService';
-import type { CVBuildReport, ReviewItem, ManualFlag } from '../types/buildReport';
+import type { CVBuildReport, ManualFlag } from '../types/buildReport';
 import { PremiumGateWrapper } from './premium/PremiumGateWrapper';
 
 // ── Lazy views — each gets its own JS chunk, loaded on first navigation ────────
@@ -280,7 +280,7 @@ const AppViewRouter: React.FC<AppViewRouterProps> = (props) => {
                   jobDescription={activeSlot?.jobDescription ?? (activeSlot as any)?.currentJobDescription ?? ''}
                   onGoToGenerator={() => setCurrentView('generator')}
                   onGoToScoreCV={() => setCurrentView('score')}
-                  onApplySuggestion={(item, updatedCV) => {
+                  onApplySuggestion={(_item, updatedCV) => {
                     setCurrentCV(updatedCV);
                     if (isAuthenticated && activeSlot) {
                       enqueueSlotSync({ ...activeSlot, currentCV: updatedCV }, { immediate: true }).catch(() => {});

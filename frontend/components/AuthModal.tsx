@@ -29,9 +29,8 @@ const SIGNUP_FEATURES = [
     { icon: '✦', text: 'Interview prep, job tracker & more' },
 ];
 
-export default function AuthModal({ open, onSuccess, onDismiss, mode: initialMode = 'signup' }: AuthModalProps) {
+export default function AuthModal({ open, onSuccess: _onSuccess, onDismiss, mode: initialMode = 'signup' }: AuthModalProps) {
     const { googleSignIn, isAuthenticated, rememberDevice, setRememberDevice, googleRateLimited, clearGoogleRateLimit } = useAuth();
-    const isGoogleAuthed       = isAuthenticated;
     const isWorkerAuthenticated = isAuthenticated;
 
     const [mode, setMode]              = useState<'signup' | 'signin'>(initialMode);

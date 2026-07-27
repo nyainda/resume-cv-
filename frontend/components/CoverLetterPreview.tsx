@@ -355,8 +355,6 @@ const WordGauge: React.FC<{ wordCount: number }> = ({ wordCount }) => {
   const inRange  = wordCount >= 200 && wordCount <= 240;
   const tooShort = wordCount < 200;
   const tooLong  = wordCount > 280;
-  const slightlyOff = !inRange && !tooLong;
-
   const gaugeColor =
     inRange      ? '#22c55e'  :
     tooLong      ? '#ef4444'  :
@@ -437,18 +435,6 @@ const QualityPanel: React.FC<{
                      'text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-800/40';
 
   // Map rule labels to issue ids for checking
-  const passedRules = QUALITY_RULES.filter(r => {
-    if (r.includes('Word count'))   return wordCount >= 200 && wordCount <= 240;
-    if (r.includes('No clichés'))   return !issues.find(i => i.id === 'cliche_opener' || i.id === 'i_opener');
-    if (r.includes('AI buzzwords')) return !issues.find(i => i.id === 'ai_word');
-    if (r.includes('No experience')) return true; // checked elsewhere
-    if (r.includes('Grammar'))      return true; // always pass (no grammar check)
-    return !issues.some(i =>
-      (r.toLowerCase().includes('metric') && i.id === 'no_metric') ||
-      (r.toLowerCase().includes('call to action') && i.id === 'no_cta')
-    );
-  });
-
   return (
     <div className="flex flex-col gap-4 h-full">
       {/* Header badge */}
@@ -490,7 +476,7 @@ const QualityPanel: React.FC<{
           <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-400">Rule Check (11 Rules)</p>
         </div>
         <div className="divide-y divide-zinc-50 dark:divide-neutral-800/60 bg-white dark:bg-neutral-900">
-          {QUALITY_RULES.map((rule, i) => {
+          {QUALITY_RULES.map((rule) => {
             // Find matching issue
             const related = issues.find(iss =>
               (rule.includes('Word count')   && (iss.id === 'too_short' || iss.id === 'too_long' || iss.id === 'slightly_short' || iss.id === 'slightly_long')) ||

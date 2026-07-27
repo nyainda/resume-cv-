@@ -4,7 +4,7 @@ import { useForm, useFieldArray, Controller } from 'react-hook-form';
 import { buildFlatOntology } from '../services/fieldOntologyResolver';
 import { classifyRoleFieldAsync, classifyAndSaveAllRoles } from '../services/careerTrackClassifier';
 import {
-  UserProfile, Reference,
+  UserProfile,
   CustomSection, CustomSectionItem, CustomSectionType,
   ProfileSectionKey, DEFAULT_SECTION_ORDER,
 } from '../types';
@@ -204,26 +204,9 @@ const RefinedBadge = ({ show }: { show: boolean }) =>
     </span>
   ) : null;
 
-// ─── Key helpers (separate from apiKeySet which includes CF worker) ────────────
-function hasGeminiKey(): boolean {
-  try {
-    const s = localStorage.getItem('cv_builder:apiSettings') || localStorage.getItem('apiSettings');
-    if (s) { const p = JSON.parse(s); if (p.apiKey && !p.apiKey.startsWith('enc:v1:')) return true; }
-    const pk = JSON.parse(localStorage.getItem('cv_builder:provider_keys') || '{}');
-    return !!(pk.gemini && !pk.gemini.startsWith('enc:v1:'));
-  } catch { return false; }
-}
-function hasClaudeKey(): boolean {
-  try {
-    const s = localStorage.getItem('cv_builder:apiSettings') || localStorage.getItem('apiSettings');
-    if (s) { const p = JSON.parse(s); if (p.claudeApiKey && !p.claudeApiKey.startsWith('enc:v1:')) return true; }
-    const pk = JSON.parse(localStorage.getItem('cv_builder:provider_keys') || '{}');
-    return !!(pk.claude && !pk.claude.startsWith('enc:v1:'));
-  } catch { return false; }
-}
 
 // ─── Main Component ───────────────────────────────────────────────────────────
-const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCancel, apiKeySet, openSettings, onProfileImported, onJsonImported, currentCV }) => {
+const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCancel, apiKeySet, openSettings, onProfileImported: _onProfileImported, onJsonImported, currentCV }) => {
   const [activeTab, setActiveTab] = useState<TabKey>('personal');
   const [profileInputMode, setProfileInputMode] = useState<'text' | 'upload' | 'json'>('text');
   const [rawText, setRawText] = useState('');

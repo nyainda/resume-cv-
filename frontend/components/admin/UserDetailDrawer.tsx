@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { useAdminTheme } from './AdminContext';
 import {
   fetchUserDetail, updateUserPlan, revokeUserSessions,
-  UserDetailResult, UserSession, UserAuthLog,
+  UserDetailResult,
 } from '../../services/cvEngineClient';
 
 // ── helpers ───────────────────────────────────────────────────────────────────

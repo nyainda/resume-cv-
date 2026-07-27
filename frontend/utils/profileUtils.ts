@@ -1,6 +1,6 @@
 import type { ProfileColor, UserProfileSlot } from '../types';
 import type { RawSlot } from '../services/authService';
-import { normalizeUserProfile, normalizeCVData } from './cvDataUtils';
+import { normalizeUserProfile } from './cvDataUtils';
 
 export const PROFILE_COLORS: ProfileColor[] = [
   'indigo',

@@ -11,7 +11,7 @@
  * time from the console without reloading the page.
  */
 
-import { isCloudflareConfigured, isCloudflareWorkerOnline } from './cloudflareWorkerService';
+import { isCloudflareConfigured } from './cloudflareWorkerService';
 import { isCVEngineConfigured } from './cvEngineClient';
 import { markFailure, markSuccess } from './providerHealth';
 

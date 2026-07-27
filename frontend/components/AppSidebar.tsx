@@ -4,8 +4,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { UserProfile, UserProfileSlot, ProfileColor } from '../types';
 import type { WorkerUser } from '../services/authService';
-import { ProfileManager } from './ProfileManager';
-import { isPureFreeTier, getTier, getEffectiveTier } from '../services/accountTierService';
+import { isPureFreeTier, getEffectiveTier } from '../services/accountTierService';
 import { clearQueueForAccount } from '../services/storage/syncQueue';
 import { Settings } from './icons';
 
@@ -209,27 +208,27 @@ const SidebarInner: React.FC<SidebarInnerProps> = ({
   moreNavGroups,
   handleNavClick,
   GATED_VIEWS,
-  profileExists,
-  activeSlot,
-  profiles,
-  userProfile,
+  _profileExists,
+  _activeSlot,
+  _profiles,
+  _userProfile,
   user,
   isAuthenticated,
   darkMode,
   setDarkMode,
-  setIsSettingsOpen,
+  _setIsSettingsOpen,
   setIsPricingOpen,
   setShowLanding,
   signOut,
-  onSwitchProfile,
-  onCreateProfile,
-  onDeleteProfile,
-  onRenameProfile,
+  _onSwitchProfile,
+  _onCreateProfile,
+  _onDeleteProfile,
+  _onRenameProfile,
   onAfterNavClick,
   onOpenCmdPalette,
-  profileManagerRef,
-  showProfileManager,
-  setShowProfileManager,
+  _profileManagerRef,
+  _showProfileManager,
+  _setShowProfileManager,
 }) => {
   const dark = darkMode;
   const effectiveTier = getEffectiveTier();
