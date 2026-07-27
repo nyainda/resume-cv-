@@ -64,6 +64,16 @@ export function parseSlotData(
       starStories:       isPayload ? (parsed.starStories       ?? []) : [],
       // Restore build report from D1 so fixed annotations don't reappear on this device.
       lastBuildReport:   isPayload && parsed.lastBuildReport ? parsed.lastBuildReport : undefined,
+      // Restore JD / targeting fields so device B gets the same state as device A.
+      jobDescription:    isPayload && parsed.jobDescription  ? parsed.jobDescription  : undefined,
+      cvPurpose:         isPayload && parsed.cvPurpose       ? parsed.cvPurpose       : undefined,
+      targetCompany:     isPayload && parsed.targetCompany   ? parsed.targetCompany   : undefined,
+      targetJobTitle:    isPayload && parsed.targetJobTitle  ? parsed.targetJobTitle  : undefined,
+      generationMode:    isPayload && parsed.generationMode  ? parsed.generationMode  : undefined,
+      jdKeywords:        isPayload && Array.isArray(parsed.jdKeywords) ? parsed.jdKeywords : undefined,
+      lastGeneratedAt:   isPayload && parsed.lastGeneratedAt ? parsed.lastGeneratedAt : undefined,
+      lastAtsScore:      isPayload && typeof parsed.lastAtsScore === 'number' ? parsed.lastAtsScore : undefined,
+      sharedLinks:       isPayload && Array.isArray(parsed.sharedLinks) ? parsed.sharedLinks : undefined,
     } as UserProfileSlot;
   } catch {
     return null;

@@ -273,6 +273,16 @@ export async function syncSlot(slot: UserProfileSlot): Promise<void> {
             // Build report syncs so fixed issues don't reappear on other devices / after refresh.
             // Dropped in tier-2+ trimming — losing it is recoverable (re-run generates a fresh one).
             lastBuildReport: slot.lastBuildReport ?? null,
+            // JD / targeting fields — small strings, always included so device B gets a full picture.
+            jobDescription:  slot.jobDescription  ?? null,
+            cvPurpose:       slot.cvPurpose       ?? null,
+            targetCompany:   slot.targetCompany   ?? null,
+            targetJobTitle:  slot.targetJobTitle  ?? null,
+            generationMode:  slot.generationMode  ?? null,
+            jdKeywords:      slot.jdKeywords      ?? null,
+            lastGeneratedAt: slot.lastGeneratedAt ?? null,
+            lastAtsScore:    slot.lastAtsScore    ?? null,
+            sharedLinks:     slot.sharedLinks     ?? null,
         };
 
         let slotJsonToSend = JSON.stringify(slotPayload);
@@ -286,7 +296,7 @@ export async function syncSlot(slot: UserProfileSlot): Promise<void> {
         // Tier 3 (still >512 KB, extremely long profile): profile + currentCV, no collections.
         // Tier 4 (still >512 KB, profile alone is huge): profile-only plain JSON (last resort).
         if (slotJsonToSend.length > MAX_SLOT_BYTES) {
-            // Tier 1: trim history aggressively, keep currentCV + build report
+            // Tier 1: trim history aggressively, keep currentCV + build report + JD fields
             const tier1Payload = JSON.stringify({
                 profile: profileWithoutPhoto,
                 currentCV: currentCVForD1,
@@ -295,11 +305,20 @@ export async function syncSlot(slot: UserProfileSlot): Promise<void> {
                 trackedApps: (slot.trackedApps ?? []).slice(0, 50),
                 starStories: (slot.starStories ?? []).slice(0, 20),
                 lastBuildReport: slot.lastBuildReport ?? null,
+                jobDescription:  slot.jobDescription  ?? null,
+                cvPurpose:       slot.cvPurpose       ?? null,
+                targetCompany:   slot.targetCompany   ?? null,
+                targetJobTitle:  slot.targetJobTitle  ?? null,
+                generationMode:  slot.generationMode  ?? null,
+                jdKeywords:      slot.jdKeywords      ?? null,
+                lastGeneratedAt: slot.lastGeneratedAt ?? null,
+                lastAtsScore:    slot.lastAtsScore    ?? null,
+                sharedLinks:     slot.sharedLinks     ?? null,
             });
             if (tier1Payload.length <= MAX_SLOT_BYTES) {
                 slotJsonToSend = tier1Payload;
             } else {
-                // Tier 2: drop all collections + build report, keep currentCV
+                // Tier 2: drop all collections + build report, keep currentCV + JD fields
                 const tier2Payload = JSON.stringify({
                     profile: profileWithoutPhoto,
                     currentCV: currentCVForD1,
@@ -308,6 +327,15 @@ export async function syncSlot(slot: UserProfileSlot): Promise<void> {
                     trackedApps: [],
                     starStories: [],
                     // lastBuildReport intentionally omitted — losing it is recoverable
+                    jobDescription:  slot.jobDescription  ?? null,
+                    cvPurpose:       slot.cvPurpose       ?? null,
+                    targetCompany:   slot.targetCompany   ?? null,
+                    targetJobTitle:  slot.targetJobTitle  ?? null,
+                    generationMode:  slot.generationMode  ?? null,
+                    jdKeywords:      slot.jdKeywords      ?? null,
+                    lastGeneratedAt: slot.lastGeneratedAt ?? null,
+                    lastAtsScore:    slot.lastAtsScore    ?? null,
+                    sharedLinks:     slot.sharedLinks     ?? null,
                 });
                 if (tier2Payload.length <= MAX_SLOT_BYTES) {
                     console.warn(
@@ -316,7 +344,7 @@ export async function syncSlot(slot: UserProfileSlot): Promise<void> {
                     );
                     slotJsonToSend = tier2Payload;
                 } else {
-                    // Tier 3: profile + currentCV only (no collections at all)
+                    // Tier 3: profile + currentCV + JD fields only (no collections)
                     const tier3Payload = JSON.stringify({
                         profile: profileWithoutPhoto,
                         currentCV: currentCVForD1,
@@ -325,6 +353,15 @@ export async function syncSlot(slot: UserProfileSlot): Promise<void> {
                         trackedApps: [],
                         starStories: [],
                         _truncated: true,
+                        jobDescription:  slot.jobDescription  ?? null,
+                        cvPurpose:       slot.cvPurpose       ?? null,
+                        targetCompany:   slot.targetCompany   ?? null,
+                        targetJobTitle:  slot.targetJobTitle  ?? null,
+                        generationMode:  slot.generationMode  ?? null,
+                        jdKeywords:      slot.jdKeywords      ?? null,
+                        lastGeneratedAt: slot.lastGeneratedAt ?? null,
+                        lastAtsScore:    slot.lastAtsScore    ?? null,
+                        sharedLinks:     slot.sharedLinks     ?? null,
                     });
                     if (tier3Payload.length <= MAX_SLOT_BYTES) {
                         console.warn(
@@ -333,7 +370,7 @@ export async function syncSlot(slot: UserProfileSlot): Promise<void> {
                         );
                         slotJsonToSend = tier3Payload;
                     } else {
-                        // Tier 4 (last resort): profile only — drop currentCV too
+                        // Tier 4 (last resort): profile + JD fields only — drop currentCV too
                         const tier4Payload = JSON.stringify({
                             profile: profileWithoutPhoto,
                             currentCV: null,
@@ -342,6 +379,15 @@ export async function syncSlot(slot: UserProfileSlot): Promise<void> {
                             trackedApps: [],
                             starStories: [],
                             _truncated: true,
+                            jobDescription:  slot.jobDescription  ?? null,
+                            cvPurpose:       slot.cvPurpose       ?? null,
+                            targetCompany:   slot.targetCompany   ?? null,
+                            targetJobTitle:  slot.targetJobTitle  ?? null,
+                            generationMode:  slot.generationMode  ?? null,
+                            jdKeywords:      slot.jdKeywords      ?? null,
+                            lastGeneratedAt: slot.lastGeneratedAt ?? null,
+                            lastAtsScore:    slot.lastAtsScore    ?? null,
+                            sharedLinks:     slot.sharedLinks     ?? null,
                         });
                         console.warn(
                             `[D1 sync] Slot "${slot.name}" (${slot.id}) exceeds 512 KB even without collections — ` +
