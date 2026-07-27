@@ -60,7 +60,9 @@ export async function fetchCVRules(): Promise<CVRules> {
                 });
                 clearTimeout(timer);
                 if (res.status === 401) {
-                    // Not logged in yet — don't cache, let the next call retry after login.
+                    // Session expired — sign the user out so they don't stay stuck in
+                    // a "logged-in but unauthorised" split-brain state.
+                    window.dispatchEvent(new CustomEvent('procv:session-expired'));
                     _inflight = null;
                     return OFFLINE_FALLBACK;
                 }
