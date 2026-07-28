@@ -19,7 +19,23 @@ export function useVaultJobs(profileSkills: string = '') {
   // On mount: load local then pull server delta
   useEffect(() => {
     setJobs(getAllVaultJobs());
-    syncVaultFromServer().then(() => setJobs(getAllVaultJobs()));
+    syncVaultFromServer().then(() => {
+      const synced = getAllVaultJobs();
+      // Re-score any jobs that are stuck with undefined matchScore (e.g. stale
+      // localStorage entries or server-side jobs that never got a score set).
+      const stuck = synced.filter(j => j.matchScore === undefined);
+      if (stuck.length > 0) {
+        for (const j of stuck) {
+          const score = naiveMatchScore(j.rawJd, profileSkills);
+          const roomType = roomTypeFromScore(score);
+          updateVaultJob(j.id, { matchScore: score, roomType });
+        }
+      }
+      setJobs(getAllVaultJobs());
+    });
+  // profileSkills intentionally excluded — we only want this to run once on mount,
+  // not every time the user edits their profile.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const refresh = useCallback(() => {

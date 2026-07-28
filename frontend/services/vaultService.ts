@@ -200,8 +200,6 @@ export function updateVaultJob(id: string, patch: Partial<VaultJob>): VaultJob |
   if ('company'     in patch) apiPatch['company']      = patch.company;
   if (Object.keys(apiPatch).length > 0) {
     apiPatch['updated_at'] = updated.updatedAt;
-    apiPatch['updated_at'] = updated.updatedAt;
-    void apiPatch; // suppress unused warning
     // Intentionally fire-and-forget — patch the backend job
     fetch(vaultApiUrl(`/api/vault/jobs/${id}`), {
       method: 'PATCH',
