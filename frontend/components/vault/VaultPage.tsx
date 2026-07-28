@@ -92,9 +92,9 @@ export const VaultPage: React.FC<Props> = ({ profiles, activeSlot, userProfile, 
     if (search.trim()) {
       const q = search.toLowerCase();
       list = list.filter(j =>
-        j.title.toLowerCase().includes(q) ||
-        j.company.toLowerCase().includes(q) ||
-        j.rawJd.toLowerCase().includes(q)
+        (j.title ?? '').toLowerCase().includes(q) ||
+        (j.company ?? '').toLowerCase().includes(q) ||
+        (j.rawJd ?? '').toLowerCase().includes(q)
       );
     }
     return [...list].sort((a, b) => {

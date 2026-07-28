@@ -45,7 +45,7 @@ function deriveInsights(job: VaultJob) {
   const techWords = ['Python','JavaScript','TypeScript','React','Node.js','AWS','GCP','Azure','Docker','Kubernetes',
     'Terraform','CI/CD','PostgreSQL','MongoDB','Redis','GraphQL','REST','gRPC','ML','AI','SQL','Java','Go','Rust',
     'Figma','Sketch','Excel','Tableau','Salesforce','HubSpot','Jira','Agile','Scrum'];
-  const jdLower = job.rawJd.toLowerCase();
+  const jdLower = (job.rawJd ?? '').toLowerCase();
   const found = techWords.filter(w => jdLower.includes(w.toLowerCase()));
   const missing = found.slice(0, 5); // show first 5 as "keywords to add"
   const strengths = found.slice(5, 9); // next 4 as "strengths"
