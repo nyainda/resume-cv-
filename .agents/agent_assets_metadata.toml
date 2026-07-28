@@ -35,3 +35,9 @@ id = "kRnh5GGqGUrPsHjdNnJXN"
 uri = "file://sarah-mitchell-cv.pdf"
 type = "pdf"
 title = "Sarah Mitchell — Head of Product @ Stripe (AI-generated)"
+
+[[outputs]]
+id = "xzkU-5jtu45JUOSMLGRWx"
+uri = "file://vault-demo.webm"
+type = "video"
+title = "ProCV Job Vault — Feature Walkthrough"
