@@ -95,7 +95,7 @@ function saveAll(jobs: VaultJob[]): void {
 
 /** Simple fingerprint: title+company+first-100-chars of JD */
 export function buildFingerprint(title: string, company: string, rawJd: string): string {
-  const raw = `${title.toLowerCase()}|${company.toLowerCase()}|${rawJd.slice(0, 100)}`;
+  const raw = `${(title ?? '').toLowerCase()}|${(company ?? '').toLowerCase()}|${(rawJd ?? '').slice(0, 100)}`;
   let hash = 0;
   for (let i = 0; i < raw.length; i++) {
     hash = ((hash << 5) - hash) + raw.charCodeAt(i);
@@ -230,8 +230,8 @@ export function extractTitleCompany(rawJd: string): { title: string; company: st
 
 /** Naive match score based on keyword overlap — used client-side until Worker classifies */
 export function naiveMatchScore(rawJd: string, profileSkills: string): number {
-  const jdLower = rawJd.toLowerCase();
-  const skills = profileSkills.toLowerCase().split(/[\s,;|/]+/).filter(s => s.length > 2);
+  const jdLower = (rawJd ?? '').toLowerCase();
+  const skills = (profileSkills ?? '').toLowerCase().split(/[\s,;|/]+/).filter(s => s.length > 2);
   if (!skills.length) return 0;
   const matched = skills.filter(s => jdLower.includes(s));
   return Math.round((matched.length / skills.length) * 100);
