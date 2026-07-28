@@ -3,9 +3,9 @@ import { initNlp } from './nlpTense';
 import { truncate } from '../utils/textTruncate';
 import { UserProfile, CVData, PersonalInfo, JobAnalysisResult, CVGenerationMode, ScholarshipFormat, EnhancedJobAnalysis } from '../types';
 import { groqChat, groqChatStream, GROQ_LARGE, GROQ_FAST, getLastAiEngine, getSelectedProvider, getClaudeModel, getGroqApiKey } from './groqService';
-import { purifyCV, purifyText, cleanImportedText, purifyProfile, purifyInboundCV, revertCorruptedMetrics, enforceOpenerDiversity, enforceRhythmBalance, enforceScopeAnchors, applyRemoteBannedPhrasesToCV, enforceTenseConsistency, type PurifyReport } from './cvPurificationPipeline';
+import { purifyCV, purifyText, cleanImportedText, purifyProfile, purifyInboundCV, revertCorruptedMetrics, enforceOpenerDiversity, enforceRhythmBalance, enforceScopeAnchors, applyRemoteBannedPhrasesToCV, enforceTenseConsistency, enforcePerRoleVariance, type PurifyReport } from './cvPurificationPipeline';
 import { remotePrePurify } from './cvPurifyClient';
-import { detectFieldWithSource, lockRealNumbers, buildPromptAnchorBlock, fixPronounsInCV } from './cvPromptHelpers';
+import { detectFieldWithSource, lockRealNumbers, buildPromptAnchorBlock, fixPronounsInCV, recordFieldHistory } from './cvPromptHelpers';
 import { logGeneration, quickHash } from './telemetryService';
 import { getGeminiKey as _rtGemini, getClaudeKey as _rtClaude } from './security/RuntimeKeys';
 import { MarketResearchResult, buildMarketIntelligencePrompt } from './marketResearch';
@@ -3016,6 +3016,12 @@ export const generateCV = async (
      * slots share the same compact profile JSON (e.g. a freshly-cloned room).
      */
     slotId?: string,
+    /**
+     * Previously generated CV for this slot. When provided, enforcePerRoleVariance
+     * runs a final pass to ensure the new generation differs enough from the
+     * previous one — preventing identical bullet openers on regeneration.
+     */
+    previousCvData?: CVData,
 ): Promise<CVData> => {
 
     // ── HOT FIRE (inbound) ── Scrub banned phrases out of the source profile
@@ -3264,6 +3270,9 @@ ${kwLines}
     // Built once here, injected into both the job and general prompts below.
     const { field: _detectedField, source: _fieldSource } = detectFieldWithSource(jd, profile);
     _traceBuilder.record({ fieldSource: _fieldSource });
+    // Record field history so future auto-detections can learn from this run
+    // (user-pinned detections are filtered out inside recordFieldHistory itself).
+    recordFieldHistory(_fieldSource, _detectedField);
     const _lockedValues = lockRealNumbers(profile);
     const promptAnchorBlock = buildPromptAnchorBlock({
         locked: _lockedValues,
@@ -4385,6 +4394,19 @@ ${lines}
     //   project descriptions. Graceful fallback — never blocks the CV return.
     const _guard = await runFinalCVGuard(cvData);
     if (_guard.changed) cvData = _guard.cvData;
+
+    // ── Per-role variance enforcement (regeneration guard) ───────────────────
+    // When a previous CV is provided (i.e. the user hit Regenerate), check that
+    // the new generation is sufficiently different at the role level. Roles whose
+    // bullets are too similar to the previous run get their openers reshuffled
+    // deterministically — no LLM call, instant, never mutates actual facts.
+    if (previousCvData) {
+        const { cv: variedCv, fixes: varianceFixes } = enforcePerRoleVariance(previousCvData, cvData);
+        if (varianceFixes.length > 0) {
+            cvData = variedCv;
+            console.log(`[CV Variance] enforcePerRoleVariance reshuffled ${varianceFixes.length} role(s):`, varianceFixes.join(', '));
+        }
+    }
 
     // ── Store result in cache ──
     cvCacheSet(cacheKey, cvData);
