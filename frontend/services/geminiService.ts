@@ -2311,12 +2311,12 @@ async function _repairGerundTruncations(
         'You are a precise CV copy-editor. Return only valid JSON. Never add facts.';
 
     const userMsg =
-        `Each bullet below has a truncated gerund phrase — the direct-object noun was dropped by the AI that generated it (e.g. "installing across farms" instead of "installing irrigation systems across farms").
+        `Each bullet below has a truncated gerund phrase — the direct-object noun was dropped by the AI that generated it (e.g. "managing across teams" instead of "managing operations across teams", or "delivering across regions" instead of "delivering projects across regions").
 
 YOUR ONLY JOB: insert the missing 1–3 word object noun.
 
 HARD RULES — any violation means you return the bullet unchanged:
-1. You may ONLY use nouns that are directly implied by the job title, company name, or the gerund verb itself. No invented facts.
+1. You may ONLY use nouns that are directly implied by the job title, company name, or the gerund verb itself. No invented facts. NEVER copy the example nouns ("operations", "projects") — derive the correct noun from the candidate's actual role context.
 2. Never add, change, or remove any number, percentage, or currency figure.
 3. Never rewrite the rest of the bullet. Only insert the missing object noun.
 4. If you are not certain what the missing noun is, return the bullet exactly as given.
@@ -5688,7 +5688,12 @@ export const generateScholarshipEssay = async (params: {
 
     const scholarshipBlock = valuePack ? `
 ### SCHOLARSHIP-SPECIFIC INTELLIGENCE: ${valuePack.label.toUpperCase()}
-Core values to demonstrate: ${valuePack.values.join('; ')}
+⚠ CRITICAL: These are the scholarship's assessment criteria — they describe what REVIEWERS look for.
+  You must address each criterion using ONLY evidence already present in the candidate's profile above.
+  Never invent experiences, values, or claims to satisfy a criterion the candidate cannot genuinely evidence.
+  If the profile does not support a criterion, acknowledge the gap honestly rather than fabricate.
+
+Assessment criteria this scholarship scores on: ${valuePack.values.join('; ')}
 Critical rules for this scholarship:
 ${valuePack.rules.map(r => `  - ${r}`).join('\n')}
 Tone: ${valuePack.tone}

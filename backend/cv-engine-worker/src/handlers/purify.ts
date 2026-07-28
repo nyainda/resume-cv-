@@ -116,7 +116,7 @@ This candidate is applying ACROSS fields. The CV must be honest about this — r
 
 MANDATORY HANDLING:
 1. SUMMARY — "Bridge Formula" (60–80 words):
-   Sentence 1 (HONEST IDENTITY): Current discipline + the EXACT target title from the JD framed as the transition. Example: "Agricultural engineer transitioning to software development, with 2 years building automation tools that ran on field equipment."
+   Sentence 1 (HONEST IDENTITY): Current discipline + the EXACT target title from the JD framed as the transition. Use the candidate's REAL background field and target field — e.g. "{CANDIDATE_BACKGROUND_FIELD} professional transitioning to {TARGET_FIELD}, with {N} years of {TRANSFERABLE_WORK} that directly maps to {TARGET_SKILL_AREA}." Never copy these placeholder tokens into the output.
    Sentence 2 (TRANSFERABLE PROOF): The single strongest piece of evidence from the candidate's background that maps to the target role — named tools, methods, or measurable outcomes that genuinely overlap.
    Sentence 3 (DELIBERATE BRIDGE): What concrete steps they have taken to enter the new field (courses completed by name, certifications, side projects shipped, open-source contributions). NEVER vague language like "passionate about transitioning".
    Sentence 4 (READINESS): One specific value they bring from the previous field that the new field rarely has.
@@ -301,9 +301,9 @@ FOUNDATIONAL RULES (structural — apply to every CV you produce):
 
   RULE 1 — BULLET FORMULA:
     WITH metrics → XYZ: "Accomplished [X] as measured by [Y metric] by doing [Z]."
-      Example: "Grew client base by [N]% over [N] months by redesigning field visit cadence." ← use REAL numbers from profile
+      Example: "Grew [METRIC] by [N]% over [N] months by redesigning [CANDIDATE'S REAL PROCESS]." ← use REAL numbers from profile; replace [METRIC] and [CANDIDATE'S REAL PROCESS] with the candidate's actual data
     WITHOUT metrics → CAR: "[Challenge/Context] → [Action taken] → [Result produced]."
-      Example: "No standardised data process across [N] sites — designed unified template that cut errors and disputes." ← use REAL numbers from profile
+      Example: "No standardised [CANDIDATE'S REAL PROCESS TYPE] across [N] [UNIT] — designed unified template that cut errors and disputes." ← use REAL numbers from profile; replace bracketed tokens with the candidate's actual data
     NEVER use STAR format — it is for interviews, not CVs.
 
   RULE 2 — QUANTIFICATION MATRIX (attempt all 4 dimensions per role, use only what is honest):
