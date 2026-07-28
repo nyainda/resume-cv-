@@ -117,6 +117,7 @@ export default function AuthModal({ open, onSuccess: _onSuccess, onDismiss, mode
 
     return (
         <div
+            className="procv-auth-overlay"
             style={{
                 position: 'fixed', inset: 0, zIndex: 200,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -131,6 +132,7 @@ export default function AuthModal({ open, onSuccess: _onSuccess, onDismiss, mode
                 role="dialog"
                 aria-modal="true"
                 aria-label="Sign in to ProCV"
+                className="procv-auth-card"
                 style={{
                     position: 'relative',
                     width: '100%',
@@ -145,7 +147,7 @@ export default function AuthModal({ open, onSuccess: _onSuccess, onDismiss, mode
                 {/* Gold accent bar */}
                 <div style={{ height: 3, background: 'linear-gradient(90deg, #C9A84C 0%, #e8c97a 50%, #C9A84C 100%)' }} />
 
-                <div style={{ padding: '28px 32px 32px' }}>
+                <div className="procv-auth-body" style={{ padding: '28px 32px 32px' }}>
 
                     {/* ── Logo + close ─────────────────────────────────────── */}
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
@@ -476,6 +478,59 @@ export default function AuthModal({ open, onSuccess: _onSuccess, onDismiss, mode
                 @keyframes spin {
                     from { transform: rotate(0deg); }
                     to   { transform: rotate(360deg); }
+                }
+
+                /* ── Responsive ── */
+
+                /* Phones — bottom-sheet style */
+                @media (max-width: 480px) {
+                    .procv-auth-overlay {
+                        align-items: flex-end !important;
+                        padding: 0 !important;
+                    }
+                    .procv-auth-card {
+                        border-radius: 20px 20px 0 0 !important;
+                        max-width: 100% !important;
+                        /* slide up from below */
+                        animation: procv-sheet-in 0.28s cubic-bezier(0.16,1,0.3,1) !important;
+                    }
+                    .procv-auth-body {
+                        padding: 20px 20px 28px !important;
+                    }
+                    /* Slightly smaller headline */
+                    .procv-auth-body h2 {
+                        font-size: 19px !important;
+                    }
+                    /* Tighter button padding */
+                    .procv-auth-body button[type=submit],
+                    .procv-auth-body .procv-primary-btn {
+                        padding: 12px 16px !important;
+                    }
+                }
+
+                /* Landscape phones — constrain height, enable scroll */
+                @media (max-width: 768px) and (max-height: 500px) {
+                    .procv-auth-overlay {
+                        align-items: flex-start !important;
+                        padding: 8px !important;
+                        overflow-y: auto !important;
+                    }
+                    .procv-auth-card {
+                        border-radius: 16px !important;
+                        max-width: 400px !important;
+                        margin: auto !important;
+                    }
+                    .procv-auth-body {
+                        padding: 16px 20px 20px !important;
+                    }
+                    .procv-auth-body h2 {
+                        font-size: 17px !important;
+                    }
+                }
+
+                @keyframes procv-sheet-in {
+                    from { opacity: 0; transform: translateY(100%); }
+                    to   { opacity: 1; transform: translateY(0); }
                 }
             `}</style>
         </div>
