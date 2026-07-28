@@ -1,4 +1,5 @@
 /// <reference types="@cloudflare/workers-types" />
+import { EmailMessage } from "cloudflare:email";
 /**
  * Auth handler — Google OAuth token link + Email magic link + Session management.
  *
@@ -528,9 +529,6 @@ export async function handleAuthMagicSend(
             `--${boundary}--`,
         ].join("\r\n");
 
-        // EmailMessage is injected by the CF runtime via cloudflare:email
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { EmailMessage } = await import("cloudflare:email" as any);
         const message = new EmailMessage("noreply@procv.app", email, rawEmail);
         await env.SEND_EMAIL!.send(message);
     } catch (err) {

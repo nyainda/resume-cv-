@@ -23,9 +23,7 @@ export interface Env {
      * Configured via [[send_email]] in wrangler.toml (name = "SEND_EMAIL").
      * Requires Email Routing enabled on the CF zone with noreply@procv.app verified.
      */
-    SEND_EMAIL?: {
-        send(message: { from: string; to: string; raw: ReadableStream | string }): Promise<void>;
-    };
+    SEND_EMAIL?: SendEmail;
     /** The app's public URL — used to construct magic-link redirect URLs. Defaults to procv.app if not set. */
     APP_URL?: string;
     /**
