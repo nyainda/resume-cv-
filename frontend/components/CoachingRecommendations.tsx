@@ -462,7 +462,6 @@ function SummaryDiffPanel({ change, onUpdate, onApply, onDiscard }: SummaryDiffP
 // ── TipCard ───────────────────────────────────────────────────────────────────
 
 interface TipCardProps {
-  key?: React.Key;
   tip:              CoachTip;
   cv:               CVData;
   onUpdateCV?:      (cv: CVData) => void;
@@ -722,7 +721,7 @@ export default function CoachingRecommendations({
   onGoToProfile,
   showHeading = true,
 }: CoachingRecommendationsProps) {
-  const tips      = useMemo(() => buildCoachingTips(cv, report), [cv, report]);
+  const tips: CoachTip[] = useMemo(() => buildCoachingTips(cv, report), [cv, report]);
   const highCount = tips.filter(t => t.priority === 'high').length;
 
   return (
