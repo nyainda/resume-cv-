@@ -20,9 +20,13 @@ binding = "AI"
 
 # ─── Required secrets (set once via: wrangler secret put <KEY>) ───────────────
 # ADMIN_TOKEN       — bootstrap admin token for /api/cv/* admin endpoints
-# BREVO_API_KEY     — Brevo (Sendinblue) key for email magic-link sign-ins
-#                     Get from: https://app.brevo.com/settings/keys/api
-#                     Verify your sender domain at: https://app.brevo.com/senders
+# ──────────────────────────────────────────────────────────────────────────────
+
+# ─── Cloudflare Email Workers — magic link delivery ───────────────────────────
+# Requires: Email Routing enabled on your CF zone, noreply@procv.app verified.
+# Add noreply@procv.app as a "Custom address" in CF Email Routing (Workers route).
+[[send_email]]
+name = "SEND_EMAIL"
 # ──────────────────────────────────────────────────────────────────────────────
 
 # Phase I: nightly leak-miner promotion at 03:15 UTC

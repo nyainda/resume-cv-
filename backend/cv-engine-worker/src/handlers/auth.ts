@@ -456,7 +456,7 @@ export async function handleAuthMagicSend(
     if (!email || !email.includes("@") || email.length < 5) {
         return json({ error: "invalid_email" }, request, env, 400);
     }
-    if (!env.BREVO_API_KEY) {
+    if (!env.SEND_EMAIL) {
         return json({ error: "email_not_configured" }, request, env, 503);
     }
 
@@ -505,23 +505,36 @@ export async function handleAuthMagicSend(
 
     const magicLink = `${base}/?magic=${linkToken}`;
 
-    const emailRes = await fetch("https://api.brevo.com/v3/smtp/email", {
-        method: "POST",
-        headers: {
-            "api-key": env.BREVO_API_KEY,
-            "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-            sender: { name: "ProCV", email: "noreply@procv.app" },
-            to: [{ email }],
-            subject: "Your ProCV sign-in link",
-            htmlContent: buildMagicEmail(magicLink),
-        }),
-    });
+    try {
+        // Build a minimal RFC 2822 MIME message for CF Email Workers
+        const boundary = `procv_${Date.now()}_${randomHex(8)}`;
+        const rawEmail = [
+            `MIME-Version: 1.0`,
+            `From: ProCV <noreply@procv.app>`,
+            `To: ${email}`,
+            `Subject: Your ProCV sign-in link`,
+            `Content-Type: multipart/alternative; boundary="${boundary}"`,
+            ``,
+            `--${boundary}`,
+            `Content-Type: text/plain; charset=utf-8`,
+            ``,
+            `Sign in to ProCV by clicking the link below:\n\n${magicLink}\n\nThis link expires in 15 minutes and can only be used once.\n\nIf you didn't request this, you can safely ignore this email.`,
+            ``,
+            `--${boundary}`,
+            `Content-Type: text/html; charset=utf-8`,
+            ``,
+            buildMagicEmail(magicLink),
+            ``,
+            `--${boundary}--`,
+        ].join("\r\n");
 
-    if (!emailRes.ok) {
-        const errTxt = await emailRes.text().catch(() => "");
-        console.error("[Auth] Brevo error:", errTxt);
+        // EmailMessage is injected by the CF runtime via cloudflare:email
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { EmailMessage } = await import("cloudflare:email" as any);
+        const message = new EmailMessage("noreply@procv.app", email, rawEmail);
+        await env.SEND_EMAIL!.send(message);
+    } catch (err) {
+        console.error("[Auth] CF Email send error:", err);
         return json({ error: "email_send_failed" }, request, env, 502);
     }
 
