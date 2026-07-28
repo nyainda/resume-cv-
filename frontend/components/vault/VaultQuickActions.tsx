@@ -163,7 +163,7 @@ export const VaultQuickActions: React.FC<Props> = ({ job, onBuildCV, onClose }) 
               <div>
                 <p className="text-xs font-bold text-zinc-500 dark:text-zinc-400 mb-2">Job description preview</p>
                 <div className="bg-zinc-50 dark:bg-neutral-800 rounded-xl px-4 py-3 text-xs text-zinc-600 dark:text-zinc-400 leading-relaxed line-clamp-6 font-mono">
-                  {job.rawJd.slice(0, 400)}{job.rawJd.length > 400 ? '…' : ''}
+                  {(job.rawJd ?? '').slice(0, 400)}{(job.rawJd ?? '').length > 400 ? '…' : ''}
                 </div>
               </div>
             </>
