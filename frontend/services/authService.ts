@@ -138,7 +138,6 @@ export async function linkGoogleSession(
     accessToken: string,
     deviceId: string,
 ): Promise<LinkGoogleResult> {
-    console.log('[AuthService] linkGoogleSession → POST', `${ENGINE}/api/auth/google`);
     try {
         const res = await fetch(`${ENGINE}/api/auth/google`, {
             method: 'POST',
@@ -147,7 +146,6 @@ export async function linkGoogleSession(
             credentials: 'include', // worker sets HttpOnly cookie in the response
             signal: AbortSignal.timeout(18_000),
         });
-        console.log('[AuthService] linkGoogleSession HTTP', res.status);
         if (res.status === 429) {
             const data = await res.json().catch(() => ({})) as any;
             console.warn('[AuthService] linkGoogleSession — rate limited, retry_after:', data?.retry_after);
@@ -159,7 +157,6 @@ export async function linkGoogleSession(
             return null;
         }
         const data = await res.json() as any;
-        console.log('[AuthService] linkGoogleSession response body:', JSON.stringify(data));
         if (!data.ok) {
             console.warn('[AuthService] linkGoogleSession — server returned ok:false', data);
             return null;
@@ -169,7 +166,6 @@ export async function linkGoogleSession(
         if (data.session_token) saveSessionFallback(data.session_token);
         // Cache slots so App.tsx can restore profiles instantly with no extra round trip.
         if (Array.isArray(data.slots) && data.slots.length > 0) _pendingSlots = data.slots as RawSlot[];
-        console.log('[AuthService] linkGoogleSession ✓ — user:', data.user?.email, '| is_new_user:', data.is_new_user, '| slots:', data.slots?.length ?? 0);
         return { ok: true, token: data.session_token, user: data.user as WorkerUser, is_new_user: !!data.is_new_user };
     } catch (e) {
         console.error('[AuthService] linkGoogleSession threw:', (e as Error).message ?? e);
@@ -182,7 +178,6 @@ export async function linkGoogleSession(
  * redirects back to the right domain (dev vs prod).
  */
 export async function sendMagicLink(email: string, appUrl: string): Promise<{ ok: boolean; poll_token?: string; error?: string; retry_after?: number }> {
-    console.log('[MagicLink] sendMagicLink →', email, '| app_url:', appUrl);
     try {
         const res = await fetch(`${ENGINE}/api/auth/magic-link/send`, {
             method: 'POST',
@@ -195,9 +190,7 @@ export async function sendMagicLink(email: string, appUrl: string): Promise<{ ok
             console.warn('[MagicLink] sendMagicLink failed — HTTP', res.status, data?.error);
             return { ok: false, error: data?.error || 'send_failed', retry_after: data?.retry_after };
         }
-        const pollToken = data?.poll_token as string | undefined;
-        console.log('[MagicLink] sendMagicLink OK — poll_token present:', !!pollToken, pollToken ? '(prefix: ' + pollToken.slice(0, 8) + '…)' : '(MISSING — polling will not start!)');
-        return { ok: true, poll_token: pollToken };
+        return { ok: true, poll_token: data?.poll_token };
     } catch (e) {
         console.warn('[AuthService] sendMagicLink failed:', e);
         return { ok: false, error: 'network_error' };
