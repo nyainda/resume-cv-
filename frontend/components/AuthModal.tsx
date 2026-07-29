@@ -10,7 +10,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../auth/AuthContext';
-import { sendMagicLink, pollMagicLink } from '../services/authService';
+import { sendMagicLink, validateSession } from '../services/authService';
 import type { WorkerUser } from '../services/authService';
 
 interface AuthModalProps {
@@ -30,7 +30,13 @@ const SIGNUP_FEATURES = [
 ];
 
 export default function AuthModal({ open, onSuccess: _onSuccess, onDismiss, mode: initialMode = 'signup' }: AuthModalProps) {
-    const { googleSignIn, isAuthenticated, rememberDevice, setRememberDevice, googleRateLimited, clearGoogleRateLimit, magicLinkError, clearMagicLinkError, applyPollSession } = useAuth();
+    const {
+        googleSignIn, isAuthenticated, rememberDevice, setRememberDevice,
+        googleRateLimited, clearGoogleRateLimit,
+        magicLinkError, clearMagicLinkError, applyPollSession,
+        startMagicLinkPolling, stopMagicLinkPolling, isMagicLinkPolling,
+        onAuthSuccess,
+    } = useAuth();
 
     const [mode, setMode]              = useState<'signup' | 'signin'>(initialMode);
     const [screen, setScreen]         = useState<Screen>('main');
@@ -39,7 +45,7 @@ export default function AuthModal({ open, onSuccess: _onSuccess, onDismiss, mode
     const [sending, setSending]        = useState(false);
     const [googleLoading, setGoogleLoading] = useState(false);
     const [mainNotice, setMainNotice]  = useState('');
-    const [pollToken, setPollToken]    = useState<string | null>(null);
+    const [checking, setChecking]      = useState(false); // "I've clicked it" manual check
     const emailRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => { setMode(initialMode); }, [initialMode]);
@@ -54,6 +60,7 @@ export default function AuthModal({ open, onSuccess: _onSuccess, onDismiss, mode
             setSending(false);
             setGoogleLoading(false);
             setMainNotice('');
+            setChecking(false);
             clearGoogleRateLimit();
         }
     }, [open]);
@@ -66,38 +73,9 @@ export default function AuthModal({ open, onSuccess: _onSuccess, onDismiss, mode
         if (isAuthenticated && open) onDismiss();
     }, [isAuthenticated, open, onDismiss]);
 
-    // ── Cross-device magic-link polling ──────────────────────────────────────
-    // Once the magic-sent screen is showing and we have a poll token, probe
-    // the worker every 2 s.  When the phone clicks the link the server marks
-    // the token used and the next poll returns signed_in, auto-signing this
-    // device in.  Cleans up automatically when the screen changes.
-
-    useEffect(() => {
-        if (screen !== 'magic-sent' || !pollToken) return;
-        let active = true;
-
-        const intervalId = setInterval(async () => {
-            if (!active) return;
-            const result = await pollMagicLink(pollToken);
-            if (!active) return;
-
-            if (result.status === 'signed_in') {
-                active = false;
-                clearInterval(intervalId);
-                applyPollSession(result.user, result.is_new_user);
-            } else if (result.status === 'expired' || result.status === 'invalid') {
-                active = false;
-                clearInterval(intervalId);
-                setScreen('magic-expired');
-            }
-            // 'pending' — keep polling
-        }, 2000);
-
-        return () => {
-            active = false;
-            clearInterval(intervalId);
-        };
-    }, [screen, pollToken, applyPollSession]);
+    // Polling now lives in AuthContext (startMagicLinkPolling / stopMagicLinkPolling)
+    // so it survives modal dismissal.  AuthModal just calls startMagicLinkPolling()
+    // from handleSendMagicLink and reads isMagicLinkPolling for the spinner.
 
     if (!open) return null;
 
@@ -135,7 +113,7 @@ export default function AuthModal({ open, onSuccess: _onSuccess, onDismiss, mode
         const result = await sendMagicLink(trimmed, window.location.origin);
         setSending(false);
         if (result.ok) {
-            setPollToken(result.poll_token ?? null);
+            if (result.poll_token) startMagicLinkPolling(result.poll_token);
             setScreen('magic-sent');
         } else if (result.error === 'email_not_configured') {
             setScreen('main');
@@ -147,6 +125,20 @@ export default function AuthModal({ open, onSuccess: _onSuccess, onDismiss, mode
             setEmailError('Email delivery failed. Please try again or use Google sign-in.');
         } else {
             setEmailError('Something went wrong. Please try again or use Google sign-in.');
+        }
+    }
+
+    // Manual check — for same-device flow or when polling missed the transition.
+    async function handleAlreadyClicked() {
+        setChecking(true);
+        const result = await validateSession();
+        setChecking(false);
+        if (result.user) {
+            onAuthSuccess(result.user, false);
+        } else {
+            // Session not found — link might not have been clicked yet or was clicked
+            // on a different device (poll will catch it).  Show a gentle hint.
+            setEmailError('Not signed in yet — make sure you clicked the link in your email, then try again.');
         }
     }
 
@@ -163,7 +155,11 @@ export default function AuthModal({ open, onSuccess: _onSuccess, onDismiss, mode
                 backdropFilter: 'blur(8px)',
                 WebkitBackdropFilter: 'blur(8px)',
             }}
-            onClick={e => { if (e.target === e.currentTarget) onDismiss(); }}
+            onClick={e => {
+                // Don't dismiss the modal while waiting for the magic link to be clicked —
+                // dismissing would stop the cross-device polling loop.
+                if (e.target === e.currentTarget && screen !== 'magic-sent') onDismiss();
+            }}
         >
             <div
                 role="dialog"
@@ -201,11 +197,17 @@ export default function AuthModal({ open, onSuccess: _onSuccess, onDismiss, mode
                             </div>
                         </div>
                         <button
-                            onClick={onDismiss}
+                            onClick={() => {
+                                // Stop polling before dismissing so we don't apply a session
+                                // to an already-closed modal.
+                                if (isMagicLinkPolling) stopMagicLinkPolling();
+                                onDismiss();
+                            }}
                             style={{
                                 width: 28, height: 28, borderRadius: '50%',
                                 background: '#f3f4f6', border: 'none',
-                                color: '#6b7280', cursor: 'pointer',
+                                color: screen === 'magic-sent' ? '#d1d5db' : '#6b7280',
+                                cursor: 'pointer',
                                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                                 outline: 'none', flexShrink: 0,
                                 transition: 'background 0.15s',
@@ -213,6 +215,7 @@ export default function AuthModal({ open, onSuccess: _onSuccess, onDismiss, mode
                             onMouseEnter={e => (e.currentTarget.style.background = '#e5e7eb')}
                             onMouseLeave={e => (e.currentTarget.style.background = '#f3f4f6')}
                             aria-label="Close"
+                            title={screen === 'magic-sent' ? 'Closing this will cancel the sign-in' : 'Close'}
                         >
                             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round">
                                 <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
@@ -550,14 +553,24 @@ export default function AuthModal({ open, onSuccess: _onSuccess, onDismiss, mode
                                 </p>
                                 <div style={{ display: 'flex', gap: 12, justifyContent: 'center', marginTop: 6 }}>
                                     <button
-                                        onClick={() => setScreen('magic-form')}
+                                        onClick={() => { stopMagicLinkPolling(); setScreen('magic-form'); }}
                                         style={{ background: 'none', border: 'none', color: '#1B2B4B', fontWeight: 700, fontSize: 13, cursor: 'pointer', padding: 0, outline: 'none' }}
                                     >
                                         Try a different email
                                     </button>
                                     <span style={{ color: '#d1d5db', fontSize: 13 }}>·</span>
                                     <button
-                                        onClick={async () => { setSending(true); const r = await sendMagicLink(email, window.location.origin); setSending(false); if (r.ok) { setPollToken(r.poll_token ?? null); } else { setScreen('magic-form'); } }}
+                                        onClick={async () => {
+                                            stopMagicLinkPolling();
+                                            setSending(true);
+                                            const r = await sendMagicLink(email, window.location.origin);
+                                            setSending(false);
+                                            if (r.ok) {
+                                                if (r.poll_token) startMagicLinkPolling(r.poll_token);
+                                            } else {
+                                                setScreen('magic-form');
+                                            }
+                                        }}
                                         disabled={sending}
                                         style={{ background: 'none', border: 'none', color: '#C9A84C', fontWeight: 700, fontSize: 13, cursor: sending ? 'not-allowed' : 'pointer', padding: 0, outline: 'none', opacity: sending ? 0.5 : 1 }}
                                     >
@@ -566,22 +579,48 @@ export default function AuthModal({ open, onSuccess: _onSuccess, onDismiss, mode
                                 </div>
                             </div>
 
-                            {/* Cross-device polling indicator */}
-                            {pollToken && (
-                                <div style={{
-                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                    gap: 8, marginTop: 16,
-                                    fontSize: 12, color: '#6b7280',
-                                }}>
-                                    <svg style={{ animation: 'spin 1.4s linear infinite', flexShrink: 0 }} width="13" height="13" viewBox="0 0 24 24" fill="none">
-                                        <circle cx="12" cy="12" r="10" stroke="#e5e7eb" strokeWidth="3"/>
-                                        <path d="M12 2a10 10 0 0 1 10 10" stroke="#C9A84C" strokeWidth="3" strokeLinecap="round"/>
-                                    </svg>
-                                    <span>This window will sign in automatically when you click the link</span>
-                                </div>
-                            )}
+                            {/* Auto-sign-in polling indicator */}
+                            <div style={{
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                gap: 8, marginTop: 16,
+                                fontSize: 12, color: '#6b7280',
+                            }}>
+                                {isMagicLinkPolling ? (
+                                    <>
+                                        <svg style={{ animation: 'spin 1.4s linear infinite', flexShrink: 0 }} width="13" height="13" viewBox="0 0 24 24" fill="none">
+                                            <circle cx="12" cy="12" r="10" stroke="#e5e7eb" strokeWidth="3"/>
+                                            <path d="M12 2a10 10 0 0 1 10 10" stroke="#C9A84C" strokeWidth="3" strokeLinecap="round"/>
+                                        </svg>
+                                        <span>Waiting — this window signs in automatically once you click the link</span>
+                                    </>
+                                ) : (
+                                    <span style={{ color: '#9ca3af' }}>Keep this window open while you click the link</span>
+                                )}
+                            </div>
 
-                            <p style={{ fontSize: 11.5, color: '#d1d5db', marginTop: pollToken ? 8 : 16, marginBottom: 0, lineHeight: 1.5 }}>
+                            {/* "I've already clicked it" manual fallback */}
+                            <div style={{ marginTop: 14, textAlign: 'center' }}>
+                                {emailError && (
+                                    <p style={{ color: '#ef4444', fontSize: 12, marginBottom: 8 }}>{emailError}</p>
+                                )}
+                                <button
+                                    onClick={handleAlreadyClicked}
+                                    disabled={checking}
+                                    style={{
+                                        background: 'none', border: 'none',
+                                        color: checking ? '#9ca3af' : '#1B2B4B',
+                                        fontWeight: 600, fontSize: 12.5,
+                                        cursor: checking ? 'not-allowed' : 'pointer',
+                                        padding: '6px 0', outline: 'none',
+                                        textDecoration: 'underline', textDecorationStyle: 'dotted',
+                                        textUnderlineOffset: '3px',
+                                    }}
+                                >
+                                    {checking ? 'Checking…' : "I've already clicked the link"}
+                                </button>
+                            </div>
+
+                            <p style={{ fontSize: 11.5, color: '#d1d5db', marginTop: 10, marginBottom: 0, lineHeight: 1.5 }}>
                                 Check your spam folder if it doesn't arrive.
                             </p>
                         </div>

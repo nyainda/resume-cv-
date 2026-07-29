@@ -39,6 +39,7 @@ import {
     validateSession,
     linkGoogleSession,
     verifyMagicLink,
+    pollMagicLink,
     signOutWorker,
     deleteAccountWorker,
     clearSessionFallback,
@@ -123,6 +124,16 @@ export interface AuthContextValue {
      * The session token has already been persisted by pollMagicLink().
      */
     applyPollSession: (user: WorkerUser, isNew: boolean) => void;
+    /**
+     * Start polling the worker for cross-device magic-link sign-in.
+     * Lives in AuthContext so the poll survives modal dismissal.
+     * Call with the poll_token returned by sendMagicLink().
+     */
+    startMagicLinkPolling: (token: string) => void;
+    /** Stop polling — call when the user cancels or changes email. */
+    stopMagicLinkPolling: () => void;
+    /** True while the worker is being polled for a cross-device sign-in. */
+    isMagicLinkPolling: boolean;
 }
 
 // ─── Context ──────────────────────────────────────────────────────────────────
@@ -379,6 +390,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const [magicLinkError, setMagicLinkError] = useState<'expired' | 'used' | null>(null);
     const [rememberDevice, setRememberDevice] = useState(true);
     const [googleRateLimited, setGoogleRateLimited] = useState<{ retryAfter?: number } | null>(null);
+
+    // ── Cross-device magic-link polling state ─────────────────────────────────
+    // Polling lives in AuthContext (not AuthModal) so the interval survives
+    // modal dismissal.  AuthModal just calls startMagicLinkPolling() after a
+    // successful send; this context drives the auto-sign-in.
+    const [isMagicLinkPolling, setIsMagicLinkPolling] = useState(false);
+    const _magicPollTokenRef = useRef<string | null>(null);
 
     const pendingResolvers  = useRef<Array<(ok: boolean) => void>>([]);
 
@@ -747,6 +765,55 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         _applySession(incoming, isNew);
     }, [_applySession]);
 
+    // ── Cross-device polling (lives in context so modal dismissal doesn't kill it) ──
+
+    const startMagicLinkPolling = useCallback((token: string) => {
+        _magicPollTokenRef.current = token;
+        setIsMagicLinkPolling(true);
+    }, []);
+
+    const stopMagicLinkPolling = useCallback(() => {
+        _magicPollTokenRef.current = null;
+        setIsMagicLinkPolling(false);
+    }, []);
+
+    useEffect(() => {
+        if (!isMagicLinkPolling) return;
+        let active = true;
+
+        const intervalId = setInterval(async () => {
+            const token = _magicPollTokenRef.current;
+            if (!active || !token) return;
+
+            const result = await pollMagicLink(token);
+            if (!active) return;
+
+            if (result.status === 'signed_in') {
+                active = false;
+                clearInterval(intervalId);
+                _magicPollTokenRef.current = null;
+                setIsMagicLinkPolling(false);
+                _applySession(result.user, result.is_new_user);
+            } else if (result.status === 'expired' || result.status === 'invalid') {
+                active = false;
+                clearInterval(intervalId);
+                _magicPollTokenRef.current = null;
+                setIsMagicLinkPolling(false);
+                // Show the expired-link screen inside the auth modal
+                setMagicLinkError('expired');
+                setAuthModalOpen(true);
+                setAuthModalMode('signin');
+            }
+            // 'pending' → keep polling
+        }, 2000);
+
+        return () => {
+            active = false;
+            clearInterval(intervalId);
+        };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isMagicLinkPolling, _applySession]);
+
     const showSignIn = useCallback((mode: 'signup' | 'signin' = 'signup') => {
         setAuthModalMode(mode);
         setAuthModalOpen(true);
@@ -839,6 +906,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setRememberDevice,
         googleSignIn,
         applyPollSession,
+        startMagicLinkPolling,
+        stopMagicLinkPolling,
+        isMagicLinkPolling,
     };
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

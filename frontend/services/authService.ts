@@ -252,12 +252,13 @@ export async function verifyMagicLink(
             },
         );
         if (!res.ok) {
-            // 410 = token expired, 409 = token already used, anything else = invalid/unknown
+            // 410 = token expired OR already used — distinguish by error body.
+            // Server sends "token_expired" or "token_already_used"; check body first.
             let error: 'expired' | 'used' | 'invalid' | 'network_error' = 'invalid';
             try {
                 const body = await res.json() as { error?: string };
-                if (res.status === 410 || body.error === 'token_expired')  error = 'expired';
-                else if (body.error === 'token_used')                       error = 'used';
+                if (body.error === 'token_already_used')                    error = 'used';
+                else if (body.error === 'token_expired' || res.status === 410) error = 'expired';
             } catch { /* ignore parse errors */ }
             return { ok: false, error };
         }
