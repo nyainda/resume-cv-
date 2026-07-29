@@ -22,8 +22,22 @@ export interface Env {
      * Cloudflare Email Workers send binding — used for magic-link emails.
      * Configured via [[send_email]] in wrangler.toml (name = "SEND_EMAIL").
      * Requires Email Routing enabled on the CF zone with noreply@procv.app verified.
+     * Optional: RESEND_API_KEY takes priority if set (no domain required — good for testing).
      */
     SEND_EMAIL?: SendEmail;
+    /**
+     * Resend API key — alternative email provider that works without a verified domain.
+     * Get a free key at https://resend.com (3,000 emails/month free).
+     * Set via: wrangler secret put RESEND_API_KEY
+     * When set, takes priority over SEND_EMAIL (CF Email Workers).
+     */
+    RESEND_API_KEY?: string;
+    /**
+     * From address for Resend emails. Defaults to "onboarding@resend.dev" (Resend's
+     * shared test address — works immediately, no domain verification needed).
+     * Once you have a verified domain, set to e.g. "noreply@yourdomain.com".
+     */
+    RESEND_FROM_EMAIL?: string;
     /** The app's public URL — used to construct magic-link redirect URLs. Defaults to procv.app if not set. */
     APP_URL?: string;
     /**

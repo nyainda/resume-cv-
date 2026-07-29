@@ -457,7 +457,7 @@ export async function handleAuthMagicSend(
     if (!email || !email.includes("@") || email.length < 5) {
         return json({ error: "invalid_email" }, request, env, 400);
     }
-    if (!env.SEND_EMAIL) {
+    if (!env.SEND_EMAIL && !env.RESEND_API_KEY) {
         return json({ error: "email_not_configured" }, request, env, 503);
     }
 
@@ -507,32 +507,56 @@ export async function handleAuthMagicSend(
     const magicLink = `${base}/?magic=${linkToken}`;
 
     try {
-        // Build a minimal RFC 2822 MIME message for CF Email Workers
-        const boundary = `procv_${Date.now()}_${randomHex(8)}`;
-        const rawEmail = [
-            `MIME-Version: 1.0`,
-            `From: ProCV <noreply@procv.app>`,
-            `To: ${email}`,
-            `Subject: Your ProCV sign-in link`,
-            `Content-Type: multipart/alternative; boundary="${boundary}"`,
-            ``,
-            `--${boundary}`,
-            `Content-Type: text/plain; charset=utf-8`,
-            ``,
-            `Sign in to ProCV by clicking the link below:\n\n${magicLink}\n\nThis link expires in 15 minutes and can only be used once.\n\nIf you didn't request this, you can safely ignore this email.`,
-            ``,
-            `--${boundary}`,
-            `Content-Type: text/html; charset=utf-8`,
-            ``,
-            buildMagicEmail(magicLink),
-            ``,
-            `--${boundary}--`,
-        ].join("\r\n");
+        if (env.RESEND_API_KEY) {
+            // ── Resend API (preferred — works without a verified domain) ──────
+            const fromAddr = env.RESEND_FROM_EMAIL ?? "onboarding@resend.dev";
+            const res = await fetch("https://api.resend.com/emails", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${env.RESEND_API_KEY}`,
+                },
+                body: JSON.stringify({
+                    from: `ProCV <${fromAddr}>`,
+                    to: [email],
+                    subject: "Your ProCV sign-in link",
+                    text: `Sign in to ProCV by clicking the link below:\n\n${magicLink}\n\nThis link expires in 15 minutes and can only be used once.\n\nIf you didn't request this, you can safely ignore this email.`,
+                    html: buildMagicEmail(magicLink),
+                }),
+            });
+            if (!res.ok) {
+                const errBody = await res.text().catch(() => "");
+                console.error("[Auth] Resend send error:", res.status, errBody);
+                return json({ error: "email_send_failed" }, request, env, 502);
+            }
+        } else {
+            // ── CF Email Workers (requires Email Routing + verified domain) ───
+            const boundary = `procv_${Date.now()}_${randomHex(8)}`;
+            const rawEmail = [
+                `MIME-Version: 1.0`,
+                `From: ProCV <noreply@procv.app>`,
+                `To: ${email}`,
+                `Subject: Your ProCV sign-in link`,
+                `Content-Type: multipart/alternative; boundary="${boundary}"`,
+                ``,
+                `--${boundary}`,
+                `Content-Type: text/plain; charset=utf-8`,
+                ``,
+                `Sign in to ProCV by clicking the link below:\n\n${magicLink}\n\nThis link expires in 15 minutes and can only be used once.\n\nIf you didn't request this, you can safely ignore this email.`,
+                ``,
+                `--${boundary}`,
+                `Content-Type: text/html; charset=utf-8`,
+                ``,
+                buildMagicEmail(magicLink),
+                ``,
+                `--${boundary}--`,
+            ].join("\r\n");
 
-        const message = new EmailMessage("noreply@procv.app", email, rawEmail);
-        await env.SEND_EMAIL!.send(message);
+            const message = new EmailMessage("noreply@procv.app", email, rawEmail);
+            await env.SEND_EMAIL!.send(message);
+        }
     } catch (err) {
-        console.error("[Auth] CF Email send error:", err);
+        console.error("[Auth] Email send error:", err);
         return json({ error: "email_send_failed" }, request, env, 502);
     }
 
