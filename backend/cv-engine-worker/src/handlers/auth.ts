@@ -903,50 +903,154 @@ export async function handleAuthDeleteAccount(
 // ─── Email template ───────────────────────────────────────────────────────────
 
 function buildMagicEmail(magicLink: string): string {
+    // Logo as inline data URI — no external hosting required, renders in all major clients
+    const logoDataUri = `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512' width='512' height='512'%3E%3Crect width='512' height='512' rx='110' ry='110' fill='%23EBFF38'/%3E%3Crect x='96' y='96' width='44' height='320' rx='18' fill='%23111'/%3E%3Crect x='96' y='96' width='136' height='44' rx='18' fill='%23111'/%3E%3Crect x='96' y='372' width='136' height='44' rx='18' fill='%23111'/%3E%3Crect x='372' y='96' width='44' height='320' rx='18' fill='%23111'/%3E%3Crect x='280' y='96' width='136' height='44' rx='18' fill='%23111'/%3E%3Crect x='280' y='372' width='136' height='44' rx='18' fill='%23111'/%3E%3Ctext x='256' y='308' text-anchor='middle' fill='%23111' font-size='132' font-weight='900' font-family='system-ui,-apple-system,Arial,sans-serif' letter-spacing='-6'%3ECV%3C/text%3E%3C/svg%3E`;
+
     return `<!DOCTYPE html>
-<html lang="en">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Sign in to ProCV</title>
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <meta name="supported-color-schemes" content="light">
+  <title>Sign in to ProCV</title>
+  <!--[if mso]>
+  <noscript><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml></noscript>
+  <![endif]-->
 </head>
-<body style="margin:0;padding:0;background:#F8F7F4;font-family:'DM Sans',Arial,sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
-    <tr><td align="center" style="padding:40px 16px;">
-      <table width="480" cellpadding="0" cellspacing="0" role="presentation"
-        style="background:#fff;border-radius:16px;box-shadow:0 2px 16px rgba(0,0,0,0.08);overflow:hidden;max-width:100%;">
-        <!-- Header -->
-        <tr><td style="background:#1B2B4B;padding:24px 32px;">
-          <span style="color:#C9A84C;font-size:20px;font-weight:800;letter-spacing:-0.5px;">ProCV</span>
-          <span style="color:rgba(255,255,255,0.5);font-size:13px;margin-left:10px;">Your Personal Career Consultant</span>
-        </td></tr>
-        <!-- Body -->
-        <tr><td style="padding:32px 32px 24px;">
-          <h1 style="color:#1B2B4B;font-size:22px;font-weight:700;margin:0 0 12px;">Sign in to ProCV</h1>
-          <p style="color:#555;font-size:15px;line-height:1.6;margin:0 0 28px;">
-            Click the button below to sign in securely. This link expires in
-            <strong>15 minutes</strong> and can only be used once.
-          </p>
-          <a href="${magicLink}"
-            style="display:inline-block;background:#1B2B4B;color:#fff;padding:14px 32px;
-                   border-radius:10px;text-decoration:none;font-weight:700;font-size:16px;
-                   letter-spacing:-0.01em;">
-            Sign in to ProCV →
-          </a>
-          <p style="color:#999;font-size:12px;line-height:1.5;margin:28px 0 0;">
-            If you didn't request this email, you can safely ignore it — your account
-            won't be affected and this link will expire automatically.<br><br>
-            For your security, never share this link with anyone.
-          </p>
-        </td></tr>
-        <!-- Footer -->
-        <tr><td style="background:#F8F7F4;padding:16px 32px;border-top:1px solid #e5e2d8;">
-          <p style="color:#aaa;font-size:11px;margin:0;text-align:center;">
-            ProCV · Your Personal Career Consultant<br>
-            You're receiving this because a sign-in was requested for this email address.
-          </p>
-        </td></tr>
-      </table>
-    </td></tr>
+<body style="margin:0;padding:0;background-color:#F0EFE9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;">
+
+  <!-- Outer wrapper -->
+  <table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation"
+    style="background-color:#F0EFE9;min-width:100%;">
+    <tr>
+      <td align="center" style="padding:48px 16px 40px;">
+
+        <!-- Card -->
+        <table width="520" cellpadding="0" cellspacing="0" border="0" role="presentation"
+          style="max-width:520px;width:100%;background:#ffffff;border-radius:20px;overflow:hidden;
+                 box-shadow:0 4px 32px rgba(0,0,0,0.10),0 1px 4px rgba(0,0,0,0.06);">
+
+          <!-- ── HEADER ── -->
+          <tr>
+            <td style="background-color:#111111;padding:28px 36px 24px;">
+              <table cellpadding="0" cellspacing="0" border="0" role="presentation">
+                <tr>
+                  <td style="vertical-align:middle;padding-right:14px;">
+                    <img src="${logoDataUri}" width="44" height="44" alt="ProCV logo"
+                      style="display:block;border-radius:10px;border:0;outline:none;text-decoration:none;">
+                  </td>
+                  <td style="vertical-align:middle;">
+                    <span style="color:#EBFF38;font-size:22px;font-weight:800;letter-spacing:-0.6px;
+                                 line-height:1;display:block;">ProCV</span>
+                    <span style="color:rgba(255,255,255,0.45);font-size:12px;letter-spacing:0.02em;
+                                 line-height:1;display:block;margin-top:3px;">Your Personal Career Consultant</span>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- ── YELLOW ACCENT STRIPE ── -->
+          <tr>
+            <td style="background-color:#EBFF38;height:4px;font-size:0;line-height:0;">&nbsp;</td>
+          </tr>
+
+          <!-- ── BODY ── -->
+          <tr>
+            <td style="padding:40px 36px 32px;">
+
+              <!-- Icon badge -->
+              <table cellpadding="0" cellspacing="0" border="0" role="presentation" style="margin-bottom:24px;">
+                <tr>
+                  <td style="background-color:#F0EFE9;border-radius:12px;padding:12px 16px;">
+                    <span style="font-size:24px;line-height:1;" role="img" aria-label="key">🔑</span>
+                  </td>
+                </tr>
+              </table>
+
+              <h1 style="color:#111111;font-size:24px;font-weight:800;letter-spacing:-0.5px;
+                          margin:0 0 10px;line-height:1.2;">Your sign-in link is ready</h1>
+              <p style="color:#555555;font-size:15px;line-height:1.65;margin:0 0 32px;">
+                Click the button below to sign in to ProCV securely.<br>
+                This link expires in <strong style="color:#111111;">15 minutes</strong>
+                and can only be used once.
+              </p>
+
+              <!-- CTA button -->
+              <table cellpadding="0" cellspacing="0" border="0" role="presentation">
+                <tr>
+                  <td style="border-radius:12px;background-color:#EBFF38;">
+                    <a href="${magicLink}"
+                      style="display:inline-block;padding:16px 36px;color:#111111;
+                             font-size:16px;font-weight:800;text-decoration:none;
+                             letter-spacing:-0.2px;border-radius:12px;line-height:1;
+                             mso-padding-alt:16px 36px;">
+                      Sign in to ProCV &rarr;
+                    </a>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Fallback link -->
+              <p style="color:#999999;font-size:12px;line-height:1.6;margin:20px 0 0;">
+                Button not working? Copy and paste this link into your browser:<br>
+                <a href="${magicLink}"
+                  style="color:#555555;word-break:break-all;text-decoration:underline;">
+                  ${magicLink}
+                </a>
+              </p>
+
+            </td>
+          </tr>
+
+          <!-- ── DIVIDER ── -->
+          <tr>
+            <td style="padding:0 36px;">
+              <table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation">
+                <tr><td style="border-top:1px solid #EBEBEB;font-size:0;line-height:0;">&nbsp;</td></tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- ── SECURITY NOTE ── -->
+          <tr>
+            <td style="padding:20px 36px 28px;">
+              <table cellpadding="0" cellspacing="0" border="0" role="presentation" width="100%">
+                <tr>
+                  <td style="vertical-align:top;padding-right:10px;width:20px;">
+                    <span style="font-size:14px;" role="img" aria-label="lock">🔒</span>
+                  </td>
+                  <td style="vertical-align:top;">
+                    <p style="color:#888888;font-size:12px;line-height:1.6;margin:0;">
+                      <strong style="color:#555555;">Didn't request this?</strong>
+                      You can safely ignore this email — your account won't be affected
+                      and this link will expire automatically.<br>
+                      For your security, never share this link with anyone.
+                    </p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- ── FOOTER ── -->
+          <tr>
+            <td style="background-color:#F7F6F2;padding:18px 36px;border-top:1px solid #EBEBEB;">
+              <p style="color:#BBBBBB;font-size:11px;margin:0;text-align:center;line-height:1.6;">
+                <strong style="color:#999999;">ProCV</strong> &middot; Your Personal Career Consultant<br>
+                You received this because a sign-in was requested for this email address.
+              </p>
+            </td>
+          </tr>
+
+        </table>
+        <!-- /Card -->
+
+      </td>
+    </tr>
   </table>
+
 </body>
 </html>`;
 }
