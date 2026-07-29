@@ -134,6 +134,14 @@ export interface AuthContextValue {
     stopMagicLinkPolling: () => void;
     /** True while the worker is being polled for a cross-device sign-in. */
     isMagicLinkPolling: boolean;
+    /**
+     * Fire an immediate single poll check right now (for the "I've already
+     * clicked the link" button).  The interval poll also runs on its normal
+     * 2-second cadence — this just adds an out-of-band check so the user
+     * doesn't wait up to 2 s after manually prompting.
+     * No-ops when not currently polling.
+     */
+    checkMagicLinkNow: () => Promise<void>;
 }
 
 // ─── Context ──────────────────────────────────────────────────────────────────
@@ -778,42 +786,58 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setIsMagicLinkPolling(false);
     }, []);
 
+    // Shared poll handler — used by both the interval and the manual trigger.
+    const _runOnePoll = useCallback(async (onDone: () => void) => {
+        const token = _magicPollTokenRef.current;
+        if (!token) return;
+
+        const result = await pollMagicLink(token);
+
+        if (result.status === 'signed_in') {
+            onDone();
+            _magicPollTokenRef.current = null;
+            setIsMagicLinkPolling(false);
+            _applySession(result.user, result.is_new_user);
+        } else if (result.status === 'expired' || result.status === 'invalid') {
+            onDone();
+            _magicPollTokenRef.current = null;
+            setIsMagicLinkPolling(false);
+            setMagicLinkError('expired');
+            setAuthModalOpen(true);
+            setAuthModalMode('signin');
+        }
+        // 'pending' → keep polling
+    }, [_applySession]);
+
     useEffect(() => {
         if (!isMagicLinkPolling) return;
         let active = true;
 
-        const intervalId = setInterval(async () => {
-            const token = _magicPollTokenRef.current;
-            if (!active || !token) return;
-
-            const result = await pollMagicLink(token);
+        const runPoll = () => {
             if (!active) return;
+            _runOnePoll(() => { active = false; });
+        };
 
-            if (result.status === 'signed_in') {
-                active = false;
-                clearInterval(intervalId);
-                _magicPollTokenRef.current = null;
-                setIsMagicLinkPolling(false);
-                _applySession(result.user, result.is_new_user);
-            } else if (result.status === 'expired' || result.status === 'invalid') {
-                active = false;
-                clearInterval(intervalId);
-                _magicPollTokenRef.current = null;
-                setIsMagicLinkPolling(false);
-                // Show the expired-link screen inside the auth modal
-                setMagicLinkError('expired');
-                setAuthModalOpen(true);
-                setAuthModalMode('signin');
-            }
-            // 'pending' → keep polling
-        }, 2000);
+        const intervalId = setInterval(runPoll, 2000);
+
+        // Fire immediately when the user tabs back to this window so they
+        // don't wait up to 2 s after clicking the link in another tab.
+        const onVisible = () => { if (document.visibilityState === 'visible') runPoll(); };
+        document.addEventListener('visibilitychange', onVisible);
 
         return () => {
             active = false;
             clearInterval(intervalId);
+            document.removeEventListener('visibilitychange', onVisible);
         };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [isMagicLinkPolling, _applySession]);
+    }, [isMagicLinkPolling, _runOnePoll]);
+
+    // Manual one-shot poll — wired to the "I've already clicked" button so the
+    // user gets an immediate response instead of waiting for the next interval.
+    const checkMagicLinkNow = useCallback(async () => {
+        await _runOnePoll(() => {});
+    }, [_runOnePoll]);
 
     const showSignIn = useCallback((mode: 'signup' | 'signin' = 'signup') => {
         setAuthModalMode(mode);
@@ -910,6 +934,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         startMagicLinkPolling,
         stopMagicLinkPolling,
         isMagicLinkPolling,
+        checkMagicLinkNow,
     };
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

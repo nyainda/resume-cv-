@@ -10,7 +10,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../auth/AuthContext';
-import { sendMagicLink, validateSession } from '../services/authService';
+import { sendMagicLink } from '../services/authService';
 import type { WorkerUser } from '../services/authService';
 
 interface AuthModalProps {
@@ -35,6 +35,7 @@ export default function AuthModal({ open, onSuccess: _onSuccess, onDismiss, mode
         googleRateLimited, clearGoogleRateLimit,
         magicLinkError, clearMagicLinkError, applyPollSession,
         startMagicLinkPolling, stopMagicLinkPolling, isMagicLinkPolling,
+        checkMagicLinkNow,
         onAuthSuccess,
     } = useAuth();
 
@@ -128,16 +129,17 @@ export default function AuthModal({ open, onSuccess: _onSuccess, onDismiss, mode
         }
     }
 
-    // Manual check — for same-device flow or when polling missed the transition.
+    // Manual check — fires an immediate poll instead of checking the local cookie.
+    // The poll endpoint sees used=1 on the server and issues a fresh session for
+    // this tab, so it works even when the link was clicked in a different tab/device.
     async function handleAlreadyClicked() {
         setChecking(true);
-        const result = await validateSession();
+        await checkMagicLinkNow();
         setChecking(false);
-        if (result.user) {
-            onAuthSuccess(result.user, false);
-        } else {
-            // Session not found — link might not have been clicked yet or was clicked
-            // on a different device (poll will catch it).  Show a gentle hint.
+        // If the poll found signed_in, _applySession fires and the modal closes
+        // automatically via AuthContext.  If it came back 'pending' (link not yet
+        // clicked) the poll loop continues and we show a gentle hint.
+        if (!isAuthenticated) {
             setEmailError('Not signed in yet — make sure you clicked the link in your email, then try again.');
         }
     }
