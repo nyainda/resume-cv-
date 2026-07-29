@@ -521,7 +521,7 @@ export async function handleAuthMagicSend(
                     to: [email],
                     subject: "Your ProCV sign-in link",
                     text: `Sign in to ProCV by clicking the link below:\n\n${magicLink}\n\nThis link expires in 15 minutes and can only be used once.\n\nIf you didn't request this, you can safely ignore this email.`,
-                    html: buildMagicEmail(magicLink),
+                    html: buildMagicEmail(magicLink, base),
                 }),
             });
             if (!res.ok) {
@@ -547,7 +547,7 @@ export async function handleAuthMagicSend(
                 `--${boundary}`,
                 `Content-Type: text/html; charset=utf-8`,
                 ``,
-                buildMagicEmail(magicLink),
+                buildMagicEmail(magicLink, base),
                 ``,
                 `--${boundary}--`,
             ].join("\r\n");
@@ -982,9 +982,9 @@ export async function handleAuthDeleteAccount(
 
 // ─── Email template ───────────────────────────────────────────────────────────
 
-function buildMagicEmail(magicLink: string): string {
-    // Logo as inline data URI — no external hosting required, renders in all major clients
-    const logoDataUri = `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512' width='512' height='512'%3E%3Crect width='512' height='512' rx='110' ry='110' fill='%23EBFF38'/%3E%3Crect x='96' y='96' width='44' height='320' rx='18' fill='%23111'/%3E%3Crect x='96' y='96' width='136' height='44' rx='18' fill='%23111'/%3E%3Crect x='96' y='372' width='136' height='44' rx='18' fill='%23111'/%3E%3Crect x='372' y='96' width='44' height='320' rx='18' fill='%23111'/%3E%3Crect x='280' y='96' width='136' height='44' rx='18' fill='%23111'/%3E%3Crect x='280' y='372' width='136' height='44' rx='18' fill='%23111'/%3E%3Ctext x='256' y='308' text-anchor='middle' fill='%23111' font-size='132' font-weight='900' font-family='system-ui,-apple-system,Arial,sans-serif' letter-spacing='-6'%3ECV%3C/text%3E%3C/svg%3E`;
+function buildMagicEmail(magicLink: string, baseUrl = 'https://resume-cv-gold.vercel.app'): string {
+    // Use hosted PNG — data URIs are blocked by Gmail, Outlook, and most email clients
+    const logoUrl = `${baseUrl}/icon-192.png`;
 
     return `<!DOCTYPE html>
 <html lang="en" xmlns="http://www.w3.org/1999/xhtml">
@@ -1017,7 +1017,7 @@ function buildMagicEmail(magicLink: string): string {
               <table cellpadding="0" cellspacing="0" border="0" role="presentation">
                 <tr>
                   <td style="vertical-align:middle;padding-right:14px;">
-                    <img src="${logoDataUri}" width="44" height="44" alt="ProCV logo"
+                    <img src="${logoUrl}" width="44" height="44" alt="ProCV logo"
                       style="display:block;border-radius:10px;border:0;outline:none;text-decoration:none;">
                   </td>
                   <td style="vertical-align:middle;">
