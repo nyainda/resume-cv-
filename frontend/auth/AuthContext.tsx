@@ -117,6 +117,12 @@ export interface AuthContextValue {
     setRememberDevice: (v: boolean) => void;
     /** Sign in with Google (identity only) — used by AuthModal. */
     googleSignIn: () => Promise<void>;
+    /**
+     * Apply a session obtained via cross-device magic-link polling.
+     * AuthModal calls this when the poll endpoint returns signed_in.
+     * The session token has already been persisted by pollMagicLink().
+     */
+    applyPollSession: (user: WorkerUser, isNew: boolean) => void;
 }
 
 // ─── Context ──────────────────────────────────────────────────────────────────
@@ -732,6 +738,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         _applySession(incoming, isNew);
     }, [_applySession]);
 
+    // ── Cross-device magic-link auto-sign-in ──────────────────────────────────
+    // Called by AuthModal when the poll endpoint returns signed_in.
+    // pollMagicLink() has already persisted the session token fallback and
+    // pending slots before this is called.
+
+    const applyPollSession = useCallback((incoming: WorkerUser, isNew: boolean) => {
+        _applySession(incoming, isNew);
+    }, [_applySession]);
+
     const showSignIn = useCallback((mode: 'signup' | 'signin' = 'signup') => {
         setAuthModalMode(mode);
         setAuthModalOpen(true);
@@ -823,6 +838,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         rememberDevice,
         setRememberDevice,
         googleSignIn,
+        applyPollSession,
     };
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

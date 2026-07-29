@@ -181,7 +181,7 @@ export async function linkGoogleSession(
  * Send a magic-link email. Pass the current app origin so the link
  * redirects back to the right domain (dev vs prod).
  */
-export async function sendMagicLink(email: string, appUrl: string): Promise<{ ok: boolean; error?: string; retry_after?: number }> {
+export async function sendMagicLink(email: string, appUrl: string): Promise<{ ok: boolean; poll_token?: string; error?: string; retry_after?: number }> {
     try {
         const res = await fetch(`${ENGINE}/api/auth/magic-link/send`, {
             method: 'POST',
@@ -191,10 +191,47 @@ export async function sendMagicLink(email: string, appUrl: string): Promise<{ ok
         });
         const data = await res.json() as any;
         if (!res.ok) return { ok: false, error: data?.error || 'send_failed', retry_after: data?.retry_after };
-        return { ok: true };
+        return { ok: true, poll_token: data?.poll_token as string | undefined };
     } catch (e) {
         console.warn('[AuthService] sendMagicLink failed:', e);
         return { ok: false, error: 'network_error' };
+    }
+}
+
+export type PollMagicLinkResult =
+    | { status: 'pending' }
+    | { status: 'expired' }
+    | { status: 'invalid' }
+    | { status: 'signed_in'; user: WorkerUser; is_new_user: boolean };
+
+/**
+ * Poll the worker to check whether the magic link has been clicked on another
+ * device.  Internally saves the session token fallback and pending slots so
+ * the caller only needs to call _applySession with the returned user.
+ */
+export async function pollMagicLink(pollToken: string): Promise<PollMagicLinkResult> {
+    try {
+        const res = await fetch(
+            `${ENGINE}/api/auth/magic-link/poll?token=${encodeURIComponent(pollToken)}`,
+            {
+                credentials: 'include',
+                signal: AbortSignal.timeout(8_000),
+            },
+        );
+        if (!res.ok) return { status: 'invalid' };
+        const data = await res.json() as any;
+        const status = data?.status as string | undefined;
+        if (status === 'signed_in') {
+            if (data.session_token) saveSessionFallback(data.session_token);
+            if (Array.isArray(data.slots) && data.slots.length > 0) _pendingSlots = data.slots as RawSlot[];
+            return { status: 'signed_in', user: data.user as WorkerUser, is_new_user: !!data.is_new_user };
+        }
+        if (status === 'expired') return { status: 'expired' };
+        if (status === 'invalid') return { status: 'invalid' };
+        return { status: 'pending' };
+    } catch (e) {
+        // Network errors during polling are transient — stay in 'pending' state.
+        return { status: 'pending' };
     }
 }
 

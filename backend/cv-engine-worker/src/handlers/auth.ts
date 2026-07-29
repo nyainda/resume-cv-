@@ -560,7 +560,87 @@ export async function handleAuthMagicSend(
         return json({ error: "email_send_failed" }, request, env, 502);
     }
 
-    return json({ ok: true }, request, env);
+    return json({ ok: true, poll_token: linkToken }, request, env);
+}
+
+/** GET /api/auth/magic-link/poll?token=X
+ *
+ * Cross-device sign-in: the sending device (laptop) polls this endpoint every
+ * 2 s after sending the magic link.  When the receiving device (phone) clicks
+ * the link, handleAuthMagicVerify marks the token `used=1`.  The next poll
+ * detects that, creates a fresh session for the polling device, and returns
+ * the full session payload so the laptop signs in automatically.
+ */
+export async function handleAuthMagicPoll(
+    request: Request,
+    env: Env,
+    url: URL,
+): Promise<Response> {
+    // Light rate limit: 60 per minute per IP (nominal: 1 poll / 2 s = 30/min)
+    const ipRl = await ipRateLimit(env, request, "auth:magic:poll", 60, 60);
+    if (!ipRl.allowed) {
+        return json(
+            { error: "rate_limited", retry_after: ipRl.retryAfter },
+            request,
+            env,
+            429,
+        );
+    }
+
+    const linkToken = (url.searchParams.get("token") || "").trim();
+    if (!linkToken) return json({ error: "missing_token" }, request, env, 400);
+
+    const now = Math.floor(Date.now() / 1000);
+    const row = await env.CV_DB.prepare(
+        `SELECT email, expires_at, used FROM magic_link_tokens WHERE token = ?`,
+    )
+        .bind(linkToken)
+        .first<{ email: string; expires_at: number; used: number }>();
+
+    if (!row) return json({ status: "invalid" }, request, env, 200);
+
+    if (!row.used) {
+        if (row.expires_at < now) return json({ status: "expired" }, request, env, 200);
+        return json({ status: "pending" }, request, env, 200);
+    }
+
+    // Token was clicked on another device — create a fresh session for this one.
+    const user = await env.CV_DB.prepare(
+        `SELECT id, email, name, picture, plan FROM user_identities WHERE email = ?`,
+    )
+        .bind(row.email)
+        .first<{ id: number; email: string; name: string; picture: string; plan: string }>();
+
+    if (!user) {
+        // Tiny race: token marked used but user upsert hasn't committed yet.
+        // Return pending so the next poll iteration catches it.
+        return json({ status: "pending" }, request, env, 200);
+    }
+
+    const sessionToken = await createSession(user.id, env);
+    await auditLog(user.id, "signin_magic_poll", "magic_link_poll", request, env);
+
+    const slots = await fetchUserSlots(user.id, env);
+    return withCookie(
+        json(
+            {
+                status: "signed_in",
+                session_token: sessionToken,
+                is_new_user: false,
+                user: {
+                    id: user.id,
+                    email: user.email,
+                    name: user.name || "",
+                    picture: user.picture || "",
+                    plan: resolvePlan(user.email, user.plan, env),
+                },
+                slots,
+            },
+            request,
+            env,
+        ),
+        sessionCookieHeader(sessionToken),
+    );
 }
 
 /** GET /api/auth/magic-link/verify?token=X */
