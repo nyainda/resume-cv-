@@ -476,11 +476,18 @@ export async function handleAuthMagicSend(
     // ── Rate limit: max MAGIC_RATE_MAX sends per email per MAGIC_RATE_WINDOW_S ─
     const now = Math.floor(Date.now() / 1000);
     const windowStart = now - MAGIC_RATE_WINDOW_S;
-    const recentRow = await env.CV_DB.prepare(
-        `SELECT COUNT(*) as c FROM magic_link_tokens WHERE email = ? AND created_at > ?`,
-    )
-        .bind(email, windowStart)
-        .first<{ c: number }>();
+
+    let recentRow: { c: number } | null = null;
+    try {
+        recentRow = await env.CV_DB.prepare(
+            `SELECT COUNT(*) as c FROM magic_link_tokens WHERE email = ? AND created_at > ?`,
+        )
+            .bind(email, windowStart)
+            .first<{ c: number }>();
+    } catch (err) {
+        console.error("[Auth] magic_link_tokens rate-limit query failed:", err);
+        return json({ error: "server_error" }, request, env, 500);
+    }
 
     if ((recentRow?.c ?? 0) >= MAGIC_RATE_MAX) {
         return json(
@@ -497,12 +504,17 @@ export async function handleAuthMagicSend(
 
     const linkToken = randomHex(32);
 
-    await env.CV_DB.prepare(
-        `INSERT INTO magic_link_tokens (token, email, expires_at, used, created_at)
-         VALUES (?, ?, ?, 0, ?)`,
-    )
-        .bind(linkToken, email, now + MAGIC_LINK_TTL_S, now)
-        .run();
+    try {
+        await env.CV_DB.prepare(
+            `INSERT INTO magic_link_tokens (token, email, expires_at, used, created_at)
+             VALUES (?, ?, ?, 0, ?)`,
+        )
+            .bind(linkToken, email, now + MAGIC_LINK_TTL_S, now)
+            .run();
+    } catch (err) {
+        console.error("[Auth] magic_link_tokens insert failed:", err);
+        return json({ error: "server_error" }, request, env, 500);
+    }
 
     const magicLink = `${base}/?magic=${linkToken}`;
 
@@ -591,11 +603,18 @@ export async function handleAuthMagicPoll(
     if (!linkToken) return json({ error: "missing_token" }, request, env, 400);
 
     const now = Math.floor(Date.now() / 1000);
-    const row = await env.CV_DB.prepare(
-        `SELECT email, expires_at, used FROM magic_link_tokens WHERE token = ?`,
-    )
-        .bind(linkToken)
-        .first<{ email: string; expires_at: number; used: number }>();
+
+    let row: { email: string; expires_at: number; used: number } | null = null;
+    try {
+        row = await env.CV_DB.prepare(
+            `SELECT email, expires_at, used FROM magic_link_tokens WHERE token = ?`,
+        )
+            .bind(linkToken)
+            .first<{ email: string; expires_at: number; used: number }>();
+    } catch (err) {
+        console.error("[Auth] magic_link poll query failed:", err);
+        return json({ error: "server_error" }, request, env, 500);
+    }
 
     if (!row) return json({ status: "invalid" }, request, env, 200);
 
@@ -605,11 +624,17 @@ export async function handleAuthMagicPoll(
     }
 
     // Token was clicked on another device — create a fresh session for this one.
-    const user = await env.CV_DB.prepare(
-        `SELECT id, email, name, picture, plan FROM user_identities WHERE email = ?`,
-    )
-        .bind(row.email)
-        .first<{ id: number; email: string; name: string; picture: string; plan: string }>();
+    let user: { id: number; email: string; name: string; picture: string; plan: string } | null = null;
+    try {
+        user = await env.CV_DB.prepare(
+            `SELECT id, email, name, picture, plan FROM user_identities WHERE email = ?`,
+        )
+            .bind(row.email)
+            .first<{ id: number; email: string; name: string; picture: string; plan: string }>();
+    } catch (err) {
+        console.error("[Auth] magic_link poll user lookup failed:", err);
+        return json({ error: "server_error" }, request, env, 500);
+    }
 
     if (!user) {
         // Tiny race: token marked used but user upsert hasn't committed yet.
@@ -665,11 +690,18 @@ export async function handleAuthMagicVerify(
     if (!linkToken) return json({ error: "missing_token" }, request, env, 400);
 
     const now = Math.floor(Date.now() / 1000);
-    const row = await env.CV_DB.prepare(
-        `SELECT email, expires_at, used FROM magic_link_tokens WHERE token = ?`,
-    )
-        .bind(linkToken)
-        .first<{ email: string; expires_at: number; used: number }>();
+
+    let row: { email: string; expires_at: number; used: number } | null = null;
+    try {
+        row = await env.CV_DB.prepare(
+            `SELECT email, expires_at, used FROM magic_link_tokens WHERE token = ?`,
+        )
+            .bind(linkToken)
+            .first<{ email: string; expires_at: number; used: number }>();
+    } catch (err) {
+        console.error("[Auth] magic_link verify token lookup failed:", err);
+        return json({ error: "server_error" }, request, env, 500);
+    }
 
     if (!row) return json({ error: "invalid_token" }, request, env, 404);
     if (row.used)
@@ -678,11 +710,17 @@ export async function handleAuthMagicVerify(
         return json({ error: "token_expired" }, request, env, 410);
 
     // Mark token used atomically
-    const updateResult = await env.CV_DB.prepare(
-        `UPDATE magic_link_tokens SET used = 1 WHERE token = ? AND used = 0`,
-    )
-        .bind(linkToken)
-        .run();
+    let updateResult: { meta?: { changes?: number } };
+    try {
+        updateResult = await env.CV_DB.prepare(
+            `UPDATE magic_link_tokens SET used = 1 WHERE token = ? AND used = 0`,
+        )
+            .bind(linkToken)
+            .run();
+    } catch (err) {
+        console.error("[Auth] magic_link verify token mark-used failed:", err);
+        return json({ error: "server_error" }, request, env, 500);
+    }
 
     // If no rows changed, another request already consumed it (race condition guard)
     if (!updateResult.meta?.changes || updateResult.meta.changes < 1) {
@@ -691,35 +729,52 @@ export async function handleAuthMagicVerify(
 
     // Bug 6 fix: determine new-user status BEFORE the upsert — a pre-existing row
     // means returning user, no row means brand new. Avoids fragile session-count heuristic.
-    const existing = await env.CV_DB.prepare(
-        `SELECT id FROM user_identities WHERE email = ?`,
-    )
-        .bind(row.email)
-        .first<{ id: number }>();
+    let existing: { id: number } | null = null;
+    try {
+        existing = await env.CV_DB.prepare(
+            `SELECT id FROM user_identities WHERE email = ?`,
+        )
+            .bind(row.email)
+            .first<{ id: number }>();
+    } catch (err) {
+        console.error("[Auth] magic_link verify existing-user check failed:", err);
+        return json({ error: "server_error" }, request, env, 500);
+    }
     const isNewInsert = !existing;
 
     // Upsert identity (create on first magic-link sign-in)
-    await env.CV_DB.prepare(
-        `
+    try {
+        await env.CV_DB.prepare(
+            `
         INSERT INTO user_identities (email, plan, created_at, last_seen_at)
         VALUES (?, 'free', ?, ?)
         ON CONFLICT(email) DO UPDATE SET last_seen_at = excluded.last_seen_at
     `,
-    )
-        .bind(row.email, now, now)
-        .run();
+        )
+            .bind(row.email, now, now)
+            .run();
+    } catch (err) {
+        console.error("[Auth] magic_link verify identity upsert failed:", err);
+        return json({ error: "server_error" }, request, env, 500);
+    }
 
-    const user = await env.CV_DB.prepare(
-        `SELECT id, email, name, picture, plan FROM user_identities WHERE email = ?`,
-    )
-        .bind(row.email)
-        .first<{
-            id: number;
-            email: string;
-            name: string;
-            picture: string;
-            plan: string;
-        }>();
+    let user: { id: number; email: string; name: string; picture: string; plan: string } | null = null;
+    try {
+        user = await env.CV_DB.prepare(
+            `SELECT id, email, name, picture, plan FROM user_identities WHERE email = ?`,
+        )
+            .bind(row.email)
+            .first<{
+                id: number;
+                email: string;
+                name: string;
+                picture: string;
+                plan: string;
+            }>();
+    } catch (err) {
+        console.error("[Auth] magic_link verify user fetch failed:", err);
+        return json({ error: "server_error" }, request, env, 500);
+    }
     if (!user) return json({ error: "db_error" }, request, env, 500);
 
     const sessionToken = await createSession(user.id, env);
