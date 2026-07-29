@@ -21,7 +21,7 @@ interface AuthModalProps {
     mode?: 'signup' | 'signin';
 }
 
-type Screen = 'main' | 'magic-form' | 'magic-sent';
+type Screen = 'main' | 'magic-form' | 'magic-sent' | 'magic-expired';
 
 const SIGNUP_FEATURES = [
     'CV tailored to every job in minutes',
@@ -30,7 +30,7 @@ const SIGNUP_FEATURES = [
 ];
 
 export default function AuthModal({ open, onSuccess: _onSuccess, onDismiss, mode: initialMode = 'signup' }: AuthModalProps) {
-    const { googleSignIn, isAuthenticated, rememberDevice, setRememberDevice, googleRateLimited, clearGoogleRateLimit } = useAuth();
+    const { googleSignIn, isAuthenticated, rememberDevice, setRememberDevice, googleRateLimited, clearGoogleRateLimit, magicLinkError, clearMagicLinkError } = useAuth();
 
     const [mode, setMode]              = useState<'signup' | 'signin'>(initialMode);
     const [screen, setScreen]         = useState<Screen>('main');
@@ -45,7 +45,9 @@ export default function AuthModal({ open, onSuccess: _onSuccess, onDismiss, mode
 
     useEffect(() => {
         if (open) {
-            setScreen('main');
+            // If opened because a magic-link token expired/was already used,
+            // start directly on the expired screen instead of the main screen.
+            setScreen(magicLinkError === 'expired' || magicLinkError === 'used' ? 'magic-expired' : 'main');
             setEmail('');
             setEmailError('');
             setSending(false);
@@ -402,6 +404,78 @@ export default function AuthModal({ open, onSuccess: _onSuccess, onDismiss, mode
                                 {sending ? 'Sending…' : 'Send magic link'}
                             </button>
                         </form>
+                    )}
+
+                    {/* ── Magic link expired / already used ───────────────── */}
+                    {screen === 'magic-expired' && (
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', paddingTop: 4 }}>
+                            {/* Icon */}
+                            <div style={{
+                                width: 80, height: 80, borderRadius: 24, marginBottom: 20,
+                                background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                boxShadow: '0 8px 24px rgba(245,158,11,0.3)',
+                                animation: 'procv-bounce-in 0.4s cubic-bezier(0.34,1.56,0.64,1)',
+                            }}>
+                                <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                                    <circle cx="12" cy="12" r="10"/>
+                                    <polyline points="12 6 12 12 16 14"/>
+                                </svg>
+                            </div>
+
+                            <h2 style={{ margin: '0 0 8px', fontSize: 21, fontWeight: 800, color: '#111827', letterSpacing: '-0.4px' }}>
+                                {magicLinkError === 'used' ? 'Link already used' : 'Sign-in link expired'}
+                            </h2>
+                            <p style={{ margin: '0 0 24px', fontSize: 13.5, color: '#6b7280', lineHeight: 1.6 }}>
+                                {magicLinkError === 'used'
+                                    ? 'This link has already been used to sign in. Each link works once only — request a fresh one below.'
+                                    : 'This link is valid for 15 minutes and has expired. Request a new one and click it straight away.'}
+                            </p>
+
+                            {/* Primary action */}
+                            <button
+                                onClick={() => {
+                                    clearMagicLinkError();
+                                    setScreen('magic-form');
+                                }}
+                                style={{
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                                    width: '100%', padding: '13px 20px', borderRadius: 12,
+                                    background: '#1B2B4B', color: '#ffffff',
+                                    fontWeight: 700, fontSize: 14, border: 'none',
+                                    cursor: 'pointer', outline: 'none',
+                                    boxShadow: '0 2px 8px rgba(27,43,75,0.2)',
+                                    transition: 'background 0.15s',
+                                    letterSpacing: '0.01em',
+                                }}
+                                onMouseEnter={e => (e.currentTarget.style.background = '#243a63')}
+                                onMouseLeave={e => (e.currentTarget.style.background = '#1B2B4B')}
+                            >
+                                <EnvelopeIcon size={15} color="white" />
+                                Send me a new link
+                            </button>
+
+                            {/* Or Google */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '14px 0' }}>
+                                <div style={{ flex: 1, height: 1, background: '#e5e7eb' }} />
+                                <span style={{ color: '#d1d5db', fontSize: 11, fontWeight: 600, letterSpacing: '0.08em' }}>OR</span>
+                                <div style={{ flex: 1, height: 1, background: '#e5e7eb' }} />
+                            </div>
+                            <button
+                                onClick={() => { clearMagicLinkError(); setScreen('main'); }}
+                                style={{
+                                    width: '100%', padding: '12px 20px', borderRadius: 12,
+                                    border: '1.5px solid #e5e7eb', background: '#fafafa',
+                                    color: '#374151', fontWeight: 600, fontSize: 14,
+                                    cursor: 'pointer', outline: 'none', transition: 'all 0.15s',
+                                    letterSpacing: '0.01em',
+                                }}
+                                onMouseEnter={e => { e.currentTarget.style.borderColor = '#9ca3af'; e.currentTarget.style.background = '#f3f4f6'; }}
+                                onMouseLeave={e => { e.currentTarget.style.borderColor = '#e5e7eb'; e.currentTarget.style.background = '#fafafa'; }}
+                            >
+                                Sign in with Google instead
+                            </button>
+                        </div>
                     )}
 
                     {/* ── Magic link sent ─────────────────────────────────── */}

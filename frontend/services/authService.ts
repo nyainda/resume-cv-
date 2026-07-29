@@ -198,10 +198,14 @@ export async function sendMagicLink(email: string, appUrl: string): Promise<{ ok
     }
 }
 
+export type MagicLinkVerifyResult =
+    | { ok: true;  token: string; user: WorkerUser; is_new_user: boolean }
+    | { ok: false; error: 'expired' | 'used' | 'invalid' | 'network_error' };
+
 /** Verify a magic-link token (from the ?magic= URL param). */
 export async function verifyMagicLink(
     token: string,
-): Promise<{ token: string; user: WorkerUser; is_new_user: boolean } | null> {
+): Promise<MagicLinkVerifyResult> {
     try {
         const res = await fetch(
             `${ENGINE}/api/auth/magic-link/verify?token=${encodeURIComponent(token)}`,
@@ -210,16 +214,25 @@ export async function verifyMagicLink(
                 signal: AbortSignal.timeout(10_000),
             },
         );
-        if (!res.ok) return null;
+        if (!res.ok) {
+            // 410 = token expired, 409 = token already used, anything else = invalid/unknown
+            let error: 'expired' | 'used' | 'invalid' | 'network_error' = 'invalid';
+            try {
+                const body = await res.json() as { error?: string };
+                if (res.status === 410 || body.error === 'token_expired')  error = 'expired';
+                else if (body.error === 'token_used')                       error = 'used';
+            } catch { /* ignore parse errors */ }
+            return { ok: false, error };
+        }
         const data = await res.json() as any;
-        if (!data.ok) return null;
+        if (!data.ok) return { ok: false, error: 'invalid' };
         // Store fallback token so the session survives if the cookie is blocked
         if (data.session_token) saveSessionFallback(data.session_token);
         if (Array.isArray(data.slots) && data.slots.length > 0) _pendingSlots = data.slots as RawSlot[];
-        return { token: data.session_token, user: data.user as WorkerUser, is_new_user: !!data.is_new_user };
+        return { ok: true, token: data.session_token, user: data.user as WorkerUser, is_new_user: !!data.is_new_user };
     } catch (e) {
         console.warn('[AuthService] verifyMagicLink failed:', e);
-        return null;
+        return { ok: false, error: 'network_error' };
     }
 }
 

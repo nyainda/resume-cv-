@@ -42,6 +42,7 @@ import {
     signOutWorker,
     deleteAccountWorker,
     clearSessionFallback,
+    type MagicLinkVerifyResult,
 } from '../services/authService';
 import { syncTierFromSession } from '../services/accountTierService';
 import { getDeviceId } from '../services/userDataCloudService';
@@ -87,6 +88,14 @@ export interface AuthContextValue {
     authModalOpen: boolean;
     /** 'signup' | 'signin' — controls modal header copy. */
     authModalMode: 'signup' | 'signin';
+    /**
+     * Set when a ?magic= token in the URL failed verification.
+     * 'expired' | 'used' — show the "link expired" screen in AuthModal.
+     * null — no magic-link error.
+     */
+    magicLinkError: 'expired' | 'used' | null;
+    /** Clear the magic-link error (called by AuthModal on dismiss or resend). */
+    clearMagicLinkError: () => void;
     /** Open the auth modal programmatically. */
     showSignIn: (mode?: 'signup' | 'signin') => void;
     /** Close the auth modal without signing in. */
@@ -361,6 +370,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const [isNewUser, setIsNewUser]           = useState(false);
     const [authModalOpen, setAuthModalOpen]   = useState(false);
     const [authModalMode, setAuthModalMode]   = useState<'signup' | 'signin'>('signup');
+    const [magicLinkError, setMagicLinkError] = useState<'expired' | 'used' | null>(null);
     const [rememberDevice, setRememberDevice] = useState(true);
     const [googleRateLimited, setGoogleRateLimited] = useState<{ retryAfter?: number } | null>(null);
 
@@ -481,8 +491,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 window.history.replaceState({}, '', clean.toString());
 
                 const result = await verifyMagicLink(magicToken);
-                if (result && !cancelled) {
-                    _applySession(result.user, result.is_new_user);
+                if (!cancelled) {
+                    if (result.ok) {
+                        _applySession(result.user, result.is_new_user);
+                    } else if (result.ok === false) {
+                        if (result.error === 'expired' || result.error === 'used') {
+                            // Show the expired-link screen inside the auth modal
+                            setMagicLinkError(result.error);
+                            setAuthModalOpen(true);
+                        }
+                        // 'invalid' / 'network_error' → silent fail (bad token or transient)
+                    }
                 }
                 if (!cancelled) setIsLoading(false);
                 return;
@@ -720,6 +739,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const dismissAuth = useCallback(() => {
         setAuthModalOpen(false);
+        setMagicLinkError(null);
         const queue = pendingResolvers.current.splice(0);
         queue.forEach(r => r(false));
     }, []);
@@ -790,6 +810,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         },
         authModalOpen,
         authModalMode,
+        magicLinkError,
+        clearMagicLinkError: () => setMagicLinkError(null),
         showSignIn,
         dismissAuth,
         requireAuth,
