@@ -182,6 +182,7 @@ export async function linkGoogleSession(
  * redirects back to the right domain (dev vs prod).
  */
 export async function sendMagicLink(email: string, appUrl: string): Promise<{ ok: boolean; poll_token?: string; error?: string; retry_after?: number }> {
+    console.log('[MagicLink] sendMagicLink →', email, '| app_url:', appUrl);
     try {
         const res = await fetch(`${ENGINE}/api/auth/magic-link/send`, {
             method: 'POST',
@@ -190,8 +191,13 @@ export async function sendMagicLink(email: string, appUrl: string): Promise<{ ok
             signal: AbortSignal.timeout(15_000),
         });
         const data = await res.json() as any;
-        if (!res.ok) return { ok: false, error: data?.error || 'send_failed', retry_after: data?.retry_after };
-        return { ok: true, poll_token: data?.poll_token as string | undefined };
+        if (!res.ok) {
+            console.warn('[MagicLink] sendMagicLink failed — HTTP', res.status, data?.error);
+            return { ok: false, error: data?.error || 'send_failed', retry_after: data?.retry_after };
+        }
+        const pollToken = data?.poll_token as string | undefined;
+        console.log('[MagicLink] sendMagicLink OK — poll_token present:', !!pollToken, pollToken ? '(prefix: ' + pollToken.slice(0, 8) + '…)' : '(MISSING — polling will not start!)');
+        return { ok: true, poll_token: pollToken };
     } catch (e) {
         console.warn('[AuthService] sendMagicLink failed:', e);
         return { ok: false, error: 'network_error' };

@@ -510,15 +510,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             // 1. Magic link ?magic=TOKEN
             const magicToken = params.get('magic');
             if (magicToken) {
+                console.log('[MagicLink] ?magic= token detected — verifying…');
                 const clean = new URL(window.location.href);
                 clean.searchParams.delete('magic');
                 window.history.replaceState({}, '', clean.toString());
 
                 const result = await verifyMagicLink(magicToken);
+                console.log('[MagicLink] verifyMagicLink result:', result.ok ? 'ok' : ('error=' + (result as {ok:false;error:string}).error));
                 if (!cancelled) {
                     if (result.ok) {
+                        console.log('[MagicLink] verify succeeded — email:', result.user?.email, 'new user:', result.is_new_user);
                         _applySession(result.user, result.is_new_user);
                     } else if (result.ok === false) {
+                        console.warn('[MagicLink] verify failed —', result.error);
                         if (result.error === 'expired' || result.error === 'used') {
                             // Show the expired-link screen inside the auth modal
                             setMagicLinkError(result.error);
@@ -768,33 +772,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // ── Cross-device polling (lives in context so modal dismissal doesn't kill it) ──
 
     const startMagicLinkPolling = useCallback((token: string) => {
+        console.log('[MagicLink] startMagicLinkPolling — token prefix:', token.slice(0, 8) + '…');
         _magicPollTokenRef.current = token;
         setIsMagicLinkPolling(true);
     }, []);
 
     const stopMagicLinkPolling = useCallback(() => {
+        console.log('[MagicLink] stopMagicLinkPolling — polling cancelled');
         _magicPollTokenRef.current = null;
         setIsMagicLinkPolling(false);
     }, []);
 
     useEffect(() => {
         if (!isMagicLinkPolling) return;
+        console.log('[MagicLink] poll loop started');
         let active = true;
+        let pollCount = 0;
 
         const intervalId = setInterval(async () => {
             const token = _magicPollTokenRef.current;
             if (!active || !token) return;
+            pollCount++;
 
             const result = await pollMagicLink(token);
+            console.log(`[MagicLink] poll #${pollCount} →`, result.status);
             if (!active) return;
 
             if (result.status === 'signed_in') {
+                console.log('[MagicLink] signed_in — applying session for', result.user?.email);
                 active = false;
                 clearInterval(intervalId);
                 _magicPollTokenRef.current = null;
                 setIsMagicLinkPolling(false);
                 _applySession(result.user, result.is_new_user);
             } else if (result.status === 'expired' || result.status === 'invalid') {
+                console.log('[MagicLink] token', result.status, '— showing expired screen');
                 active = false;
                 clearInterval(intervalId);
                 _magicPollTokenRef.current = null;
@@ -808,6 +820,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }, 2000);
 
         return () => {
+            console.log('[MagicLink] poll loop cleanup — active:', active);
             active = false;
             clearInterval(intervalId);
         };
