@@ -860,12 +860,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }, [user]);
 
     // ── Sign out ──────────────────────────────────────────────────────────────
+    // Soft sign-out: clears local UI state and returns to the landing page, but
+    // deliberately keeps the server session and HttpOnly cookie alive so the
+    // next visit within the 30-day window auto-logs the user back in without
+    // needing another magic link. The session expires naturally after 30 days.
+    // For a true hard sign-out (e.g. shared device), account deletion handles it.
 
     const signOut = useCallback(async () => {
-        await signOutWorker().catch(() => {}); // also clears the fallback token internally
-        clearSessionFallback(); // belt-and-suspenders clear in case signOutWorker threw
-        clearStorageUser();     // remove user namespace so next user starts clean
-        stampSignedOut();       // write sentinel so boot does not auto-relog via stale cookie
         _saveUser(null);
         setIsNewUser(false);
         try { sessionStorage.removeItem('procv:pending_new_user'); } catch { /* non-fatal */ }
