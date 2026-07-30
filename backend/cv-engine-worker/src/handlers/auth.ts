@@ -155,17 +155,17 @@ async function verifyGoogleToken(
 }
 
 /** Create a new session and enforce the per-user session cap. */
-async function createSession(userId: number, env: Env): Promise<string> {
+async function createSession(userId: number, deviceId: string, env: Env): Promise<string> {
     const token = randomHex(32); // 64-char hex = 256-bit entropy
     const hash = await hashToken(token); // store only the hash in D1 (Bug 8 fix)
 
     const now = Math.floor(Date.now() / 1000);
 
     await env.CV_DB.prepare(
-        `INSERT INTO user_sessions (token, user_id, expires_at, created_at)
-             VALUES (?, ?, ?, ?)`,
+        `INSERT INTO user_sessions (token, user_id, device_id, expires_at, created_at)
+             VALUES (?, ?, ?, ?, ?)`,
     )
-        .bind(hash, userId, now + SESSION_TTL_S, now)
+        .bind(hash, userId, deviceId || "", now + SESSION_TTL_S, now)
         .run();
 
     // Remove expired sessions for this user
@@ -238,7 +238,7 @@ export async function verifySession(
             SELECT s.user_id, u.email, u.name, u.picture, u.plan
             FROM user_sessions s
             JOIN user_identities u ON u.id = s.user_id
-            WHERE s.token = ? AND s.expires_at > ?
+            WHERE s.token = ? AND s.expires_at > ? AND s.soft_deleted_at IS NULL
         `,
     )
         .bind(hash, now)
@@ -398,7 +398,7 @@ export async function handleAuthGoogle(
 
     if (!user) return json({ error: "db_error" }, request, env, 500);
 
-    const sessionToken = await createSession(user.id, env);
+    const sessionToken = await createSession(user.id, deviceId || "", env);
     await auditLog(user.id, "signin_google", "google", request, env);
 
     // Fire admin notifications server-side so delivery never depends on an
@@ -453,6 +453,8 @@ export async function handleAuthMagicSend(
     const email =
         typeof body?.email === "string" ? body.email.trim().toLowerCase() : "";
     const rawUrl = typeof body?.app_url === "string" ? body.app_url.trim() : "";
+    const deviceId =
+        typeof body?.device_id === "string" ? body.device_id.trim().substring(0, 64) : "";
 
     if (!email || !email.includes("@") || email.length < 5) {
         return json({ error: "invalid_email" }, request, env, 400);
@@ -473,8 +475,65 @@ export async function handleAuthMagicSend(
         ? rawUrl.replace(/\/$/, "")
         : "https://procv.app";
 
-    // ── Rate limit: max MAGIC_RATE_MAX sends per email per MAGIC_RATE_WINDOW_S ─
     const now = Math.floor(Date.now() / 1000);
+
+    // ── Session resurrection: skip email entirely if the user has a valid
+    // soft-deleted session on this device (proven email ownership, within 30d) ─
+    if (deviceId) {
+        try {
+            const identity = await env.CV_DB.prepare(
+                `SELECT id, email, name, picture, plan
+                   FROM user_identities WHERE email = ?`,
+            )
+                .bind(email)
+                .first<{ id: number; email: string; name: string; picture: string; plan: string }>();
+
+            if (identity) {
+                const resurrRow = await env.CV_DB.prepare(
+                    `SELECT token FROM user_sessions
+                      WHERE user_id = ? AND device_id = ?
+                        AND soft_deleted_at IS NOT NULL
+                        AND expires_at > ?
+                      ORDER BY soft_deleted_at DESC LIMIT 1`,
+                )
+                    .bind(identity.id, deviceId, now)
+                    .first<{ token: string }>();
+
+                if (resurrRow) {
+                    // Create a fresh session (cannot recover raw token from hash)
+                    const sessionToken = await createSession(identity.id, deviceId, env);
+                    await auditLog(identity.id, "signin_resurrected", "magic_link_resurrect", request, env);
+                    const slots = await fetchUserSlots(identity.id, env);
+                    return withCookie(
+                        json(
+                            {
+                                ok: true,
+                                resurrected: true,
+                                session_token: sessionToken,
+                                is_new_user: false,
+                                user: {
+                                    id: identity.id,
+                                    email: identity.email,
+                                    name: identity.name || "",
+                                    picture: identity.picture || "",
+                                    plan: resolvePlan(identity.email, identity.plan, env),
+                                },
+                                slots,
+                            },
+                            request,
+                            env,
+                        ),
+                        sessionCookieHeader(sessionToken),
+                    );
+                }
+            }
+        } catch (err) {
+            // Non-fatal: fall through to normal magic link flow
+            console.warn("[Auth] session resurrection check failed, falling through:", err);
+        }
+    }
+
+    // ── Rate limit: max MAGIC_RATE_MAX sends per email per MAGIC_RATE_WINDOW_S ─
     const windowStart = now - MAGIC_RATE_WINDOW_S;
 
     let recentRow: { c: number } | null = null;
@@ -506,10 +565,10 @@ export async function handleAuthMagicSend(
 
     try {
         await env.CV_DB.prepare(
-            `INSERT INTO magic_link_tokens (token, email, expires_at, used, created_at)
-             VALUES (?, ?, ?, 0, ?)`,
+            `INSERT INTO magic_link_tokens (token, email, device_id, expires_at, used, created_at)
+             VALUES (?, ?, ?, ?, 0, ?)`,
         )
-            .bind(linkToken, email, now + MAGIC_LINK_TTL_S, now)
+            .bind(linkToken, email, deviceId || "", now + MAGIC_LINK_TTL_S, now)
             .run();
     } catch (err) {
         console.error("[Auth] magic_link_tokens insert failed:", err);
@@ -604,13 +663,13 @@ export async function handleAuthMagicPoll(
 
     const now = Math.floor(Date.now() / 1000);
 
-    let row: { email: string; expires_at: number; used: number } | null = null;
+    let row: { email: string; expires_at: number; used: number; device_id: string } | null = null;
     try {
         row = await env.CV_DB.prepare(
-            `SELECT email, expires_at, used FROM magic_link_tokens WHERE token = ?`,
+            `SELECT email, expires_at, used, device_id FROM magic_link_tokens WHERE token = ?`,
         )
             .bind(linkToken)
-            .first<{ email: string; expires_at: number; used: number }>();
+            .first<{ email: string; expires_at: number; used: number; device_id: string }>();
     } catch (err) {
         console.error("[Auth] magic_link poll query failed:", err);
         return json({ error: "server_error" }, request, env, 500);
@@ -642,7 +701,7 @@ export async function handleAuthMagicPoll(
         return json({ status: "pending" }, request, env, 200);
     }
 
-    const sessionToken = await createSession(user.id, env);
+    const sessionToken = await createSession(user.id, row.device_id || "", env);
     await auditLog(user.id, "signin_magic_poll", "magic_link_poll", request, env);
 
     const slots = await fetchUserSlots(user.id, env);
@@ -691,13 +750,13 @@ export async function handleAuthMagicVerify(
 
     const now = Math.floor(Date.now() / 1000);
 
-    let row: { email: string; expires_at: number; used: number } | null = null;
+    let row: { email: string; expires_at: number; used: number; device_id: string } | null = null;
     try {
         row = await env.CV_DB.prepare(
-            `SELECT email, expires_at, used FROM magic_link_tokens WHERE token = ?`,
+            `SELECT email, expires_at, used, device_id FROM magic_link_tokens WHERE token = ?`,
         )
             .bind(linkToken)
-            .first<{ email: string; expires_at: number; used: number }>();
+            .first<{ email: string; expires_at: number; used: number; device_id: string }>();
     } catch (err) {
         console.error("[Auth] magic_link verify token lookup failed:", err);
         return json({ error: "server_error" }, request, env, 500);
@@ -777,7 +836,7 @@ export async function handleAuthMagicVerify(
     }
     if (!user) return json({ error: "db_error" }, request, env, 500);
 
-    const sessionToken = await createSession(user.id, env);
+    const sessionToken = await createSession(user.id, row.device_id || "", env);
     await auditLog(user.id, "signin_magic", "magic_link", request, env);
 
     // See handlers/notifications.ts header — fired server-side so delivery
@@ -863,8 +922,14 @@ export async function handleAuthSignout(
         // Bug fix: D1 stores hashed tokens, not raw tokens
         const hash = await hashToken(sessionToken);
 
-        await env.CV_DB.prepare(`DELETE FROM user_sessions WHERE token = ?`)
-            .bind(hash)
+        // Soft-delete: mark inactive so it can be resurrected within 30 days
+        // rather than deleted outright.  expires_at is unchanged; once it lapses
+        // the existing createSession cleanup purges it automatically.
+        const logoutNow = Math.floor(Date.now() / 1000);
+        await env.CV_DB.prepare(
+            `UPDATE user_sessions SET soft_deleted_at = ? WHERE token = ?`,
+        )
+            .bind(logoutNow, hash)
             .run()
             .catch(() => {});
 

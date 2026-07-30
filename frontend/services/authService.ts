@@ -177,18 +177,34 @@ export async function linkGoogleSession(
  * Send a magic-link email. Pass the current app origin so the link
  * redirects back to the right domain (dev vs prod).
  */
-export async function sendMagicLink(email: string, appUrl: string): Promise<{ ok: boolean; poll_token?: string; error?: string; retry_after?: number }> {
+export type SendMagicLinkResult =
+    | { ok: false; error: string; retry_after?: number }
+    | { ok: true; poll_token: string }                               // normal flow — email sent
+    | { ok: true; resurrected: true; session_token: string; user: WorkerUser; is_new_user: boolean }; // skip email
+
+export async function sendMagicLink(
+    email: string,
+    appUrl: string,
+    deviceId?: string,
+): Promise<SendMagicLinkResult> {
     try {
         const res = await fetch(`${ENGINE}/api/auth/magic-link/send`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email, app_url: appUrl }),
+            credentials: 'include',
+            body: JSON.stringify({ email, app_url: appUrl, device_id: deviceId || '' }),
             signal: AbortSignal.timeout(15_000),
         });
         const data = await res.json() as any;
         if (!res.ok) {
             console.warn('[MagicLink] sendMagicLink failed — HTTP', res.status, data?.error);
             return { ok: false, error: data?.error || 'send_failed', retry_after: data?.retry_after };
+        }
+        // Resurrection: worker found a valid soft-deleted session for this device
+        if (data?.resurrected && data?.session_token && data?.user) {
+            saveSessionFallback(data.session_token);
+            if (Array.isArray(data.slots) && data.slots.length > 0) _pendingSlots = data.slots as RawSlot[];
+            return { ok: true, resurrected: true, session_token: data.session_token, user: data.user as WorkerUser, is_new_user: data.is_new_user ?? false };
         }
         return { ok: true, poll_token: data?.poll_token };
     } catch (e) {

@@ -11,7 +11,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../auth/AuthContext';
 import { sendMagicLink } from '../services/authService';
-import type { WorkerUser } from '../services/authService';
+import type { WorkerUser, SendMagicLinkResult } from '../services/authService';
+import { getDeviceId } from '../services/userDataCloudService';
 
 interface AuthModalProps {
     open: boolean;
@@ -111,12 +112,21 @@ export default function AuthModal({ open, onSuccess: _onSuccess, onDismiss, mode
         }
         setEmailError('');
         setSending(true);
-        const result = await sendMagicLink(trimmed, window.location.origin);
+        const result = await sendMagicLink(trimmed, window.location.origin, getDeviceId());
         setSending(false);
-        if (result.ok) {
+        // Resurrection: worker found a valid soft-deleted session for this device — sign in directly
+        if ('resurrected' in result) {
+            onAuthSuccess(result.user, result.is_new_user);
+            return;
+        }
+        // Normal flow: email sent, start polling
+        if ('poll_token' in result) {
             if (result.poll_token) startMagicLinkPolling(result.poll_token);
             setScreen('magic-sent');
-        } else if (result.error === 'email_not_configured') {
+            return;
+        }
+        // Error cases
+        if (result.error === 'email_not_configured') {
             setScreen('main');
             setMainNotice('Email sign-in is not available right now. Please use Google to sign in.');
         } else if (result.error === 'rate_limited') {
@@ -565,13 +575,11 @@ export default function AuthModal({ open, onSuccess: _onSuccess, onDismiss, mode
                                         onClick={async () => {
                                             stopMagicLinkPolling();
                                             setSending(true);
-                                            const r = await sendMagicLink(email, window.location.origin);
+                                            const r = await sendMagicLink(email, window.location.origin, getDeviceId());
                                             setSending(false);
-                                            if (r.ok) {
-                                                if (r.poll_token) startMagicLinkPolling(r.poll_token);
-                                            } else {
-                                                setScreen('magic-form');
-                                            }
+                                            if (!r.ok) { setScreen('magic-form'); return; }
+                                            if ('resurrected' in r) { onAuthSuccess(r.user, r.is_new_user); return; }
+                                            if (r.poll_token) startMagicLinkPolling(r.poll_token);
                                         }}
                                         disabled={sending}
                                         style={{ background: 'none', border: 'none', color: '#C9A84C', fontWeight: 700, fontSize: 13, cursor: sending ? 'not-allowed' : 'pointer', padding: 0, outline: 'none', opacity: sending ? 0.5 : 1 }}
