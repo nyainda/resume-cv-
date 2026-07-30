@@ -141,7 +141,8 @@ export interface AuthContextValue {
      * doesn't wait up to 2 s after manually prompting.
      * No-ops when not currently polling.
      */
-    checkMagicLinkNow: () => Promise<void>;
+    /** Returns true if the check found a signed-in session, false if still pending/expired. */
+    checkMagicLinkNow: () => Promise<boolean>;
 }
 
 // ─── Context ──────────────────────────────────────────────────────────────────
