@@ -1,6 +1,6 @@
 // RoomsPage.tsx — Standalone full-page Career Rooms manager
 import React, { useState } from 'react';
-import { UserProfileSlot, UserProfile, ProfileColor } from '../types';
+import { UserProfileSlot, UserProfile, ProfileColor, VaultJob } from '../types';
 import { canAddProfileSlot, getProfileSlotLimit } from '../services/accountTierService';
 import { getSyncTimeAgo } from '../services/userDataCloudService';
 import VaultPage from './vault/VaultPage';
@@ -71,7 +71,7 @@ interface Props {
   onCreate: (name: string, color: ProfileColor, cloneFrom?: UserProfile) => void;
   onDelete: (id: string) => Promise<void>;
   onRename: (id: string, name: string, color: ProfileColor) => void;
-  onBuildCV?: (jd: string) => void;
+  onBuildCV?: (job: VaultJob) => void;
   initialTab?: 'profiles' | 'vault';
 }
 

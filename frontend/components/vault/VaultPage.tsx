@@ -13,7 +13,7 @@ interface Props {
   profiles:    UserProfileSlot[];
   activeSlot:  UserProfileSlot | null | undefined;
   userProfile: UserProfile | null;
-  onBuildCV:   (jd: string) => void;
+  onBuildCV:   (job: VaultJob) => void;
 }
 
 type SortKey = 'newest' | 'match' | 'deadline';

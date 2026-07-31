@@ -745,6 +745,20 @@ export interface VaultJob {
   fingerprint: string;
   createdAt:   number;          // unix ms
   updatedAt:   number;
+
+  // ── Enriched fields — populated async by vaultAnalysis after save ───────
+  /** 2-3 sentence plain-English summary of the role */
+  tldr?:         string;
+  /** Top 5–7 key requirements as short phrases */
+  requirements?: string[];
+  /** Application email address extracted from JD */
+  email?:        string;
+  /** Application URL or company careers page */
+  website?:      string;
+  /** Salary range if mentioned in JD */
+  salary?:       string;
+  /** True once LLM analysis has completed (prevents re-analysing) */
+  analysed?:     boolean;
 }
 
 export interface EnhancedJobAnalysis {

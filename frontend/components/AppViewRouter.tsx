@@ -329,8 +329,12 @@ const AppViewRouter: React.FC<AppViewRouterProps> = (props) => {
                   onDelete={onDeleteProfile}
                   onRename={onRenameProfile}
                   initialTab={currentView === 'vault' ? 'vault' : 'profiles'}
-                  onBuildCV={(jd) => {
-                    onSlotUpdate({ jobDescription: jd });
+                  onBuildCV={(job) => {
+                    onSlotUpdate({
+                      jobDescription:  job.rawJd,
+                      targetCompany:   job.company && job.company !== 'Unknown Company' ? job.company : undefined,
+                      targetJobTitle:  job.title   && job.title   !== 'Untitled Role'   ? job.title   : undefined,
+                    });
                     setCurrentView('cv-generator');
                   }}
                 />

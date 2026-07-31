@@ -189,15 +189,21 @@ export function updateVaultJob(id: string, patch: Partial<VaultJob>): VaultJob |
 
   // Translate only the patched fields to snake_case for the API
   const apiPatch: Record<string, unknown> = {};
-  if ('matchScore'  in patch) apiPatch['match_score']  = patch.matchScore;
-  if ('roomType'    in patch) apiPatch['room_type']    = patch.roomType;
-  if ('roomReason'  in patch) apiPatch['room_reason']  = patch.roomReason;
-  if ('status'      in patch) apiPatch['status']       = patch.status;
-  if ('deadline'    in patch) apiPatch['deadline']     = patch.deadline;
-  if ('priority'    in patch) apiPatch['priority']     = patch.priority;
-  if ('builtCvId'   in patch) apiPatch['built_cv_id']  = patch.builtCvId;
-  if ('title'       in patch) apiPatch['title']        = patch.title;
-  if ('company'     in patch) apiPatch['company']      = patch.company;
+  if ('matchScore'   in patch) apiPatch['match_score']   = patch.matchScore;
+  if ('roomType'     in patch) apiPatch['room_type']     = patch.roomType;
+  if ('roomReason'   in patch) apiPatch['room_reason']   = patch.roomReason;
+  if ('status'       in patch) apiPatch['status']        = patch.status;
+  if ('deadline'     in patch) apiPatch['deadline']      = patch.deadline;
+  if ('priority'     in patch) apiPatch['priority']      = patch.priority;
+  if ('builtCvId'    in patch) apiPatch['built_cv_id']   = patch.builtCvId;
+  if ('title'        in patch) apiPatch['title']         = patch.title;
+  if ('company'      in patch) apiPatch['company']       = patch.company;
+  if ('tldr'         in patch) apiPatch['tldr']          = patch.tldr;
+  if ('requirements' in patch) apiPatch['requirements']  = patch.requirements;
+  if ('email'        in patch) apiPatch['email']         = patch.email;
+  if ('website'      in patch) apiPatch['website']       = patch.website;
+  if ('salary'       in patch) apiPatch['salary']        = patch.salary;
+  if ('analysed'     in patch) apiPatch['analysed']      = patch.analysed;
   if (Object.keys(apiPatch).length > 0) {
     apiPatch['updated_at'] = updated.updatedAt;
     // Intentionally fire-and-forget — patch the backend job
@@ -217,15 +223,33 @@ export function deleteVaultJob(id: string): void {
   apiDelete(`/api/vault/jobs/${id}`);
 }
 
-/** Cheap title/company extractor from raw JD text */
+/** Fast title/company extractor from raw JD text — used synchronously on save.
+ *  vaultAnalysis.ts provides a more accurate async LLM version that runs
+ *  in the background and patches the job record once complete. */
 export function extractTitleCompany(rawJd: string): { title: string; company: string } {
   const lines = rawJd.split('\n').map(l => l.trim()).filter(Boolean);
-  // Heuristic: first short line often has the title
-  const titleLine = lines.find(l => l.length < 80 && l.length > 3) ?? '';
-  // Look for "at <company>" or "@ <company>" patterns
-  const atMatch = rawJd.match(/(?:at|@)\s+([A-Z][a-zA-Z0-9\s&.,'-]{1,40})/);
-  const company = atMatch ? atMatch[1].trim() : '';
-  return { title: titleLine, company };
+
+  // ── Company ──────────────────────────────────────────────────────────────
+  // 1. Explicit label: "Company: Acme" / "Organisation: Acme"
+  const labelMatch = rawJd.match(/^(?:company|organisation|organization|employer)\s*[:\-–]\s*(.+)/im);
+  // 2. "Join Acme" / "at Acme" / "@ Acme" inline patterns
+  const inlineMatch = rawJd.match(/(?:join|position\s+at|role\s+at|work\s+at|@\s*)([A-Z][a-zA-Z0-9\s&.,'-]{2,40})(?:[.,!]|$)/m)
+    ?? rawJd.match(/\bat\s+([A-Z][a-zA-Z0-9\s&.,'-]{2,40})(?:[.,!]|$)/m);
+
+  const company = labelMatch
+    ? labelMatch[1].trim().slice(0, 60)
+    : inlineMatch
+    ? inlineMatch[1].trim().slice(0, 60)
+    : '';
+
+  // ── Title ─────────────────────────────────────────────────────────────────
+  // 1. Explicit label: "Job Title: Senior Engineer"
+  const titleLabel = rawJd.match(/^(?:job\s+title|position|role|vacancy|title)\s*[:\-–]\s*(.+)/im);
+  // 2. First short non-empty line (< 80 chars, > 3 chars)
+  const titleLine = lines.find(l => l.length > 3 && l.length < 80) ?? '';
+  const title = titleLabel ? titleLabel[1].trim().slice(0, 80) : titleLine;
+
+  return { title, company };
 }
 
 /** Naive match score based on keyword overlap — used client-side until Worker classifies */
