@@ -170,7 +170,7 @@ export const VaultPage: React.FC<Props> = ({ profiles, activeSlot, userProfile, 
   function handleBuildCV(job: VaultJob) {
     patchJob(job.id, { status: 'building' });
     setQuickCheckJob(null);
-    onBuildCV(job.rawJd);
+    onBuildCV(job);          // pass the full VaultJob — parent reads job.rawJd, job.company, job.title
   }
 
   return (

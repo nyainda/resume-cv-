@@ -5,6 +5,13 @@ import { Clock, Trash, Zap, ArrowRight } from '../icons';
 const GOLD = '#C9A84C';
 const NAVY = '#1B2B4B';
 
+/** Ensure apply URLs always open in a new tab and never navigate within the app */
+function safeHref(url?: string | null): string {
+  if (!url) return '#';
+  if (url.startsWith('mailto:') || url.startsWith('https://') || url.startsWith('http://')) return url;
+  return `https://${url}`;
+}
+
 /* ── Helpers ─────────────────────────────────────────────────────────── */
 
 function CompanyAvatar({ name }: { name: string }) {
@@ -230,7 +237,7 @@ export const VaultJobCard: React.FC<Props> = ({ job, onQuickCheck, onBuildCV, on
             {/* Apply link */}
             {(job.website || job.email) && (
               <a
-                href={job.website ?? `mailto:${job.email}`}
+                href={job.website ? safeHref(job.website) : `mailto:${job.email}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center gap-1 px-3 py-2 rounded-xl text-[11px] font-bold text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors"

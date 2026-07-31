@@ -5,6 +5,13 @@ import { CheckCircle, AlertCircle, ArrowRight } from '../icons';
 const GOLD = '#C9A84C';
 const NAVY = '#1B2B4B';
 
+/** Ensure URLs always open externally and never navigate within the app */
+function safeHref(url?: string | null): string {
+  if (!url) return '#';
+  if (url.startsWith('mailto:') || url.startsWith('https://') || url.startsWith('http://')) return url;
+  return `https://${url}`;
+}
+
 /* ── Match donut ─────────────────────────────────────────────────────── */
 function DonutChart({ score }: { score: number }) {
   const size  = 110;
@@ -231,7 +238,7 @@ export const VaultQuickActions: React.FC<Props> = ({ job, onBuildCV, onClose }) 
               />
               <div className="space-y-2">
                 {job.website && (
-                  <a href={job.website} target="_blank" rel="noopener noreferrer"
+                  <a href={safeHref(job.website)} target="_blank" rel="noopener noreferrer"
                     className="flex items-center gap-3 px-4 py-3 rounded-2xl bg-zinc-50 dark:bg-neutral-800 border border-zinc-200 dark:border-neutral-700 hover:border-[#C9A84C]/50 transition-colors group">
                     <svg className="h-4 w-4 text-zinc-400 group-hover:text-[#C9A84C] flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
                     <span className="text-sm text-zinc-600 dark:text-zinc-400 truncate group-hover:text-[#C9A84C] transition-colors">
