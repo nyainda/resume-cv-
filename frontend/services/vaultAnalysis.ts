@@ -20,6 +20,8 @@ export interface VaultJobInsights {
   tldr:         string;
   requirements: string[];
   salary:       string | null;
+  remote:       'Remote' | 'Hybrid' | 'On-site' | null;
+  location:     string | null;
 }
 
 // ─── LLM extraction ───────────────────────────────────────────────────────────

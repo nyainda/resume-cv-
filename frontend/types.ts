@@ -757,6 +757,12 @@ export interface VaultJob {
   website?:      string;
   /** Salary range if mentioned in JD */
   salary?:       string;
+  /** Work arrangement extracted from JD */
+  remote?:       'Remote' | 'Hybrid' | 'On-site';
+  /** City / country / region extracted from JD */
+  location?:     string;
+  /** User's personal notes for this job */
+  notes?:        string;
   /** True once LLM analysis has completed (prevents re-analysing) */
   analysed?:     boolean;
 }
