@@ -60,9 +60,15 @@ export async function fetchCVRules(): Promise<CVRules> {
                 });
                 clearTimeout(timer);
                 if (res.status === 401) {
-                    // Session expired — sign the user out so they don't stay stuck in
-                    // a "logged-in but unauthorised" split-brain state.
-                    window.dispatchEvent(new CustomEvent('procv:session-expired'));
+                    // Rules require auth, but we must NOT fire procv:session-expired here.
+                    // This request uses the cookie only (no Bearer fallback), so it gets
+                    // 401 whenever the browser blocks SameSite=None cookies (Safari ITP,
+                    // Firefox ETP, Incognito) — even while the session is perfectly valid.
+                    // Firing session-expired here would race with boot's validateSession()
+                    // and wipe the Bearer fallback token before it can be used, logging
+                    // the user out on every cold start. The offline fallback is safe here:
+                    // the CV pipeline works fine with local rules, and the next full page
+                    // load will retry once validateSession() has confirmed the session.
                     _inflight = null;
                     return OFFLINE_FALLBACK;
                 }

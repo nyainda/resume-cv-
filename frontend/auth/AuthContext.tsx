@@ -416,6 +416,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Seeded at mount from the localStorage display cache (still present at init).
     const lastKnownEmailRef = useRef<string | null>(user?.email ?? null);
 
+    // True while the initial boot() session-validation is still in progress.
+    // The 'procv:session-expired' event handler must NOT act during this window:
+    // a background service (e.g. rulesService) can get a 401 because the
+    // SameSite=None cookie is blocked by Safari ITP / Firefox ETP, but
+    // validateSession() will successfully retry with the Bearer fallback token.
+    // If onSessionExpired fires first it clears that fallback token (via
+    // signOutWorker → clearSessionFallback), causing validateSession() Pass 2
+    // to fail too — logging the user out on every cold start unnecessarily.
+    const isBootingRef = useRef(true);
+
     // ── Persist / clear the display cache ────────────────────────────────────
 
     const _saveUser = useCallback((u: WorkerUser | null) => {
@@ -616,7 +626,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setIsLoading(false);
         }
 
-        boot().catch(() => { if (!cancelled) setIsLoading(false); });
+        boot()
+            .catch(() => { if (!cancelled) setIsLoading(false); })
+            .finally(() => { isBootingRef.current = false; });
         return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
@@ -696,6 +708,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     useEffect(() => {
         function onSessionExpired() {
+            // Ignore 401s that arrive while the initial boot session-check is
+            // still running.  Background services (e.g. rulesService) use the
+            // cookie only; if the browser blocks SameSite=None third-party
+            // cookies they get 401 immediately, but validateSession() will
+            // succeed via the Bearer fallback.  Acting here would wipe the
+            // fallback token before validateSession() can use it, logging the
+            // user out on every cold start even though their session is valid.
+            if (isBootingRef.current) return;
             // Only act if we believe we're signed in. Ignore the event if we're
             // already signed out (avoids duplicate teardown on late in-flight 401s).
             if (!localStorage.getItem(USER_CACHE_KEY)) return;
