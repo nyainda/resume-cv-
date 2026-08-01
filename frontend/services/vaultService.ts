@@ -41,6 +41,44 @@ async function apiDelete(path: string): Promise<void> {
   } catch { /* offline */ }
 }
 
+/**
+ * Map a raw D1 snake_case row to a camelCase VaultJob.
+ * D1 returns column names unchanged (snake_case); all our runtime types are camelCase.
+ * Handles both snake_case (server) and camelCase (already-converted) so the
+ * function is safe to call on either shape.
+ */
+function rowToVaultJob(row: any): VaultJob {
+  return {
+    id:           row.id,
+    roomId:       row.room_id       ?? row.roomId       ?? '',
+    title:        row.title         ?? 'Untitled Role',
+    company:      row.company       ?? 'Unknown Company',
+    rawJd:        row.raw_jd        ?? row.rawJd        ?? '',
+    inputType:    (row.input_type   ?? row.inputType    ?? 'paste') as VaultInputType,
+    sourceUrl:    row.source_url    ?? row.sourceUrl,
+    deadline:     row.deadline,
+    priority:     (row.priority     ?? 'medium') as VaultPriority,
+    roomType:     (row.room_type    ?? row.roomType     ?? 'uncategorized') as VaultRoomType,
+    status:       row.status        ?? 'saved',
+    fingerprint:  row.fingerprint   ?? '',
+    createdAt:    typeof row.created_at === 'number'
+                    ? row.created_at
+                    : (typeof row.createdAt === 'number' ? row.createdAt : Date.now()),
+    updatedAt:    typeof row.updated_at === 'number'
+                    ? row.updated_at
+                    : (typeof row.updatedAt === 'number' ? row.updatedAt : Date.now()),
+    matchScore:   row.match_score   ?? row.matchScore,
+    roomReason:   row.room_reason   ?? row.roomReason,
+    builtCvId:    row.built_cv_id   ?? row.builtCvId,
+    tldr:         row.tldr,
+    requirements: row.requirements,
+    email:        row.email,
+    website:      row.website,
+    salary:       row.salary,
+    analysed:     !!row.analysed,
+  };
+}
+
 /** Pull server jobs and merge into localStorage (server wins on conflict). */
 export async function syncVaultFromServer(): Promise<void> {
   if (!isAuthenticated()) return;
@@ -49,14 +87,17 @@ export async function syncVaultFromServer(): Promise<void> {
       credentials: 'include',
     });
     if (!res.ok) return;
-    const data = await res.json() as { ok: boolean; jobs: VaultJob[] };
+    const data = await res.json() as { ok: boolean; jobs: any[] };
     if (!data.ok || !Array.isArray(data.jobs) || data.jobs.length === 0) return;
+
+    // D1 returns snake_case column names — convert each row to a camelCase VaultJob
+    const serverJobs: VaultJob[] = data.jobs.map(rowToVaultJob);
 
     const local = loadAll();
     const localById = new Map(local.map(j => [j.id, j]));
 
-    // Merge: server wins on updated_at
-    for (const sj of data.jobs) {
+    // Merge: server wins when its updatedAt is newer (or job is missing locally)
+    for (const sj of serverJobs) {
       const lj = localById.get(sj.id);
       if (!lj || sj.updatedAt >= lj.updatedAt) {
         localById.set(sj.id, sj);
