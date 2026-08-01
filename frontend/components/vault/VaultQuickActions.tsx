@@ -121,6 +121,7 @@ export const VaultQuickActions: React.FC<Props> = ({ job, onBuildCV, onPatch, on
   const [notesChanged, setNotesChanged] = useState(false);
   const [notesSaved, setNotesSaved]     = useState(false);
   const [reminderState, setReminderState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
+  const [reminderMsg,   setReminderMsg]   = useState<string>('');
   const notesSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const qualityText = score >= 80
@@ -160,6 +161,7 @@ export const VaultQuickActions: React.FC<Props> = ({ job, onBuildCV, onPatch, on
   async function handleReminder() {
     if (reminderState !== 'idle') return;
     setReminderState('sending');
+    setReminderMsg('');
     try {
       const base = /^https?:\/\//.test(ENGINE_URL)
         ? new URL('/api/vault/remind', ENGINE_URL)
@@ -179,12 +181,30 @@ export const VaultQuickActions: React.FC<Props> = ({ job, onBuildCV, onPatch, on
       if (res.ok) {
         setReminderState('sent');
       } else {
+        // Decode the error code so we can surface a useful message
+        let errorCode = '';
+        try { const j = await res.json() as { error?: string }; errorCode = j.error ?? ''; } catch { /* ignore */ }
+
+        let msg = 'Something went wrong — try again.';
+        if (res.status === 404) {
+          msg = 'Email reminders need a server update. Check back soon.';
+        } else if (res.status === 401) {
+          msg = 'Sign in to use email reminders.';
+        } else if (errorCode === 'email_not_configured') {
+          msg = 'Email is not set up on this server.';
+        } else if (errorCode === 'no_email_on_file') {
+          msg = 'No email address linked to your account.';
+        } else if (errorCode === 'send_failed') {
+          msg = 'Email delivery failed — try again later.';
+        }
+        setReminderMsg(msg);
         setReminderState('error');
-        setTimeout(() => setReminderState('idle'), 3000);
+        setTimeout(() => { setReminderState('idle'); setReminderMsg(''); }, 5000);
       }
     } catch {
+      setReminderMsg('Network error — check your connection.');
       setReminderState('error');
-      setTimeout(() => setReminderState('idle'), 3000);
+      setTimeout(() => { setReminderState('idle'); setReminderMsg(''); }, 5000);
     }
   }
 
@@ -350,32 +370,39 @@ export const VaultQuickActions: React.FC<Props> = ({ job, onBuildCV, onPatch, on
                   <p className="text-sm font-medium">Reminder sent to {user.email}</p>
                 </div>
               ) : (
-                <div className="flex items-start gap-3">
-                  <p className="text-xs text-zinc-500 dark:text-zinc-400 flex-1 leading-relaxed">
-                    Get a reminder email about this role{job.deadline ? ' before the deadline' : ''}.
-                  </p>
-                  <button
-                    onClick={handleReminder}
-                    disabled={reminderState !== 'idle'}
-                    className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all ${
-                      reminderState === 'sending'
-                        ? 'bg-zinc-100 dark:bg-neutral-700 text-zinc-400 cursor-wait'
-                        : reminderState === 'error'
-                        ? 'bg-rose-50 dark:bg-rose-900/20 text-rose-500 border border-rose-200 dark:border-rose-800'
-                        : 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100 dark:hover:bg-indigo-900/50'
-                    }`}
-                  >
-                    {reminderState === 'sending' ? (
-                      <><span className="w-3 h-3 rounded-full border border-zinc-400 border-t-transparent animate-spin" /> Sending…</>
-                    ) : reminderState === 'error' ? (
-                      <>✗ Failed</>
-                    ) : (
-                      <>
-                        <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
-                        Remind me
-                      </>
-                    )}
-                  </button>
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-start gap-3">
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400 flex-1 leading-relaxed">
+                      Get a reminder email about this role{job.deadline ? ' before the deadline' : ''}.
+                    </p>
+                    <button
+                      onClick={handleReminder}
+                      disabled={reminderState !== 'idle'}
+                      className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all ${
+                        reminderState === 'sending'
+                          ? 'bg-zinc-100 dark:bg-neutral-700 text-zinc-400 cursor-wait'
+                          : reminderState === 'error'
+                          ? 'bg-rose-50 dark:bg-rose-900/20 text-rose-500 border border-rose-200 dark:border-rose-800'
+                          : 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100 dark:hover:bg-indigo-900/50'
+                      }`}
+                    >
+                      {reminderState === 'sending' ? (
+                        <><span className="w-3 h-3 rounded-full border border-zinc-400 border-t-transparent animate-spin" /> Sending…</>
+                      ) : reminderState === 'error' ? (
+                        <>✗ Failed</>
+                      ) : (
+                        <>
+                          <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                          Remind me
+                        </>
+                      )}
+                    </button>
+                  </div>
+                  {reminderState === 'error' && reminderMsg && (
+                    <p className="text-[11px] text-rose-500 dark:text-rose-400 leading-snug">
+                      {reminderMsg}
+                    </p>
+                  )}
                 </div>
               )}
             </div>
