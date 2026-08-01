@@ -105,6 +105,7 @@ import {
 import {
     handleVaultJobsGet, handleVaultJobsPost,
     handleVaultJobPatch, handleVaultJobDelete,
+    handleVaultRemind,
 } from './handlers/vault';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -344,6 +345,7 @@ async function _dispatch(request: Request, env: Env, ctx: ExecutionContext, url:
     const vaultPatchMatch = /^\/api\/vault\/jobs\/([^/]+)$/.exec(p);
     if (vaultPatchMatch && m === 'PATCH')  return handleVaultJobPatch(request, env, vaultPatchMatch[1]);
     if (vaultPatchMatch && m === 'DELETE') return handleVaultJobDelete(request, env, vaultPatchMatch[1]);
+    if (p === '/api/vault/remind' && m === 'POST') return handleVaultRemind(request, env);
 
     return json({ error: 'not_found', path: p }, request, env, 404);
 }

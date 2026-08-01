@@ -86,6 +86,8 @@ export function useVaultJobs(profileSkills: string = '') {
         if (insights.email)             patch.email        = insights.email;
         if (insights.website)           patch.website      = insights.website;
         if (insights.salary)            patch.salary       = insights.salary;
+        if (insights.remote)            patch.remote       = insights.remote;
+        if (insights.location)          patch.location     = insights.location;
         updateVaultJob(jobId, patch);
         setJobs(getAllVaultJobs());
       }).catch(() => {

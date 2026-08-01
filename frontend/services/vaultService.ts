@@ -204,6 +204,9 @@ export function updateVaultJob(id: string, patch: Partial<VaultJob>): VaultJob |
   if ('website'      in patch) apiPatch['website']       = patch.website;
   if ('salary'       in patch) apiPatch['salary']        = patch.salary;
   if ('analysed'     in patch) apiPatch['analysed']      = patch.analysed;
+  if ('notes'        in patch) apiPatch['notes']         = patch.notes;
+  if ('remote'       in patch) apiPatch['remote']        = patch.remote;
+  if ('location'     in patch) apiPatch['location']      = patch.location;
   if (Object.keys(apiPatch).length > 0) {
     apiPatch['updated_at'] = updated.updatedAt;
     // Intentionally fire-and-forget — patch the backend job

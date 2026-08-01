@@ -1,9 +1,12 @@
-import React from 'react';
+import React, { useState, useRef } from 'react';
 import type { VaultJob } from '../../types';
 import { CheckCircle, AlertCircle, ArrowRight } from '../icons';
+import { useAuth } from '../../auth/AuthContext';
 
 const GOLD = '#C9A84C';
 const NAVY = '#1B2B4B';
+
+const ENGINE_URL: string = import.meta.env.VITE_CV_ENGINE_URL ?? '';
 
 /** Ensure URLs always open externally and never navigate within the app */
 function safeHref(url?: string | null): string {
@@ -62,17 +65,63 @@ function deriveKeywords(job: VaultJob): { found: string[]; notFound: string[] } 
   return { found: found.slice(0, 6), notFound };
 }
 
+/* ── Deadline countdown ──────────────────────────────────────────────── */
+function DeadlineBlock({ deadline }: { deadline: string }) {
+  const ms   = new Date(deadline).getTime() - Date.now();
+  const days = Math.ceil(ms / 86400000);
+  const formatted = new Date(deadline).toLocaleDateString('en-GB', {
+    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+  });
+
+  const urgencyColor = days <= 0 ? 'text-zinc-400' : days <= 3 ? 'text-rose-500' : days <= 7 ? 'text-amber-500' : 'text-zinc-500 dark:text-zinc-400';
+  const urgencyBg    = days <= 0 ? '' : days <= 3 ? 'bg-rose-50 dark:bg-rose-900/20 border-rose-200 dark:border-rose-800/40' : days <= 7 ? 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800/40' : 'bg-zinc-50 dark:bg-neutral-800 border-zinc-100 dark:border-neutral-700';
+
+  return (
+    <div className={`rounded-2xl px-5 py-4 border ${urgencyBg || 'bg-zinc-50 dark:bg-neutral-800 border-zinc-100 dark:border-neutral-700'}`}>
+      <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-1">Deadline</p>
+      <p className="text-base font-extrabold text-zinc-900 dark:text-zinc-50">{formatted}</p>
+      {days > 0 && days <= 3 && (
+        <p className={`text-sm font-bold mt-1.5 flex items-center gap-1.5 ${urgencyColor}`}>
+          <span className="relative flex h-2 w-2">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75" />
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-500" />
+          </span>
+          {days === 1 ? 'Due tomorrow!' : `Only ${days} days left!`}
+        </p>
+      )}
+      {days === 0 && (
+        <p className={`text-sm font-bold mt-1.5 animate-pulse ${urgencyColor}`}>⚠ Due today!</p>
+      )}
+      {days < 0 && <p className="text-xs text-zinc-400 mt-1">Deadline passed</p>}
+      {days > 3 && days <= 14 && (
+        <p className={`text-xs font-medium mt-1 ${urgencyColor}`}>{days} days to go</p>
+      )}
+      {days > 14 && (
+        <p className="text-xs text-zinc-400 mt-1">{days} days to go</p>
+      )}
+    </div>
+  );
+}
+
 interface Props {
   job:       VaultJob;
   onBuildCV: (job: VaultJob) => void;
+  onPatch:   (id: string, patch: Partial<VaultJob>) => void;
   onClose:   () => void;
 }
 
-export const VaultQuickActions: React.FC<Props> = ({ job, onBuildCV, onClose }) => {
+export const VaultQuickActions: React.FC<Props> = ({ job, onBuildCV, onPatch, onClose }) => {
+  const { user } = useAuth();
   const score          = job.matchScore ?? 0;
   const isClassifying  = job.matchScore === undefined;
   const isAnalysing    = !job.analysed;
   const { found: keywordsFound } = deriveKeywords(job);
+
+  const [notes, setNotes]               = useState(job.notes ?? '');
+  const [notesChanged, setNotesChanged] = useState(false);
+  const [notesSaved, setNotesSaved]     = useState(false);
+  const [reminderState, setReminderState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
+  const notesSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const qualityText = score >= 80
     ? 'Your profile directly covers the core requirements.'
@@ -87,6 +136,57 @@ export const VaultQuickActions: React.FC<Props> = ({ job, onBuildCV, onClose }) 
   });
 
   const showCompany = job.company && job.company !== 'Unknown Company';
+
+  /* ── Remote / location icons ─────────────────────────────── */
+  const remoteIcon = job.remote === 'Remote' ? '🌍'
+    : job.remote === 'Hybrid' ? '🔀'
+    : job.remote === 'On-site' ? '🏢'
+    : null;
+
+  /* ── Notes auto-save ─────────────────────────────────────── */
+  function handleNotesChange(val: string) {
+    setNotes(val);
+    setNotesChanged(true);
+    setNotesSaved(false);
+    if (notesSaveTimer.current) clearTimeout(notesSaveTimer.current);
+    notesSaveTimer.current = setTimeout(() => {
+      onPatch(job.id, { notes: val });
+      setNotesSaved(true);
+      setNotesChanged(false);
+    }, 800);
+  }
+
+  /* ── Email reminder ──────────────────────────────────────── */
+  async function handleReminder() {
+    if (reminderState !== 'idle') return;
+    setReminderState('sending');
+    try {
+      const base = /^https?:\/\//.test(ENGINE_URL)
+        ? new URL('/api/vault/remind', ENGINE_URL)
+        : new URL(ENGINE_URL + '/api/vault/remind', window.location.origin);
+
+      const res = await fetch(base.toString(), {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          job_id:    job.id,
+          job_title: job.title,
+          company:   job.company,
+          deadline:  job.deadline ?? null,
+        }),
+      });
+      if (res.ok) {
+        setReminderState('sent');
+      } else {
+        setReminderState('error');
+        setTimeout(() => setReminderState('idle'), 3000);
+      }
+    } catch {
+      setReminderState('error');
+      setTimeout(() => setReminderState('idle'), 3000);
+    }
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-end">
@@ -115,6 +215,16 @@ export const VaultQuickActions: React.FC<Props> = ({ job, onBuildCV, onClose }) 
               {job.inputType && (
                 <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-white/10 text-white/70 px-2 py-0.5 rounded-full">
                   {job.inputType === 'url' ? '🔗 From URL' : job.inputType === 'pdf' ? '📄 From PDF' : job.inputType === 'image' ? '📸 Screenshot' : '📋 Pasted'}
+                </span>
+              )}
+              {job.remote && (
+                <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-white/10 text-white/70 px-2 py-0.5 rounded-full">
+                  {remoteIcon} {job.remote}
+                </span>
+              )}
+              {job.location && (
+                <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-white/10 text-white/70 px-2 py-0.5 rounded-full">
+                  📍 {job.location.length > 20 ? job.location.slice(0, 18) + '…' : job.location}
                 </span>
               )}
               {job.priority === 'dream' && (
@@ -227,6 +337,74 @@ export const VaultQuickActions: React.FC<Props> = ({ job, onBuildCV, onClose }) 
             </div>
           )}
 
+          {/* Deadline */}
+          {job.deadline && <DeadlineBlock deadline={job.deadline} />}
+
+          {/* Email reminder */}
+          {user?.email && (
+            <div className="bg-zinc-50 dark:bg-neutral-800 rounded-2xl px-5 py-4 border border-zinc-100 dark:border-neutral-700">
+              <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-2">Email Reminder</p>
+              {reminderState === 'sent' ? (
+                <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
+                  <CheckCircle className="h-4 w-4 flex-shrink-0" />
+                  <p className="text-sm font-medium">Reminder sent to {user.email}</p>
+                </div>
+              ) : (
+                <div className="flex items-start gap-3">
+                  <p className="text-xs text-zinc-500 dark:text-zinc-400 flex-1 leading-relaxed">
+                    Get a reminder email about this role{job.deadline ? ' before the deadline' : ''}.
+                  </p>
+                  <button
+                    onClick={handleReminder}
+                    disabled={reminderState !== 'idle'}
+                    className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all ${
+                      reminderState === 'sending'
+                        ? 'bg-zinc-100 dark:bg-neutral-700 text-zinc-400 cursor-wait'
+                        : reminderState === 'error'
+                        ? 'bg-rose-50 dark:bg-rose-900/20 text-rose-500 border border-rose-200 dark:border-rose-800'
+                        : 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100 dark:hover:bg-indigo-900/50'
+                    }`}
+                  >
+                    {reminderState === 'sending' ? (
+                      <><span className="w-3 h-3 rounded-full border border-zinc-400 border-t-transparent animate-spin" /> Sending…</>
+                    ) : reminderState === 'error' ? (
+                      <>✗ Failed</>
+                    ) : (
+                      <>
+                        <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                        Remind me
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Notes */}
+          <div>
+            <SectionHead
+              icon={<div className="w-5 h-5 rounded-lg bg-zinc-100 dark:bg-neutral-700 flex items-center justify-center flex-shrink-0">
+                <svg className="h-3 w-3 text-zinc-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+              </div>}
+              label="Notes"
+            />
+            <div className="relative">
+              <textarea
+                value={notes}
+                onChange={e => handleNotesChange(e.target.value)}
+                placeholder="Add private notes — interview tips, contacts, referrals…"
+                rows={4}
+                className="w-full px-4 py-3 rounded-2xl border border-zinc-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-sm text-zinc-700 dark:text-zinc-300 placeholder-zinc-300 dark:placeholder-zinc-600 resize-none focus:outline-none focus:ring-2 focus:ring-[#C9A84C]/30 focus:border-[#C9A84C]/50 transition-colors leading-relaxed"
+              />
+              {(notesChanged || notesSaved) && (
+                <span className={`absolute bottom-3 right-3 text-[10px] font-medium transition-colors ${notesSaved ? 'text-emerald-500' : 'text-zinc-300'}`}>
+                  {notesSaved ? '✓ Saved' : 'Saving…'}
+                </span>
+              )}
+            </div>
+          </div>
+
           {/* How to apply */}
           {(job.email || job.website || job.sourceUrl) && (
             <div>
@@ -262,26 +440,6 @@ export const VaultQuickActions: React.FC<Props> = ({ job, onBuildCV, onClose }) 
                   </a>
                 )}
               </div>
-            </div>
-          )}
-
-          {/* Deadline */}
-          {job.deadline && (
-            <div className="bg-zinc-50 dark:bg-neutral-800 rounded-2xl px-5 py-4 border border-zinc-100 dark:border-neutral-700">
-              <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-1">Deadline</p>
-              <p className="text-base font-extrabold text-zinc-900 dark:text-zinc-50">
-                {new Date(job.deadline).toLocaleDateString('en-GB', { weekday:'long', day:'numeric', month:'long', year:'numeric' })}
-              </p>
-              {(() => {
-                const d = Math.ceil((new Date(job.deadline).getTime() - Date.now()) / 86400000);
-                return d >= 0 && d <= 7 ? (
-                  <p className="text-xs text-rose-500 font-bold mt-1">⚠ {d === 0 ? 'Due today!' : `${d} day${d !== 1 ? 's' : ''} left`}</p>
-                ) : d < 0 ? (
-                  <p className="text-xs text-zinc-400 mt-1">Deadline passed</p>
-                ) : (
-                  <p className="text-xs text-zinc-400 mt-1">{d} days to go</p>
-                );
-              })()}
             </div>
           )}
 

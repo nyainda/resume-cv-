@@ -54,6 +54,9 @@ interface VaultJobRow {
     fingerprint: string;
     created_at: number;
     updated_at: number;
+    notes: string | null;
+    remote: string | null;
+    location: string | null;
 }
 
 // ── GET /api/vault/jobs ───────────────────────────────────────────────────────
@@ -162,7 +165,8 @@ export async function handleVaultJobPatch(request: Request, env: Env, id: string
     // Build SET clause dynamically — only update provided fields
     const allowed: Record<string, unknown> = {};
     const PATCHABLE = ['title','company','match_score','room_type','room_reason',
-                       'deadline','priority','status','built_cv_id','source_url'] as const;
+                       'deadline','priority','status','built_cv_id','source_url',
+                       'notes','remote','location'] as const;
     for (const key of PATCHABLE) {
         if (key in body) allowed[key] = body[key];
     }
@@ -181,6 +185,134 @@ export async function handleVaultJobPatch(request: Request, env: Env, id: string
     ).bind(id).first<VaultJobRow>();
 
     return json({ ok: true, job: updated }, request, env);
+}
+
+// ── POST /api/vault/remind ────────────────────────────────────────────────────
+
+export async function handleVaultRemind(request: Request, env: Env): Promise<Response> {
+    const userId = await getUserId(request, env);
+    if (!userId) return unauthorized(request, env);
+
+    const body = await safeJson(request);
+    if (!body) return json({ error: 'invalid_json' }, request, env, 400);
+
+    const jobTitle = typeof body.job_title === 'string' ? body.job_title : 'a saved role';
+    const company  = typeof body.company   === 'string' ? body.company   : '';
+    const deadline = typeof body.deadline  === 'string' ? body.deadline  : null;
+
+    if (!env.RESEND_API_KEY && !env.SEND_EMAIL) {
+        return json({ error: 'email_not_configured' }, request, env, 503);
+    }
+
+    // Look up user email from user_identities
+    const userRow = await env.CV_DB.prepare(
+        `SELECT email, name FROM user_identities WHERE id = ?`
+    ).bind(userId).first<{ email: string; name: string | null }>();
+
+    if (!userRow?.email) {
+        return json({ error: 'no_email_on_file' }, request, env, 400);
+    }
+
+    const userEmail = userRow.email;
+    const userName  = userRow.name ?? 'there';
+    const fromAddr  = env.RESEND_FROM_EMAIL ?? 'onboarding@resend.dev';
+    const base      = env.APP_URL ?? 'https://procv.app';
+
+    const deadlineStr = deadline
+        ? new Date(deadline).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+        : null;
+    const daysLeft = deadline
+        ? Math.ceil((new Date(deadline).getTime() - Date.now()) / 86400000)
+        : null;
+
+    const subject = deadline
+        ? `⏰ Reminder: ${jobTitle}${company ? ` at ${company}` : ''} — ${daysLeft !== null && daysLeft >= 0 ? `${daysLeft} day${daysLeft !== 1 ? 's' : ''} left` : 'deadline passed'}`
+        : `📌 Reminder: ${jobTitle}${company ? ` at ${company}` : ''}`;
+
+    const html = buildReminderEmail({ userName, jobTitle, company, deadlineStr, daysLeft, base });
+    const text = [
+        `Hi ${userName},`,
+        '',
+        `This is a reminder about: ${jobTitle}${company ? ` at ${company}` : ''}.`,
+        deadlineStr ? `Deadline: ${deadlineStr}${daysLeft !== null ? ` (${daysLeft} day${daysLeft !== 1 ? 's' : ''} left)` : ''}` : '',
+        '',
+        `Open your Job Vault: ${base}`,
+        '',
+        '— ProCV',
+    ].filter(l => l !== undefined).join('\n');
+
+    if (env.RESEND_API_KEY) {
+        const res = await fetch('https://api.resend.com/emails', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${env.RESEND_API_KEY}`,
+            },
+            body: JSON.stringify({ from: `ProCV <${fromAddr}>`, to: [userEmail], subject, text, html }),
+        });
+        if (!res.ok) {
+            const err = await res.text().catch(() => '');
+            return json({ error: 'send_failed', detail: err }, request, env, 502);
+        }
+    } else if (env.SEND_EMAIL) {
+        const { EmailMessage } = await import('cloudflare:email') as { EmailMessage: any };
+        const rawEmail = [`From: ProCV <noreply@procv.app>`, `To: ${userEmail}`, `Subject: ${subject}`,
+            `MIME-Version: 1.0`, `Content-Type: text/plain; charset=utf-8`, '', text].join('\r\n');
+        const msg = new EmailMessage('noreply@procv.app', userEmail, rawEmail);
+        await env.SEND_EMAIL.send(msg);
+    }
+
+    return json({ ok: true, sent_to: userEmail }, request, env);
+}
+
+function buildReminderEmail({
+    userName, jobTitle, company, deadlineStr, daysLeft, base,
+}: {
+    userName: string; jobTitle: string; company: string; deadlineStr: string | null;
+    daysLeft: number | null; base: string;
+}): string {
+    const urgencyColor = daysLeft !== null && daysLeft >= 0 && daysLeft <= 3 ? '#ef4444' : '#f59e0b';
+    const urgencyLabel = daysLeft === null ? '' : daysLeft <= 0 ? 'Deadline passed' : daysLeft === 0 ? 'Due today!' : `${daysLeft} day${daysLeft !== 1 ? 's' : ''} left`;
+
+    return `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;padding:32px 16px">
+    <tr><td align="center">
+      <table width="560" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:16px;border:1px solid #e2e8f0;overflow:hidden;max-width:560px;width:100%">
+        <!-- Header -->
+        <tr><td style="background:linear-gradient(135deg,#1B2B4B 0%,#263c61 100%);padding:28px 32px">
+          <p style="margin:0;color:#C9A84C;font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase">Job Vault Reminder</p>
+          <h1 style="margin:8px 0 0;color:#fff;font-size:22px;font-weight:800;line-height:1.3">${jobTitle}</h1>
+          ${company ? `<p style="margin:6px 0 0;color:rgba(255,255,255,0.6);font-size:14px">${company}</p>` : ''}
+        </td></tr>
+        <!-- Body -->
+        <tr><td style="padding:28px 32px">
+          <p style="margin:0 0 20px;color:#374151;font-size:15px;line-height:1.6">Hi ${userName},</p>
+          <p style="margin:0 0 24px;color:#374151;font-size:15px;line-height:1.6">
+            You asked to be reminded about <strong>${jobTitle}${company ? ` at ${company}` : ''}</strong>.
+            ${deadlineStr ? `The application deadline is approaching.` : 'Time to take action!'}
+          </p>
+          ${deadlineStr ? `
+          <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:12px;padding:16px 20px;margin-bottom:24px">
+            <p style="margin:0 0 4px;font-size:11px;font-weight:700;color:#ef4444;text-transform:uppercase;letter-spacing:0.05em">Deadline</p>
+            <p style="margin:0;font-size:16px;font-weight:800;color:#111827">${deadlineStr}</p>
+            ${urgencyLabel ? `<p style="margin:6px 0 0;font-size:13px;font-weight:700;color:${urgencyColor}">${urgencyLabel}</p>` : ''}
+          </div>` : ''}
+          <a href="${base}" style="display:inline-block;background:linear-gradient(135deg,#1B2B4B 0%,#263c61 100%);color:#fff;text-decoration:none;padding:14px 28px;border-radius:12px;font-size:14px;font-weight:700">
+            Open Job Vault &rarr;
+          </a>
+        </td></tr>
+        <!-- Footer -->
+        <tr><td style="padding:16px 32px 24px;border-top:1px solid #f1f5f9">
+          <p style="margin:0;color:#94a3b8;font-size:12px">ProCV &mdash; Your Personal Career Consultant</p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
 }
 
 // ── DELETE /api/vault/jobs/:id ────────────────────────────────────────────────

@@ -38,7 +38,9 @@ function buildPrompt(rawJd: string): string {
   "website":      "<direct application URL or company careers page if present, else null>",
   "tldr":         "<2–3 sentence plain-English summary: what the company does, what the role involves, and the single most important thing they want>",
   "requirements": ["<5–7 most important requirements as short phrases, each under 10 words>"],
-  "salary":       "<salary range exactly as written if mentioned (e.g. '$80,000–$100,000'), else null>"
+  "salary":       "<salary range exactly as written if mentioned (e.g. '$80,000–$100,000'), else null>",
+  "remote":       "<'Remote', 'Hybrid', or 'On-site' — pick the closest fit based on the JD wording, else null>",
+  "location":     "<city / region / country if mentioned (e.g. 'London, UK'), else null>"
 }
 
 Job description:
@@ -68,6 +70,11 @@ async function tryLLM(rawJd: string): Promise<VaultJobInsights | null> {
       ? parsed.title.trim() : '';
     if (!company && !title) return null;
 
+    const remoteRaw = typeof parsed.remote === 'string' ? parsed.remote.trim() : null;
+    const remoteVal: VaultJobInsights['remote'] =
+      remoteRaw === 'Remote' || remoteRaw === 'Hybrid' || remoteRaw === 'On-site'
+        ? remoteRaw : null;
+
     return {
       company:      company || heuristicCompany(rawJd),
       title:        title  || heuristicTitle(rawJd),
@@ -78,6 +85,8 @@ async function tryLLM(rawJd: string): Promise<VaultJobInsights | null> {
         ? parsed.requirements.filter(r => typeof r === 'string').slice(0, 8)
         : [],
       salary:       typeof parsed.salary   === 'string' ? parsed.salary   : null,
+      remote:       remoteVal,
+      location:     typeof parsed.location === 'string' ? parsed.location.slice(0, 80) : null,
     };
   } catch {
     return null;
@@ -141,6 +150,23 @@ function heuristicTldr(rawJd: string): string {
   return para ? para.slice(0, 300) : '';
 }
 
+const REMOTE_RE  = /\b(fully[\s-]?remote|remote[\s-]?first|work[\s-]?from[\s-]?home|100%\s*remote)\b/i;
+const HYBRID_RE  = /\bhybrid\b/i;
+const ONSITE_RE  = /\b(on[\s-]?site|in[\s-]?office|office[\s-]?based|in[\s-]?person)\b/i;
+const LOCATION_RE = /\b(?:location|based in|office(?:s)? in|located in)\s*[:\-–]?\s*([A-Z][a-zA-Z,.\s]{3,50}?)(?:\.|,|\n|$)/im;
+
+function heuristicRemote(rawJd: string): VaultJobInsights['remote'] {
+  if (REMOTE_RE.test(rawJd)) return 'Remote';
+  if (HYBRID_RE.test(rawJd)) return 'Hybrid';
+  if (ONSITE_RE.test(rawJd)) return 'On-site';
+  return null;
+}
+
+function heuristicLocation(rawJd: string): string | null {
+  const m = rawJd.match(LOCATION_RE);
+  return m ? m[1].trim().slice(0, 80) : null;
+}
+
 function heuristicFallback(rawJd: string): VaultJobInsights {
   const emailMatch   = rawJd.match(EMAIL_RE);
   const urlMatch     = rawJd.match(APPLY_URL_RE);
@@ -153,6 +179,8 @@ function heuristicFallback(rawJd: string): VaultJobInsights {
     tldr:         heuristicTldr(rawJd),
     requirements: heuristicRequirements(rawJd),
     salary:       salaryMatch ? salaryMatch[0].trim() : null,
+    remote:       heuristicRemote(rawJd),
+    location:     heuristicLocation(rawJd),
   };
 }
 

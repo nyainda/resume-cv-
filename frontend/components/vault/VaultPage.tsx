@@ -31,6 +31,52 @@ function getRoomPill(color: string) {
   return ROOM_PILL_COLORS[color] ?? ROOM_PILL_COLORS['indigo'];
 }
 
+/* ── Closing soon alert bar ──────────────────────────────────────────── */
+function ClosingSoonBar({ jobs, onViewJob }: { jobs: VaultJob[]; onViewJob: (j: VaultJob) => void }) {
+  const urgent = jobs
+    .filter(j => {
+      if (!j.deadline || j.status === 'applied' || j.status === 'expired') return false;
+      const days = Math.ceil((new Date(j.deadline).getTime() - Date.now()) / 86400000);
+      return days >= 0 && days <= 5;
+    })
+    .sort((a, b) => new Date(a.deadline!).getTime() - new Date(b.deadline!).getTime());
+
+  if (urgent.length === 0) return null;
+
+  return (
+    <div className="mb-4 flex-shrink-0 rounded-2xl border border-rose-200 dark:border-rose-800/60 bg-rose-50 dark:bg-rose-900/20 px-4 py-3">
+      <div className="flex items-center gap-2 mb-2">
+        <span className="relative flex h-2.5 w-2.5">
+          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75" />
+          <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-rose-500" />
+        </span>
+        <p className="text-xs font-extrabold text-rose-600 dark:text-rose-400 uppercase tracking-wide">
+          Closing soon — {urgent.length} role{urgent.length !== 1 ? 's' : ''}
+        </p>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {urgent.map(j => {
+          const days = Math.ceil((new Date(j.deadline!).getTime() - Date.now()) / 86400000);
+          return (
+            <button
+              key={j.id}
+              onClick={() => onViewJob(j)}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white dark:bg-neutral-800 border border-rose-200 dark:border-rose-700 hover:border-rose-400 dark:hover:border-rose-500 transition-colors text-left"
+            >
+              <span className="text-xs font-bold text-zinc-800 dark:text-zinc-100 truncate max-w-[140px]">
+                {j.title || 'Untitled'}
+              </span>
+              <span className={`text-[10px] font-bold flex-shrink-0 ${days === 0 ? 'text-rose-500 animate-pulse' : 'text-rose-500'}`}>
+                {days === 0 ? 'Today!' : `${days}d`}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 /* ── Empty state ─────────────────────────────────────────────────────── */
 function EmptyVault({ onCapture }: { onCapture: () => void }) {
   return (
@@ -194,6 +240,9 @@ export const VaultPage: React.FC<Props> = ({ profiles, activeSlot, userProfile, 
         </button>
       </div>
 
+      {/* ── Closing soon alert ─────────────────────────────────── */}
+      {jobs.length > 0 && <ClosingSoonBar jobs={jobs} onViewJob={setQuickCheckJob} />}
+
       {/* ── Stats (only when vault has jobs) ───────────────────── */}
       {jobs.length > 0 && <StatsBar jobs={jobs} />}
 
@@ -325,6 +374,11 @@ export const VaultPage: React.FC<Props> = ({ profiles, activeSlot, userProfile, 
         <VaultQuickActions
           job={quickCheckJob}
           onBuildCV={handleBuildCV}
+          onPatch={(id, patch) => {
+            patchJob(id, patch);
+            // Keep drawer job in sync with patched data
+            setQuickCheckJob(prev => prev && prev.id === id ? { ...prev, ...patch } : prev);
+          }}
           onClose={() => setQuickCheckJob(null)}
         />
       )}

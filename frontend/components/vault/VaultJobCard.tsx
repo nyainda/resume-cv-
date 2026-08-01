@@ -75,18 +75,41 @@ function RoomBadge({ roomType }: { roomType: VaultJob['roomType'] }) {
 
 function DeadlinePill({ deadline }: { deadline?: string }) {
   if (!deadline) return null;
-  const days = Math.ceil((new Date(deadline).getTime() - Date.now()) / 86400000);
+  const ms   = new Date(deadline).getTime() - Date.now();
+  const days = Math.ceil(ms / 86400000);
+
   if (days < 0) return (
     <span className="flex items-center gap-1 text-[10px] text-zinc-400 dark:text-zinc-500">
       <Clock className="h-3 w-3" /> Expired
     </span>
   );
-  const urgent = days <= 5;
+
+  if (days === 0) return (
+    <span className="flex items-center gap-1 text-[10px] font-bold text-rose-500 animate-pulse">
+      <Clock className="h-3 w-3" /> Due today!
+    </span>
+  );
+
+  if (days <= 3) return (
+    <span className="flex items-center gap-1 text-[10px] font-bold text-rose-500">
+      <span className="relative flex h-2 w-2">
+        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75" />
+        <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-500" />
+      </span>
+      {days}d left
+    </span>
+  );
+
+  if (days <= 7) return (
+    <span className="flex items-center gap-1 text-[10px] font-medium text-amber-500">
+      <Clock className="h-3 w-3" /> {days}d left
+    </span>
+  );
+
   return (
-    <span className={`flex items-center gap-1 text-[10px] font-medium ${urgent ? 'text-rose-500' : 'text-zinc-400 dark:text-zinc-500'}`}>
+    <span className="flex items-center gap-1 text-[10px] text-zinc-400 dark:text-zinc-500">
       <Clock className="h-3 w-3" />
-      {days === 0 ? 'Due today' : `${new Date(deadline).toLocaleDateString('en-GB',{day:'numeric',month:'short'})}`}
-      {urgent && ' ⚠'}
+      {new Date(deadline).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
     </span>
   );
 }
@@ -98,6 +121,25 @@ function AddedDate({ ts }: { ts: number }) {
     : diffDays < 7               ? `${diffDays}d ago`
     : new Date(ts).toLocaleDateString('en-GB', { day:'numeric', month:'short' });
   return <span className="text-[10px] text-zinc-400 dark:text-zinc-500">{label}</span>;
+}
+
+function RemoteBadge({ remote, location }: { remote?: VaultJob['remote']; location?: string }) {
+  if (!remote && !location) return null;
+  const remoteIcon = remote === 'Remote' ? '🌍' : remote === 'Hybrid' ? '🔀' : remote === 'On-site' ? '🏢' : null;
+  return (
+    <div className="flex items-center gap-1.5 flex-wrap">
+      {remote && (
+        <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-lg bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-800/40">
+          {remoteIcon} {remote}
+        </span>
+      )}
+      {location && (
+        <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-lg bg-zinc-50 dark:bg-neutral-700 text-zinc-500 dark:text-zinc-400 border border-zinc-100 dark:border-neutral-600 truncate max-w-[120px]" title={location}>
+          📍 {location.length > 18 ? location.slice(0, 16) + '…' : location}
+        </span>
+      )}
+    </div>
+  );
 }
 
 /* Priority → top-border color */
@@ -138,9 +180,21 @@ export const VaultJobCard: React.FC<Props> = ({ job, onQuickCheck, onBuildCV, on
       ? PRIORITY_STRIPE[job.priority]
       : ROOM_STRIPE[job.roomType];
 
+  /* Deadline urgency for card border glow */
+  const deadlineDays = job.deadline
+    ? Math.ceil((new Date(job.deadline).getTime() - Date.now()) / 86400000)
+    : null;
+  const isUrgent = deadlineDays !== null && deadlineDays >= 0 && deadlineDays <= 3;
+
   return (
     <div
-      className={`relative rounded-2xl border bg-white dark:bg-neutral-800 border-zinc-100 dark:border-neutral-700 hover:border-[#C9A84C]/40 hover:shadow-lg transition-all duration-200 flex flex-col overflow-hidden cursor-pointer ${isApplied ? 'opacity-60' : ''}`}
+      className={`relative rounded-2xl border bg-white dark:bg-neutral-800 transition-all duration-200 flex flex-col overflow-hidden cursor-pointer ${
+        isApplied ? 'opacity-60' : ''
+      } ${
+        isUrgent
+          ? 'border-rose-300 dark:border-rose-700 shadow-rose-100 dark:shadow-rose-900/20 shadow-md hover:shadow-rose-200 dark:hover:shadow-rose-800/30'
+          : 'border-zinc-100 dark:border-neutral-700 hover:border-[#C9A84C]/40 hover:shadow-lg'
+      }`}
       onClick={() => { if (!menuOpen) onQuickCheck(job); }}
       role="button"
       tabIndex={0}
@@ -177,7 +231,7 @@ export const VaultJobCard: React.FC<Props> = ({ job, onQuickCheck, onBuildCV, on
             </p>
           </div>
 
-          {/* Match badge + 3-dot menu */}
+          {/* Match badge */}
           <div className="flex flex-col items-end gap-1 flex-shrink-0" onClick={e => e.stopPropagation()}>
             <MatchBadge score={job.matchScore} />
           </div>
@@ -188,6 +242,11 @@ export const VaultJobCard: React.FC<Props> = ({ job, onQuickCheck, onBuildCV, on
           <p className="text-[11px] text-zinc-500 dark:text-zinc-400 leading-relaxed line-clamp-2 -mt-1">
             {job.tldr}
           </p>
+        )}
+
+        {/* Remote / location badges */}
+        {(job.remote || job.location) && (
+          <RemoteBadge remote={job.remote} location={job.location} />
         )}
 
         {/* Requirements chips */}
@@ -224,6 +283,12 @@ export const VaultJobCard: React.FC<Props> = ({ job, onQuickCheck, onBuildCV, on
             )}
             {isApplied && (
               <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">✓ Applied</span>
+            )}
+            {/* Notes indicator */}
+            {job.notes && job.notes.trim().length > 0 && (
+              <span className="text-[10px] text-zinc-400 dark:text-zinc-500 flex items-center gap-1" title="Has notes">
+                <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+              </span>
             )}
           </div>
           <div className="flex items-center gap-1.5 flex-shrink-0">
