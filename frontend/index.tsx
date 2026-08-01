@@ -9,6 +9,74 @@ import { warmCVEngine, prewarmCVEngineModels } from './services/cvEngineClient';
 import { runWorkerStatusDiagnostic } from './services/workerStatusDiagnostic';
 import { startAutoProbe } from './services/providerHealth';
 
+// ── CF Worker auth fetch interceptor ────────────────────────────────────────
+// Every API service sends `credentials: 'include'` to carry the HttpOnly
+// session cookie. In the Replit preview iframe (and Safari / Chrome Incognito),
+// the CF Worker's SameSite=None cookie is blocked by the browser — every call
+// to /api/cv/rules, /api/cv/user-data, /api/cv/slot-status etc. returns 401.
+//
+// The Worker already accepts both cookie-auth and Bearer-auth on all endpoints
+// (validateSession's two-pass retry proves this). This interceptor piggybacks
+// the localStorage fallback token as an `Authorization: Bearer` header on every
+// request aimed at the CF Worker origin, so cookie-blocked environments work
+// transparently without touching any individual service file.
+//
+// Guard: if VITE_CV_ENGINE_URL is empty the app is using a same-origin Vite
+// proxy, so cookies work and the interceptor is a no-op (early return).
+(function installWorkerAuthInterceptor() {
+  const ENGINE_ORIGIN = (import.meta.env.VITE_CV_ENGINE_URL as string | undefined) || '';
+  if (!ENGINE_ORIGIN) return;
+
+  // Inline token reader — mirrors authService.ts:loadSessionFallback() so we
+  // don't create a circular import at module-eval time.
+  const SESSION_FALLBACK_KEY = 'procv:stf';
+  const TOKEN_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000; // 7 days (matches authService)
+
+  function readToken(): string {
+    try {
+      const raw = localStorage.getItem(SESSION_FALLBACK_KEY);
+      if (!raw) return '';
+      try {
+        const parsed = JSON.parse(raw) as { token?: string; savedAt?: number };
+        if (typeof parsed?.token === 'string') {
+          if (parsed.savedAt && Date.now() - parsed.savedAt > TOKEN_MAX_AGE_MS) {
+            localStorage.removeItem(SESSION_FALLBACK_KEY);
+            return '';
+          }
+          return parsed.token;
+        }
+      } catch { /* legacy plain-string format */ }
+      return typeof raw === 'string' ? raw : '';
+    } catch { return ''; }
+  }
+
+  const _nativeFetch = window.fetch.bind(window);
+  window.fetch = function (
+    input: RequestInfo | URL,
+    init?: RequestInit,
+  ): Promise<Response> {
+    const url =
+      typeof input === 'string'
+        ? input
+        : input instanceof URL
+          ? input.href
+          : (input as Request).url;
+
+    // Only intercept requests going to the CF Worker origin
+    if (!url.startsWith(ENGINE_ORIGIN)) return _nativeFetch(input, init);
+
+    const token = readToken();
+    if (!token) return _nativeFetch(input, init);
+
+    // Merge without clobbering any caller-supplied Authorization header
+    const headers = new Headers((init as RequestInit | undefined)?.headers);
+    if (!headers.has('Authorization')) {
+      headers.set('Authorization', `Bearer ${token}`);
+    }
+    return _nativeFetch(input, { ...init, headers });
+  };
+})();
+
 // These are all fire-and-forget network calls that warm backend workers /
 // models the user isn't waiting on yet. Running them at module-eval time (i.e.
 // before React even mounts) makes them compete with the app's own JS/CSS for
