@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react';
 import type { UserProfileSlot, VaultPriority, VaultInputType } from '../../types';
 import { Upload, Image, Link, FileText } from '../icons';
 import { extractTitleCompany } from '../../services/vaultService';
+import { getSelectedProvider } from '../../services/groqService';
 import type { PositionChunk } from '../../services/vaultAnalysis';
 
 const GOLD = '#C9A84C';
@@ -267,9 +268,18 @@ export const VaultCapturePanel: React.FC<Props> = ({ profiles, activeRoomId, onS
         setExtracting(true);
         setSaving(false);
         try {
-          const { extractTextFromImage } = await import('../../services/geminiService');
-          const base64 = await fileToBase64(imageFile);
-          rawJd = await extractTextFromImage(base64, imageFile.type);
+          const provider = getSelectedProvider();
+          if (provider === 'workers-ai') {
+            // Free CF path: toMarkdown is CF's native document extractor —
+            // much better quality than routing through Llama 3.2 11b vision.
+            const { workerExtractDoc } = await import('../../services/cvEngineClient');
+            rawJd = (await workerExtractDoc(imageFile)) ?? '';
+          } else {
+            // BYOK (Claude / Gemini / Groq): use multimodal vision path
+            const { extractTextFromImage } = await import('../../services/geminiService');
+            const base64 = await fileToBase64(imageFile);
+            rawJd = await extractTextFromImage(base64, imageFile.type);
+          }
           if (!rawJd || rawJd.trim().length < 20)
             throw new Error('Image extraction returned no text. Please paste the job description instead.');
         } catch (e) {
