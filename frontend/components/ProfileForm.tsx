@@ -17,6 +17,7 @@ import {
   generateEnhancedResponsibilities,
   generateEnhancedProjectDescription,
 } from '../services/geminiService';
+import { parseWordTextToProfile } from '../services/wordImportService';
 import { getSelectedProvider } from '../services/groqService';
 import { workerExtractDoc } from '../services/cvEngineClient';
 import { runImportPipeline } from '../services/importPipeline';
@@ -439,7 +440,9 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
             const text = await workerExtractDoc(uploadedFile);
             if (!text || text.trim().length < 50) throw new Error('Workers AI could not read this PDF. Try pasting your CV text instead.');
             setImportStage({ step: 3, label: 'Structuring profile…' });
-            profile = await generateProfile(text, undefined);
+            // parseWordTextToProfile has better section/schema handling (customSections,
+            // certifications, languages) than the older generateProfile path.
+            profile = purifyProfile(await parseWordTextToProfile(text));
           }
           setImportStage({ step: 4, label: 'Profile extracted ✓' });
 
@@ -477,7 +480,9 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
             const text = await workerExtractDoc(uploadedFile);
             if (!text || text.trim().length < 50) throw new Error('Could not extract text from this image. Try pasting your CV text instead.');
             setImportStage({ step: 3, label: 'Structuring profile…' });
-            profile = await generateProfile(text, undefined);
+            // parseWordTextToProfile has better section/schema handling (customSections,
+            // certifications, languages) than the older generateProfile path.
+            profile = purifyProfile(await parseWordTextToProfile(text));
           }
           setImportStage({ step: 4, label: 'Profile extracted ✓' });
 

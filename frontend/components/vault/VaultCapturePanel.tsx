@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react';
 import type { UserProfileSlot, VaultPriority, VaultInputType } from '../../types';
 import { Upload, Image, Link, FileText } from '../icons';
 import { extractTitleCompany } from '../../services/vaultService';
+import type { PositionChunk } from '../../services/vaultAnalysis';
 
 const GOLD = '#C9A84C';
 const NAVY = '#1B2B4B';
@@ -43,6 +44,150 @@ async function fileToBase64(file: File): Promise<string> {
   });
 }
 
+// ── Multi-position picker ─────────────────────────────────────────────────────
+
+interface MultiPickerProps {
+  positions: PositionChunk[];
+  selected: Set<number>;
+  onToggle: (i: number) => void;
+  onSaveSelected: () => void;
+  onBack: () => void;
+  saving: boolean;
+  roomId: string;
+  setRoomId: (id: string) => void;
+  priority: VaultPriority;
+  setPriority: (p: VaultPriority) => void;
+  profiles: UserProfileSlot[];
+}
+
+const MultiPositionPicker: React.FC<MultiPickerProps> = ({
+  positions, selected, onToggle, onSaveSelected, onBack, saving,
+  roomId, setRoomId, priority, setPriority, profiles,
+}) => {
+  const selCount = selected.size;
+  return (
+    <div className="flex flex-col h-full">
+      {/* Banner */}
+      <div className="px-5 pt-4 pb-3 bg-amber-50 dark:bg-amber-900/20 border-b border-amber-200 dark:border-amber-800">
+        <div className="flex items-center gap-2 mb-1">
+          <svg className="h-4 w-4 text-amber-600 dark:text-amber-400 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          <p className="text-xs font-bold text-amber-700 dark:text-amber-400">
+            {positions.length} positions found in this document
+          </p>
+        </div>
+        <p className="text-[11px] text-amber-600/80 dark:text-amber-500/80 leading-relaxed ml-6">
+          Select which jobs to save. Each will be added as a separate vault entry.
+        </p>
+      </div>
+
+      {/* Position list */}
+      <div className="flex-1 overflow-y-auto px-5 py-3 space-y-2 max-h-64">
+        {positions.map((pos, i) => {
+          const ins = pos.insights;
+          const isSelected = selected.has(i);
+          return (
+            <button
+              key={i}
+              onClick={() => onToggle(i)}
+              className={`w-full text-left px-4 py-3 rounded-2xl border transition-all ${
+                isSelected
+                  ? 'border-[#C9A84C] bg-[#C9A84C]/8 dark:bg-[#C9A84C]/10'
+                  : 'border-zinc-200 dark:border-neutral-700 bg-zinc-50 dark:bg-neutral-800 hover:border-zinc-300 dark:hover:border-neutral-600'
+              }`}
+            >
+              <div className="flex items-start gap-3">
+                {/* Checkbox */}
+                <div className={`mt-0.5 flex-shrink-0 w-4 h-4 rounded border-2 flex items-center justify-center ${
+                  isSelected ? 'border-[#C9A84C] bg-[#C9A84C]' : 'border-zinc-300 dark:border-neutral-600'
+                }`}>
+                  {isSelected && (
+                    <svg className="h-2.5 w-2.5 text-white" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round">
+                      <polyline points="2,6 5,9 10,3"/>
+                    </svg>
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-bold text-zinc-800 dark:text-zinc-200 truncate">
+                    {ins.title || 'Untitled Role'}
+                  </p>
+                  <p className="text-xs text-zinc-500 dark:text-zinc-400 truncate mt-0.5">
+                    {ins.company || 'Unknown Company'}
+                    {ins.location ? ` · ${ins.location}` : ''}
+                    {ins.remote   ? ` · ${ins.remote}` : ''}
+                  </p>
+                  {ins.salary && (
+                    <p className="text-[11px] text-emerald-600 dark:text-emerald-400 mt-0.5">{ins.salary}</p>
+                  )}
+                </div>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Room + priority */}
+      <div className="px-5 pt-2 pb-3 grid grid-cols-2 gap-3 border-t border-zinc-100 dark:border-neutral-800">
+        <div>
+          <label className="block text-xs font-bold text-zinc-500 dark:text-zinc-400 mb-1.5">Save to room</label>
+          <select
+            value={roomId}
+            onChange={e => setRoomId(e.target.value)}
+            disabled={saving}
+            className="w-full px-3.5 py-2 rounded-2xl border border-zinc-200 dark:border-neutral-700 bg-zinc-50 dark:bg-neutral-800 text-sm text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-2 focus:ring-[#C9A84C]/40 appearance-none disabled:opacity-40 cursor-pointer"
+          >
+            {profiles.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="block text-xs font-bold text-zinc-500 dark:text-zinc-400 mb-1.5">Priority</label>
+          <div className="grid grid-cols-4 gap-1">
+            {PRIORITY_OPTIONS.map(opt => (
+              <button
+                key={opt.value}
+                onClick={() => setPriority(opt.value)}
+                disabled={saving}
+                title={opt.label}
+                className={`py-2 rounded-xl text-sm transition-all disabled:opacity-40 border flex items-center justify-center ${
+                  priority === opt.value
+                    ? 'border-[#C9A84C] bg-[#C9A84C]/10 text-[#C9A84C] shadow-sm'
+                    : 'border-zinc-200 dark:border-neutral-700 text-zinc-400 hover:border-zinc-300 dark:hover:border-neutral-600'
+                }`}
+              >{opt.emoji}</button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Footer */}
+      <div className="px-5 pb-5 flex gap-2.5">
+        <button
+          onClick={onBack}
+          disabled={saving}
+          className="flex-1 py-3 rounded-2xl text-sm font-bold text-zinc-500 dark:text-zinc-400 border border-zinc-200 dark:border-neutral-700 hover:bg-zinc-50 dark:hover:bg-neutral-800 transition-colors disabled:opacity-40"
+        >
+          ← Back
+        </button>
+        <button
+          onClick={onSaveSelected}
+          disabled={saving || selCount === 0}
+          className="py-3 rounded-2xl text-sm font-extrabold text-white transition-all hover:opacity-90 hover:shadow-lg disabled:opacity-40 disabled:cursor-not-allowed"
+          style={{ background: `linear-gradient(135deg, ${NAVY} 0%, #263c61 100%)`, flex: 2 }}
+        >
+          {saving
+            ? <span className="flex items-center justify-center gap-2">
+                <span className="w-4 h-4 rounded-full border-2 border-white border-t-transparent animate-spin"/>
+                Saving…
+              </span>
+            : `Save ${selCount} position${selCount !== 1 ? 's' : ''} →`
+          }
+        </button>
+      </div>
+    </div>
+  );
+};
+
+// ── Main panel ────────────────────────────────────────────────────────────────
+
 export const VaultCapturePanel: React.FC<Props> = ({ profiles, activeRoomId, onSave, onClose }) => {
   const [tab, setTab]               = useState<Tab>('text');
   const [jdText, setJdText]         = useState('');
@@ -54,7 +199,16 @@ export const VaultCapturePanel: React.FC<Props> = ({ profiles, activeRoomId, onS
   const [roomId, setRoomId]         = useState(activeRoomId || profiles[0]?.id || '');
   const [saving, setSaving]         = useState(false);
   const [extracting, setExtracting] = useState(false);
+  const [detecting, setDetecting]   = useState(false);
   const [extractError, setExtractError] = useState('');
+
+  // Multi-position state
+  const [multiPositions, setMultiPositions]   = useState<PositionChunk[] | null>(null);
+  const [selectedPositions, setSelectedPositions] = useState<Set<number>>(new Set());
+  // Stash the raw JD text for multi-position saving
+  const pendingRawJd = useRef('');
+  const pendingInputType = useRef<VaultInputType>('text');
+  const pendingSourceUrl = useRef<string | undefined>(undefined);
 
   const fileRef  = useRef<HTMLInputElement>(null);
   const imageRef = useRef<HTMLInputElement>(null);
@@ -65,19 +219,53 @@ export const VaultCapturePanel: React.FC<Props> = ({ profiles, activeRoomId, onS
     : tab === 'image'             ? !!imageFile
     : false;
 
+  const togglePosition = (i: number) => {
+    setSelectedPositions(prev => {
+      const next = new Set(prev);
+      if (next.has(i)) next.delete(i); else next.add(i);
+      return next;
+    });
+  };
+
+  // Save the selected positions (from multi-position picker)
+  async function handleSaveSelected() {
+    if (!multiPositions) return;
+    setSaving(true);
+    try {
+      const toSave = multiPositions.filter((_, i) => selectedPositions.has(i));
+      for (const chunk of toSave) {
+        onSave({
+          roomId,
+          rawJd: chunk.rawChunk,
+          inputType: pendingInputType.current,
+          sourceUrl: pendingSourceUrl.current,
+          title:   chunk.insights.title   || extractTitleCompany(chunk.rawChunk).title,
+          company: chunk.insights.company || extractTitleCompany(chunk.rawChunk).company,
+          priority,
+        });
+      }
+      // Close after saving (parent component manages the vault list)
+      onClose();
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function handleSave() {
-    if (!canSave || saving || extracting) return;
+    if (!canSave || saving || extracting || detecting) return;
     setSaving(true);
     setExtractError('');
     try {
       let rawJd = jdText;
       let sourceUrl: string | undefined;
+      let inputType: VaultInputType = tab;
 
       if (tab === 'url') {
         rawJd     = `${url}\n\nJob URL: ${url}`;
         sourceUrl = url;
       } else if (tab === 'image' && imageFile) {
         setExtracting(true);
+        setSaving(false);
         try {
           const { extractTextFromImage } = await import('../../services/geminiService');
           const base64 = await fileToBase64(imageFile);
@@ -90,8 +278,10 @@ export const VaultCapturePanel: React.FC<Props> = ({ profiles, activeRoomId, onS
         } finally {
           setExtracting(false);
         }
+        setSaving(true);
       } else if (tab === 'pdf' && pdfFile) {
         setExtracting(true);
+        setSaving(false);
         try {
           const { extractProfileTextFromFile } = await import('../../services/geminiService');
           const base64 = await fileToBase64(pdfFile);
@@ -104,12 +294,36 @@ export const VaultCapturePanel: React.FC<Props> = ({ profiles, activeRoomId, onS
         } finally {
           setExtracting(false);
         }
+        setSaving(true);
       }
 
+      // ── Multi-position detection ────────────────────────────────────────────
+      setDetecting(true);
+      setSaving(false);
+      try {
+        const { detectAndSplitPositions } = await import('../../services/vaultAnalysis');
+        const chunks = await detectAndSplitPositions(rawJd);
+        if (chunks && chunks.length >= 2) {
+          // Stash context for the picker
+          pendingRawJd.current       = rawJd;
+          pendingInputType.current   = inputType;
+          pendingSourceUrl.current   = sourceUrl;
+          setMultiPositions(chunks);
+          setSelectedPositions(new Set(chunks.map((_, i) => i))); // all selected by default
+          return; // Show picker instead of saving immediately
+        }
+      } catch {
+        // Detection failure is non-fatal — fall through to single-position save
+      } finally {
+        setDetecting(false);
+      }
+
+      // ── Single position ─────────────────────────────────────────────────────
       const { title, company } = extractTitleCompany(rawJd);
-      onSave({ roomId, rawJd, inputType: tab, sourceUrl, title, company, priority });
+      onSave({ roomId, rawJd, inputType, sourceUrl, title, company, priority });
     } finally {
       setSaving(false);
+      setDetecting(false);
     }
   }
 
@@ -120,7 +334,7 @@ export const VaultCapturePanel: React.FC<Props> = ({ profiles, activeRoomId, onS
     { id: 'image', label: 'Screenshot', icon: Image },
   ];
 
-  const isBusy = saving || extracting;
+  const isBusy = saving || extracting || detecting;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -141,9 +355,13 @@ export const VaultCapturePanel: React.FC<Props> = ({ profiles, activeRoomId, onS
                 <div className="w-6 h-6 rounded-lg bg-white/10 flex items-center justify-center">
                   <svg className="h-3.5 w-3.5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
                 </div>
-                <h2 className="text-base font-extrabold text-white">Capture Job Description</h2>
+                <h2 className="text-base font-extrabold text-white">
+                  {multiPositions ? 'Multiple Positions Found' : 'Capture Job Description'}
+                </h2>
               </div>
-              <p className="text-xs text-white/50">Save now · build your CV when you're ready</p>
+              <p className="text-xs text-white/50">
+                {multiPositions ? 'Choose which roles to save to your vault' : 'Save now · build your CV when you\'re ready'}
+              </p>
             </div>
             <button
               onClick={onClose}
@@ -156,31 +374,51 @@ export const VaultCapturePanel: React.FC<Props> = ({ profiles, activeRoomId, onS
             </button>
           </div>
 
-          {/* Tab switcher inside header */}
-          <div className="flex gap-1 mt-4 bg-white/10 p-1 rounded-2xl">
-            {tabs.map(t => {
-              const Icon   = t.icon;
-              const active = tab === t.id;
-              return (
-                <button
-                  key={t.id}
-                  onClick={() => { setTab(t.id); setExtractError(''); }}
-                  disabled={isBusy}
-                  className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-bold transition-all disabled:opacity-40 ${
-                    active
-                      ? 'bg-white text-zinc-900 shadow-sm'
-                      : 'text-white/60 hover:text-white/90'
-                  }`}
-                >
-                  <Icon className="h-3.5 w-3.5" />
-                  {t.label}
-                </button>
-              );
-            })}
-          </div>
+          {/* Tab switcher — hidden on multi-position picker */}
+          {!multiPositions && (
+            <div className="flex gap-1 mt-4 bg-white/10 p-1 rounded-2xl">
+              {tabs.map(t => {
+                const Icon   = t.icon;
+                const active = tab === t.id;
+                return (
+                  <button
+                    key={t.id}
+                    onClick={() => { setTab(t.id); setExtractError(''); }}
+                    disabled={isBusy}
+                    className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-bold transition-all disabled:opacity-40 ${
+                      active
+                        ? 'bg-white text-zinc-900 shadow-sm'
+                        : 'text-white/60 hover:text-white/90'
+                    }`}
+                  >
+                    <Icon className="h-3.5 w-3.5" />
+                    {t.label}
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
 
-        {/* ── Body ──────────────────────────────────────────────── */}
+        {/* ── Multi-position picker ──────────────────────────────── */}
+        {multiPositions ? (
+          <MultiPositionPicker
+            positions={multiPositions}
+            selected={selectedPositions}
+            onToggle={togglePosition}
+            onSaveSelected={handleSaveSelected}
+            onBack={() => setMultiPositions(null)}
+            saving={saving}
+            roomId={roomId}
+            setRoomId={setRoomId}
+            priority={priority}
+            setPriority={setPriority}
+            profiles={profiles}
+          />
+        ) : (
+
+        /* ── Normal capture body ──────────────────────────────────── */
+        <>
         <div className="px-6 py-5 space-y-4">
 
           {/* Tab content */}
@@ -195,6 +433,9 @@ export const VaultCapturePanel: React.FC<Props> = ({ profiles, activeRoomId, onS
                 rows={8}
                 className="w-full px-4 py-3 rounded-2xl border border-zinc-200 dark:border-neutral-700 bg-zinc-50 dark:bg-neutral-800 text-sm text-zinc-800 dark:text-zinc-200 placeholder-zinc-300 dark:placeholder-zinc-600 focus:outline-none focus:ring-2 focus:ring-[#C9A84C]/40 resize-none leading-relaxed"
               />
+              <p className="text-[11px] text-zinc-400 dark:text-zinc-500 mt-1.5 leading-relaxed">
+                Paste one JD or multiple — we'll detect separate positions automatically.
+              </p>
             </div>
           )}
 
@@ -234,6 +475,14 @@ export const VaultCapturePanel: React.FC<Props> = ({ profiles, activeRoomId, onS
                     <p className="text-xs text-zinc-400">This takes a few seconds</p>
                   </div>
                 </div>
+              ) : detecting ? (
+                <div className="border-2 border-dashed border-blue-200 dark:border-blue-800 rounded-2xl p-10 text-center bg-blue-50/50 dark:bg-blue-900/10">
+                  <div className="flex flex-col items-center gap-3">
+                    <span className="w-9 h-9 rounded-full border-[3px] border-blue-400 border-t-transparent animate-spin" />
+                    <p className="text-sm font-bold text-zinc-700 dark:text-zinc-300">Checking for multiple positions…</p>
+                    <p className="text-xs text-zinc-400">One moment</p>
+                  </div>
+                </div>
               ) : (
                 <div
                   onClick={() => (tab === 'pdf' ? fileRef : imageRef).current?.click()}
@@ -261,7 +510,7 @@ export const VaultCapturePanel: React.FC<Props> = ({ profiles, activeRoomId, onS
                           {tab === 'pdf' ? 'Drop PDF here or click to upload' : 'Drop screenshot here or click to upload'}
                         </p>
                         <p className="text-xs text-zinc-400 mt-1">
-                          {tab === 'pdf' ? 'Max 5 MB · PDF only · requires Gemini or Claude key' : 'PNG or JPEG · text extracted automatically via AI'}
+                          {tab === 'pdf' ? 'PDF only · supports multi-page / multi-position documents' : 'PNG or JPEG · text extracted automatically via AI'}
                         </p>
                       </div>
                     </div>
@@ -345,6 +594,11 @@ export const VaultCapturePanel: React.FC<Props> = ({ profiles, activeRoomId, onS
                     <span className="w-4 h-4 rounded-full border-2 border-white border-t-transparent animate-spin" />
                     Extracting…
                   </span>
+                : detecting
+                ? <span className="flex items-center justify-center gap-2">
+                    <span className="w-4 h-4 rounded-full border-2 border-white border-t-transparent animate-spin" />
+                    Analysing…
+                  </span>
                 : saving
                 ? 'Saving…'
                 : 'Save & Analyse →'}
@@ -352,10 +606,12 @@ export const VaultCapturePanel: React.FC<Props> = ({ profiles, activeRoomId, onS
           </div>
           <p className="text-[11px] text-zinc-400 dark:text-zinc-500 text-center leading-relaxed">
             {(tab === 'image' || tab === 'pdf') && !extractError
-              ? 'AI reads the file and extracts the job description automatically'
+              ? 'AI reads the file · multi-position documents split automatically'
               : 'Saved instantly · match score runs in the background'}
           </p>
         </div>
+        </>
+        )}
       </div>
     </div>
   );

@@ -4876,7 +4876,8 @@ export const extractTextFromImage = async (base64Image: string, mimeType: string
     const provider = getSelectedProvider();
 
     if (provider === 'workers-ai') {
-        const cf = await workerVisionExtract(base64Image, mimeType, prompt, { maxTokens: 2048 });
+        // 4096 tokens — raised from 2048 because long JDs were getting cut off mid-sentence.
+        const cf = await workerVisionExtract(base64Image, mimeType, prompt, { maxTokens: 4096 });
         if (!cf || cf.trim().length < 10) throw new Error('Workers AI could not extract text from this image. Please paste the job description text manually.');
         return cf;
     }

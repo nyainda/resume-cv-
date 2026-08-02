@@ -184,6 +184,152 @@ function heuristicFallback(rawJd: string): VaultJobInsights {
   };
 }
 
+// ─── Multi-position detection ─────────────────────────────────────────────────
+
+export interface PositionChunk {
+  /** Structured insights for this position. */
+  insights: VaultJobInsights;
+  /** The slice of raw JD text that belongs to this position. */
+  rawChunk: string;
+}
+
+/**
+ * Heuristic pre-filter — cheap check before spending an LLM call.
+ * Returns true if the text is plausibly multi-position.
+ */
+function looksMultiPosition(rawJd: string): boolean {
+  // Multiple explicit "Job Title:" or "Position:" labels
+  const titleLabels = (rawJd.match(/\b(?:job\s+title|position|vacancy|opening|role)\s*[:\-–]/gi) || []).length;
+  if (titleLabels >= 2) return true;
+  // Section dividers like "Role 1 / Role 2" or "Position 1:"
+  if (/(?:role|position|job)\s*[12345]\b/i.test(rawJd)) return true;
+  // Multiple occurrence of "reports to" / "you will" / "we are looking for" — each signals a new posting
+  const postingAnchors = (rawJd.match(/\b(?:reports\s+to|you\s+will|we\s+are\s+looking\s+for|about\s+the\s+role|the\s+role)\b/gi) || []).length;
+  if (postingAnchors >= 3) return true;
+  // Multiple salary / compensation mentions
+  const salaryCount = (rawJd.match(/\b(?:salary|compensation|pay\s+range)\b/gi) || []).length;
+  if (salaryCount >= 2) return true;
+  return false;
+}
+
+const MULTI_SYSTEM = 'You are a job-description parser. Return only valid JSON, no markdown.';
+
+function buildMultiPrompt(rawJd: string): string {
+  const truncated = rawJd.slice(0, 6000);
+  return `Analyse this text and determine if it contains ONE job posting or MULTIPLE distinct job postings (i.e. different roles, possibly at the same or different companies).
+
+Return ONLY a JSON object in one of these two shapes:
+
+Shape A — single position:
+{ "multi": false }
+
+Shape B — multiple positions (2+):
+{
+  "multi": true,
+  "positions": [
+    {
+      "title": "<job title>",
+      "company": "<company name>",
+      "snippet": "<the first ~120 chars that uniquely appear in this position's section>"
+    }
+  ]
+}
+
+Rules:
+- Use Shape A unless you are confident there are 2 or more DISTINCT roles described.
+- Each position object must have a "snippet" that is a verbatim substring from the original text — this will be used to locate and slice the position's section.
+- If positions share the same company, still list them separately.
+- Maximum 8 positions.
+
+Text:
+${truncated}`;
+}
+
+/**
+ * Uses LLM to detect whether the raw JD contains multiple distinct positions.
+ * Returns the individual chunks + insights when multi-position is confirmed,
+ * or null when it is a single position (or detection fails).
+ */
+async function tryDetectMultiPosition(rawJd: string): Promise<PositionChunk[] | null> {
+  try {
+    const raw = await workerTieredLLM('vaultMultiDetect', buildMultiPrompt(rawJd), {
+      system: MULTI_SYSTEM,
+      json: true,
+      temperature: 0.1,
+      maxTokens: 800,
+      timeoutMs: 18_000,
+    });
+    if (!raw) return null;
+    const cleaned = raw.replace(/^```(?:json)?\n?/i, '').replace(/\n?```$/, '').trim();
+    const parsed = JSON.parse(cleaned);
+
+    if (!parsed?.multi || !Array.isArray(parsed.positions) || parsed.positions.length < 2) {
+      return null;
+    }
+
+    // Slice the original JD text around each position's snippet
+    const positions: Array<{ title: string; company: string; snippet: string }> = parsed.positions
+      .filter((p: any) => p && typeof p.title === 'string' && typeof p.snippet === 'string')
+      .slice(0, 8);
+
+    if (positions.length < 2) return null;
+
+    // Build chunks by finding each snippet's start index and slicing between them
+    const indices: number[] = positions.map(p => {
+      const idx = rawJd.indexOf(p.snippet.trim().slice(0, 80));
+      return idx === -1 ? -1 : idx;
+    }).filter(i => i !== -1);
+
+    // Need at least 2 valid anchor points
+    if (indices.length < 2) return null;
+
+    // Sort by position in text
+    const anchored = positions
+      .map((p, i) => ({ ...p, idx: rawJd.indexOf(p.snippet.trim().slice(0, 80)) }))
+      .filter(p => p.idx !== -1)
+      .sort((a, b) => a.idx - b.idx);
+
+    if (anchored.length < 2) return null;
+
+    // Slice raw text for each position
+    const chunks: PositionChunk[] = await Promise.all(
+      anchored.map(async (p, i) => {
+        const start = p.idx;
+        const end   = anchored[i + 1]?.idx ?? rawJd.length;
+        const rawChunk = rawJd.slice(start, end).trim();
+
+        // Run full LLM analysis on each individual chunk (with fallback)
+        const insights = await analyseVaultJob(rawChunk.length > 100 ? rawChunk : rawJd);
+        // Override title/company with what the detector already knows
+        return {
+          insights: {
+            ...insights,
+            title:   p.title   || insights.title,
+            company: p.company || insights.company,
+          },
+          rawChunk,
+        };
+      })
+    );
+
+    return chunks.length >= 2 ? chunks : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Entry point for multi-position detection.
+ * Returns an array of chunks when multiple positions are found (length ≥ 2),
+ * or null when the JD appears to be a single posting.
+ *
+ * Cheap heuristic guard prevents unnecessary LLM calls for the common case.
+ */
+export async function detectAndSplitPositions(rawJd: string): Promise<PositionChunk[] | null> {
+  if (!looksMultiPosition(rawJd)) return null;
+  return tryDetectMultiPosition(rawJd);
+}
+
 // ─── Public API ───────────────────────────────────────────────────────────────
 
 /**
