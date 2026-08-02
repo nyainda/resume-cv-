@@ -1,9 +1,9 @@
 // RoomsPage.tsx — Standalone full-page Career Rooms manager
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { UserProfileSlot, UserProfile, ProfileColor, VaultJob } from '../types';
 import { canAddProfileSlot, getProfileSlotLimit } from '../services/accountTierService';
 import { getSyncTimeAgo } from '../services/userDataCloudService';
-import VaultPage from './vault/VaultPage';
+import { useVaultJobs } from '../hooks/useVaultJobs';
 
 const GOLD = '#C9A84C';
 const NAVY = '#1B2B4B';
@@ -72,13 +72,10 @@ interface Props {
   onDelete: (id: string) => Promise<void>;
   onRename: (id: string, name: string, color: ProfileColor) => void;
   onBuildCV?: (job: VaultJob) => void;
-  initialTab?: 'profiles' | 'vault';
+  onOpenVault?: () => void;
 }
 
-type PageTab = 'profiles' | 'vault';
-
-export default function RoomsPage({ profiles, activeSlot, userProfile, onSwitch, onCreate, onDelete, onRename, onBuildCV, initialTab = 'profiles' }: Props) {
-  const [pageTab, setPageTab] = useState<PageTab>(initialTab);
+export default function RoomsPage({ profiles, activeSlot, userProfile, onSwitch, onCreate, onDelete, onRename, onBuildCV, onOpenVault }: Props) {
   const [modal, setModal] = useState<{ mode: 'create' | 'edit'; slot?: UserProfileSlot } | null>(null);
   const [modalName, setModalName] = useState('');
   const [modalColor, setModalColor] = useState<ProfileColor>('indigo');
@@ -109,6 +106,14 @@ export default function RoomsPage({ profiles, activeSlot, userProfile, onSwitch,
   const canAdd = canAddProfileSlot(profiles.length);
   const limit = getProfileSlotLimit();
 
+  // Load vault jobs so each room card can show its own jobs inline
+  const vaultSkills = useMemo(() => {
+    const raw = (userProfile as any)?.skills;
+    if (Array.isArray(raw)) return raw.join(', ');
+    return typeof raw === 'string' ? raw : '';
+  }, [userProfile]);
+  const { jobs: vaultJobs } = useVaultJobs(vaultSkills);
+
   return (
     <div className="max-w-5xl mx-auto flex flex-col h-full">
 
@@ -119,72 +124,36 @@ export default function RoomsPage({ profiles, activeSlot, userProfile, onSwitch,
             Career Rooms
           </h1>
           <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1.5 max-w-md leading-relaxed">
-            Each room is a separate career identity — its own profile, job target, CVs, and applications.
+            Each room is a separate career identity — its own profile, saved jobs, CVs, and applications.
           </p>
         </div>
-        {pageTab === 'profiles' && (
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <span className="text-xs text-zinc-400 dark:text-zinc-500">
-              {profiles.length} / {limit === Infinity ? '∞' : limit} rooms
-            </span>
-            {canAdd ? (
-              <button
-                onClick={openCreate}
-                className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold text-white transition-opacity hover:opacity-90 active:scale-95 shadow-sm"
-                style={{ background: NAVY }}
-              >
-                <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-                </svg>
-                New Room
-              </button>
-            ) : (
-              <button
-                onClick={() => window.dispatchEvent(new CustomEvent('procv:openPricing'))}
-                className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold text-white transition-opacity hover:opacity-90 shadow-sm"
-                style={{ background: GOLD }}
-              >
-                🔒 Upgrade for more rooms
-              </button>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* ── Tab switcher ─────────────────────────────────────────────── */}
-      <div className="flex gap-1 bg-zinc-50 dark:bg-neutral-800/60 p-1 rounded-xl mb-6 self-start flex-shrink-0">
-        {([
-          { id: 'profiles', label: '👤 Career Profiles' },
-          { id: 'vault',    label: '📥 Job Vault' },
-        ] as const).map(tab => (
-          <button
-            key={tab.id}
-            onClick={() => setPageTab(tab.id)}
-            className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${
-              pageTab === tab.id
-                ? 'bg-white dark:bg-neutral-700 text-zinc-900 dark:text-zinc-50 shadow-sm'
-                : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300'
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
-
-      {/* ── Vault tab ────────────────────────────────────────────────── */}
-      {pageTab === 'vault' && (
-        <div className="flex-1 min-h-0">
-          <VaultPage
-            profiles={profiles}
-            activeSlot={activeSlot}
-            userProfile={userProfile}
-            onBuildCV={onBuildCV ?? (() => {})}
-          />
+        <div className="flex items-center gap-3 flex-shrink-0">
+          <span className="text-xs text-zinc-400 dark:text-zinc-500">
+            {profiles.length} / {limit === Infinity ? '∞' : limit} rooms
+          </span>
+          {canAdd ? (
+            <button
+              onClick={openCreate}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold text-white transition-opacity hover:opacity-90 active:scale-95 shadow-sm"
+              style={{ background: NAVY }}
+            >
+              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
+                <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+              </svg>
+              New Room
+            </button>
+          ) : (
+            <button
+              onClick={() => window.dispatchEvent(new CustomEvent('procv:openPricing'))}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold text-white transition-opacity hover:opacity-90 shadow-sm"
+              style={{ background: GOLD }}
+            >
+              🔒 Upgrade for more rooms
+            </button>
+          )}
         </div>
-      )}
+      </div>
 
-      {/* ── Profiles tab ─────────────────────────────────────────────── */}
-      {pageTab === 'profiles' && (
       <div className="flex-1 min-h-0 overflow-y-auto">
 
       {/* ── Empty state ─────────────────────────────────────────────── */}
@@ -394,6 +363,82 @@ export default function RoomsPage({ profiles, activeSlot, userProfile, onSwitch,
                     </div>
                   </div>
 
+                  {/* ── Vault jobs for this room ─────────────────────── */}
+                  {(() => {
+                    const roomJobs = vaultJobs.filter(j => j.roomId === slot.id && j.status !== 'expired');
+                    const shown    = roomJobs.slice(0, 3);
+                    const extra    = roomJobs.length - 3;
+                    return (
+                      <div className="mt-3 pt-3 border-t border-zinc-100 dark:border-neutral-700" onClick={e => e.stopPropagation()}>
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-[10px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider flex items-center gap-1">
+                            <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+                            </svg>
+                            Vault{roomJobs.length > 0 ? ` · ${roomJobs.length}` : ''}
+                          </span>
+                          <button
+                            onClick={() => onOpenVault?.()}
+                            className="text-[10px] font-bold text-indigo-500 hover:text-indigo-600 dark:text-indigo-400 dark:hover:text-indigo-300 transition-colors"
+                          >
+                            {roomJobs.length === 0 ? '+ Add job' : 'Manage →'}
+                          </button>
+                        </div>
+
+                        {shown.length === 0 ? (
+                          <p className="text-[11px] text-zinc-400 dark:text-zinc-500 italic">No saved jobs yet.</p>
+                        ) : (
+                          <div className="flex flex-col gap-1.5">
+                            {shown.map(j => {
+                              const daysLeft = j.deadline
+                                ? Math.ceil((new Date(j.deadline).getTime() - Date.now()) / 86400000)
+                                : null;
+                              return (
+                                <div key={j.id} className="flex items-center gap-2 group/job">
+                                  <div className="flex-1 min-w-0">
+                                    <span className="text-[11px] font-semibold text-zinc-700 dark:text-zinc-300 truncate block leading-tight">
+                                      {j.title || 'Untitled'}
+                                    </span>
+                                    {j.company && j.company !== 'Unknown Company' && (
+                                      <span className="text-[10px] text-zinc-400 dark:text-zinc-500 truncate block">{j.company}</span>
+                                    )}
+                                  </div>
+                                  {daysLeft !== null && daysLeft >= 0 && (
+                                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0 ${
+                                      daysLeft <= 1
+                                        ? 'bg-rose-100 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400'
+                                        : daysLeft <= 3
+                                          ? 'bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400'
+                                          : 'bg-zinc-100 text-zinc-500 dark:bg-neutral-700 dark:text-zinc-400'
+                                    }`}>
+                                      {daysLeft === 0 ? 'Today' : `${daysLeft}d`}
+                                    </span>
+                                  )}
+                                  {onBuildCV && (
+                                    <button
+                                      onClick={() => onBuildCV(j)}
+                                      className="text-[9px] font-bold text-indigo-500 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 opacity-0 group-hover/job:opacity-100 transition-opacity flex-shrink-0 px-1.5 py-0.5 rounded hover:bg-indigo-50 dark:hover:bg-indigo-900/30"
+                                    >
+                                      Build →
+                                    </button>
+                                  )}
+                                </div>
+                              );
+                            })}
+                            {extra > 0 && (
+                              <button
+                                onClick={() => onOpenVault?.()}
+                                className="text-[10px] text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors text-left"
+                              >
+                                +{extra} more
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+
                   {/* Enter Room CTA (inactive rooms only) */}
                   {!isActive && (
                     <div className="mt-4 pt-3.5 border-t border-zinc-100 dark:border-neutral-700">
@@ -434,7 +479,6 @@ export default function RoomsPage({ profiles, activeSlot, userProfile, onSwitch,
       )}
 
       </div>
-      )}
 
       {/* ── Create / Edit modal ─────────────────────────────────────── */}
       {modal && (

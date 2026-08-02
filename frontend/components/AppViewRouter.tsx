@@ -23,6 +23,7 @@ const AdminLeaksPage       = lazy(() => import('./AdminLeaksPage'));
 const AdminCVEnginePage    = lazy(() => import('./AdminCVEnginePage'));
 const StorageMapPage       = lazy(() => import('./StorageMapPage'));
 const RoomsPage            = lazy(() => import('./RoomsPage'));
+const VaultPage            = lazy(() => import('./vault/VaultPage'));
 const AccountPage          = lazy(() => import('./AccountPage'));
 const SettingsPage         = lazy(() => import('./SettingsPage'));
 const ShareProfilePage     = lazy(() => import('./ShareProfilePage'));
@@ -319,7 +320,7 @@ const AppViewRouter: React.FC<AppViewRouterProps> = (props) => {
                 />
               )}
 
-              {(currentView === 'rooms' || currentView === 'vault') && (
+              {currentView === 'rooms' && (
                 <RoomsPage
                   profiles={profiles}
                   activeSlot={activeSlot}
@@ -328,7 +329,23 @@ const AppViewRouter: React.FC<AppViewRouterProps> = (props) => {
                   onCreate={onCreateProfile}
                   onDelete={onDeleteProfile}
                   onRename={onRenameProfile}
-                  initialTab={currentView === 'vault' ? 'vault' : 'profiles'}
+                  onOpenVault={() => setCurrentView('vault')}
+                  onBuildCV={(job) => {
+                    onSlotUpdate({
+                      jobDescription:  job.rawJd,
+                      targetCompany:   job.company && job.company !== 'Unknown Company' ? job.company : undefined,
+                      targetJobTitle:  job.title   && job.title   !== 'Untitled Role'   ? job.title   : undefined,
+                    });
+                    setCurrentView('generator');
+                  }}
+                />
+              )}
+
+              {currentView === 'vault' && (
+                <VaultPage
+                  profiles={profiles}
+                  activeSlot={activeSlot}
+                  userProfile={userProfile}
                   onBuildCV={(job) => {
                     onSlotUpdate({
                       jobDescription:  job.rawJd,
