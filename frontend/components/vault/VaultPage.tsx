@@ -5,6 +5,7 @@ import VaultJobCard from './VaultJobCard';
 import VaultCapturePanel from './VaultCapturePanel';
 import VaultQuickActions from './VaultQuickActions';
 import { useVaultJobs } from '../../hooks/useVaultJobs';
+import { useVaultDeadlineNotifier } from '../../hooks/useVaultDeadlineNotifier';
 
 const GOLD = '#C9A84C';
 const NAVY = '#1B2B4B';
@@ -168,6 +169,10 @@ export const VaultPage: React.FC<Props> = ({ profiles, activeSlot, userProfile, 
   }, [userProfile]);
 
   const { jobs, addJob, patchJob, removeJob } = useVaultJobs(skills);
+
+  // Auto-fire browser notifications for jobs with deadlines ≤7 days away.
+  // Seen IDs are persisted to localStorage so they don't re-fire on reload.
+  useVaultDeadlineNotifier(jobs);
 
   const [selectedRoomId, setSelectedRoomId] = useState<string | 'all'>('all');
   const [search, setSearch]                 = useState('');

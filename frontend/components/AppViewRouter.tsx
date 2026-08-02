@@ -335,7 +335,7 @@ const AppViewRouter: React.FC<AppViewRouterProps> = (props) => {
                       targetCompany:   job.company && job.company !== 'Unknown Company' ? job.company : undefined,
                       targetJobTitle:  job.title   && job.title   !== 'Untitled Role'   ? job.title   : undefined,
                     });
-                    setCurrentView('cv-generator');
+                    setCurrentView('generator');
                   }}
                 />
               )}
