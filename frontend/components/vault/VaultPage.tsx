@@ -179,6 +179,35 @@ export const VaultPage: React.FC<Props> = ({ profiles, activeSlot, userProfile, 
   const [sortBy, setSortBy]                 = useState<SortKey>('newest');
   const [captureOpen, setCaptureOpen]       = useState(false);
   const [quickCheckJob, setQuickCheckJob]   = useState<VaultJob | null>(null);
+  // ── Bulk select ─────────────────────────────────────────────────────────
+  const [selectMode, setSelectMode]         = useState(false);
+  const [selectedIds, setSelectedIds]       = useState<Set<string>>(new Set());
+
+  function toggleSelectMode() {
+    setSelectMode(v => !v);
+    setSelectedIds(new Set());
+  }
+  function toggleSelectId(id: string) {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+  function selectAll() {
+    setSelectedIds(new Set(displayedJobs.map(j => j.id)));
+  }
+  function clearSelection() { setSelectedIds(new Set()); }
+  function handleBulkDelete() {
+    selectedIds.forEach(id => removeJob(id));
+    setSelectedIds(new Set());
+    setSelectMode(false);
+  }
+  function handleBulkApplied() {
+    selectedIds.forEach(id => patchJob(id, { status: 'applied' }));
+    setSelectedIds(new Set());
+    setSelectMode(false);
+  }
 
   const countByRoom = useMemo(() => {
     const m: Record<string, number> = {};
@@ -235,14 +264,45 @@ export const VaultPage: React.FC<Props> = ({ profiles, activeSlot, userProfile, 
             Save JDs now · build your CV when you're ready
           </p>
         </div>
-        <button
-          onClick={() => setCaptureOpen(true)}
-          className="flex items-center gap-2 self-start sm:self-auto px-4 py-2.5 rounded-2xl text-sm font-extrabold text-white hover:opacity-90 hover:shadow-md transition-all shadow-sm flex-shrink-0"
-          style={{ background: `linear-gradient(135deg, ${NAVY} 0%, #263c61 100%)` }}
-        >
-          <Plus className="h-4 w-4" />
-          Add JD
-        </button>
+        <div className="flex items-center gap-2 self-start sm:self-auto flex-shrink-0">
+          {jobs.length > 0 && (
+            <button
+              onClick={toggleSelectMode}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-sm font-extrabold transition-all border ${
+                selectMode
+                  ? 'bg-zinc-100 dark:bg-neutral-700 text-zinc-700 dark:text-zinc-200 border-zinc-200 dark:border-neutral-600'
+                  : 'border-zinc-200 dark:border-neutral-700 text-zinc-500 dark:text-zinc-400 hover:border-zinc-300 hover:text-zinc-700 dark:hover:text-zinc-200'
+              }`}
+            >
+              {selectMode ? (
+                <>
+                  <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round">
+                    <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                  </svg>
+                  Cancel
+                </>
+              ) : (
+                <>
+                  <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round">
+                    <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
+                    <rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/>
+                  </svg>
+                  Select
+                </>
+              )}
+            </button>
+          )}
+          {!selectMode && (
+            <button
+              onClick={() => setCaptureOpen(true)}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-2xl text-sm font-extrabold text-white hover:opacity-90 hover:shadow-md transition-all shadow-sm"
+              style={{ background: `linear-gradient(135deg, ${NAVY} 0%, #263c61 100%)` }}
+            >
+              <Plus className="h-4 w-4" />
+              Add JD
+            </button>
+          )}
+        </div>
       </div>
 
       {/* ── Closing soon alert ─────────────────────────────────── */}
@@ -344,7 +404,7 @@ export const VaultPage: React.FC<Props> = ({ profiles, activeSlot, userProfile, 
           </div>
         ) : (
           <>
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 pb-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 pb-24">
               {displayedJobs.map(job => (
                 <VaultJobCard
                   key={job.id}
@@ -352,6 +412,9 @@ export const VaultPage: React.FC<Props> = ({ profiles, activeSlot, userProfile, 
                   onQuickCheck={setQuickCheckJob}
                   onBuildCV={handleBuildCV}
                   onDelete={removeJob}
+                  selectMode={selectMode}
+                  isSelected={selectedIds.has(job.id)}
+                  onToggleSelect={toggleSelectId}
                 />
               ))}
             </div>
@@ -363,6 +426,47 @@ export const VaultPage: React.FC<Props> = ({ profiles, activeSlot, userProfile, 
           </>
         )}
       </div>
+
+      {/* ── Bulk action bar ─────────────────────────────────────── */}
+      {selectMode && (
+        <div className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-40 transition-all duration-300 ${
+          selectedIds.size > 0 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'
+        }`}>
+          <div className="flex items-center gap-2 bg-white dark:bg-neutral-800 border border-zinc-200 dark:border-neutral-700 rounded-2xl shadow-2xl px-4 py-3">
+            <span className="text-sm font-extrabold text-zinc-800 dark:text-zinc-100 min-w-[5ch] text-center">
+              {selectedIds.size} selected
+            </span>
+            <div className="w-px h-5 bg-zinc-200 dark:bg-neutral-600" />
+            <button
+              onClick={selectAll}
+              className="text-xs font-bold text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-100 transition-colors px-1"
+            >
+              All ({displayedJobs.length})
+            </button>
+            <button
+              onClick={clearSelection}
+              className="text-xs font-bold text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors px-1"
+            >
+              Clear
+            </button>
+            <div className="w-px h-5 bg-zinc-200 dark:bg-neutral-600" />
+            <button
+              onClick={handleBulkApplied}
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-extrabold bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-700 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 transition-colors"
+            >
+              <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+              Mark Applied
+            </button>
+            <button
+              onClick={handleBulkDelete}
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-extrabold bg-rose-50 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-700 hover:bg-rose-100 dark:hover:bg-rose-900/50 transition-colors"
+            >
+              <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+              Delete
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* ── Capture Modal ───────────────────────────────────────── */}
       {captureOpen && (
@@ -378,6 +482,7 @@ export const VaultPage: React.FC<Props> = ({ profiles, activeSlot, userProfile, 
       {quickCheckJob && (
         <VaultQuickActions
           job={quickCheckJob}
+          userSkills={Array.isArray((userProfile as any)?.skills) ? (userProfile as any).skills : []}
           onBuildCV={handleBuildCV}
           onPatch={(id, patch) => {
             patchJob(id, patch);

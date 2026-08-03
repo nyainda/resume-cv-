@@ -55,14 +55,47 @@ function SectionHead({ icon, label, count }: { icon: React.ReactNode; label: str
   );
 }
 
-function deriveKeywords(job: VaultJob): { found: string[]; notFound: string[] } {
-  const TECH = ['Python','JavaScript','TypeScript','React','Node.js','AWS','GCP','Azure','Docker',
-    'Kubernetes','Terraform','CI/CD','PostgreSQL','MongoDB','Redis','GraphQL','REST','SQL',
-    'Java','Go','Rust','Figma','Excel','Tableau','Salesforce','Jira','Agile','Scrum'];
-  const jdLower = (job.rawJd ?? '').toLowerCase();
-  const found    = TECH.filter(w => jdLower.includes(w.toLowerCase()));
-  const notFound = TECH.filter(w => !jdLower.includes(w.toLowerCase())).slice(0, 3);
-  return { found: found.slice(0, 6), notFound };
+/* ── Skill gap analysis ──────────────────────────────────────────────── */
+const STOPWORDS = new Set([
+  'and','or','with','in','of','to','the','a','an','for','on','at','from','by','as','is','are',
+  'be','can','will','that','this','it','its','their','they','we','have','has','using','via',
+  'within','across','experience','years','strong','good','excellent','proven','knowledge',
+  'understanding','ability','skills','skill','work','working','demonstrated','minimum',
+  'required','preferred','plus','bonus','including','such','other','related','relevant','solid',
+]);
+
+function tokenize(s: string): string[] {
+  return s.toLowerCase()
+    .replace(/[^a-z0-9#.+\s-]/g, ' ')
+    .split(/\s+/)
+    .filter(w => w.length > 1 && !STOPWORDS.has(w));
+}
+
+function analyseGap(requirements: string[], userSkills: string[]): { matched: string[]; gaps: string[] } {
+  if (!requirements.length) return { matched: [], gaps: [] };
+
+  // Build a lookup of all user skill tokens + full lowercased skill strings
+  const skillTokens = new Set(userSkills.flatMap(s => tokenize(s)));
+  const skillPhrases = userSkills.map(s => s.toLowerCase().trim());
+
+  const matched: string[] = [];
+  const gaps: string[] = [];
+
+  for (const req of requirements) {
+    const reqLower  = req.toLowerCase();
+    const reqTokens = tokenize(req);
+
+    const isMatched =
+      // Any req token appears in user skill tokens
+      reqTokens.some(rt => skillTokens.has(rt)) ||
+      // Any full skill phrase appears as substring in the req
+      skillPhrases.some(sp => sp.length > 2 && reqLower.includes(sp));
+
+    if (isMatched) matched.push(req);
+    else           gaps.push(req);
+  }
+
+  return { matched, gaps };
 }
 
 /* ── Deadline countdown ──────────────────────────────────────────────── */
@@ -104,18 +137,19 @@ function DeadlineBlock({ deadline }: { deadline: string }) {
 }
 
 interface Props {
-  job:       VaultJob;
-  onBuildCV: (job: VaultJob) => void;
-  onPatch:   (id: string, patch: Partial<VaultJob>) => void;
-  onClose:   () => void;
+  job:         VaultJob;
+  onBuildCV:   (job: VaultJob) => void;
+  onPatch:     (id: string, patch: Partial<VaultJob>) => void;
+  onClose:     () => void;
+  userSkills?: string[];
 }
 
-export const VaultQuickActions: React.FC<Props> = ({ job, onBuildCV, onPatch, onClose }) => {
+export const VaultQuickActions: React.FC<Props> = ({ job, onBuildCV, onPatch, onClose, userSkills = [] }) => {
   const { user } = useAuth();
   const score          = job.matchScore ?? 0;
   const isClassifying  = job.matchScore === undefined;
   const isAnalysing    = !job.analysed;
-  const { found: keywordsFound } = deriveKeywords(job);
+  const { matched: skillsMatched, gaps: skillGaps } = analyseGap(job.requirements ?? [], userSkills);
 
   const [notes, setNotes]               = useState(job.notes ?? '');
   const [notesChanged, setNotesChanged] = useState(false);
@@ -311,41 +345,61 @@ export const VaultQuickActions: React.FC<Props> = ({ job, onBuildCV, onPatch, on
             </div>
           ) : null}
 
-          {/* Key requirements */}
+          {/* Skill gap analysis */}
           {job.requirements && job.requirements.length > 0 ? (
             <div>
               <SectionHead
                 icon={<div className="w-5 h-5 rounded-lg bg-amber-100 dark:bg-amber-900/40 flex items-center justify-center flex-shrink-0">
                   <AlertCircle className="h-3 w-3 text-amber-500" />
                 </div>}
-                label="What the job needs"
+                label="Skills gap"
                 count={job.requirements.length}
               />
-              <ul className="space-y-2">
-                {job.requirements.map((req, i) => (
-                  <li key={i} className="flex items-start gap-2.5 text-sm text-zinc-600 dark:text-zinc-400">
-                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0 mt-2" />
-                    {req}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ) : !isAnalysing && keywordsFound.length > 0 ? (
-            <div>
-              <SectionHead
-                icon={<div className="w-5 h-5 rounded-lg bg-emerald-100 dark:bg-emerald-900/40 flex items-center justify-center flex-shrink-0">
-                  <CheckCircle className="h-3 w-3 text-emerald-500" />
-                </div>}
-                label="Skills in this job"
-                count={keywordsFound.length}
-              />
-              <div className="flex flex-wrap gap-1.5">
-                {keywordsFound.map(w => (
-                  <span key={w} className="inline-flex items-center px-2.5 py-1 rounded-xl text-xs font-bold bg-zinc-100 dark:bg-neutral-700 text-zinc-700 dark:text-zinc-300 border border-zinc-200 dark:border-neutral-600">
-                    {w}
-                  </span>
-                ))}
-              </div>
+              {/* Show gap analysis only when user has skills to compare against */}
+              {userSkills.length > 0 ? (
+                <div className="space-y-3">
+                  {skillsMatched.length > 0 && (
+                    <div className="bg-emerald-50 dark:bg-emerald-900/10 rounded-2xl px-4 py-3 border border-emerald-100 dark:border-emerald-800/30">
+                      <p className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider mb-2">
+                        You cover ({skillsMatched.length}/{job.requirements.length})
+                      </p>
+                      <ul className="space-y-1.5">
+                        {skillsMatched.map((req, i) => (
+                          <li key={i} className="flex items-start gap-2 text-sm text-emerald-800 dark:text-emerald-300">
+                            <CheckCircle className="h-3.5 w-3.5 flex-shrink-0 mt-0.5 text-emerald-500" />
+                            {req}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {skillGaps.length > 0 && (
+                    <div className="bg-amber-50 dark:bg-amber-900/10 rounded-2xl px-4 py-3 border border-amber-100 dark:border-amber-800/30">
+                      <p className="text-[10px] font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider mb-2">
+                        Gaps to address ({skillGaps.length})
+                      </p>
+                      <ul className="space-y-1.5">
+                        {skillGaps.map((req, i) => (
+                          <li key={i} className="flex items-start gap-2 text-sm text-amber-800 dark:text-amber-300">
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0 mt-2" />
+                            {req}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                /* No profile skills — just show raw requirements list */
+                <ul className="space-y-2">
+                  {job.requirements.map((req, i) => (
+                    <li key={i} className="flex items-start gap-2.5 text-sm text-zinc-600 dark:text-zinc-400">
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0 mt-2" />
+                      {req}
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           ) : null}
 

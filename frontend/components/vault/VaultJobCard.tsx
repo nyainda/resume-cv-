@@ -158,13 +158,20 @@ const ROOM_STRIPE: Record<VaultJob['roomType'], string> = {
 };
 
 interface Props {
-  job:          VaultJob;
-  onQuickCheck: (job: VaultJob) => void;
-  onBuildCV:    (job: VaultJob) => void;
-  onDelete:     (id: string)   => void;
+  job:              VaultJob;
+  onQuickCheck:     (job: VaultJob) => void;
+  onBuildCV:        (job: VaultJob) => void;
+  onDelete:         (id: string)   => void;
+  /** When true the card is in multi-select mode */
+  selectMode?:      boolean;
+  isSelected?:      boolean;
+  onToggleSelect?:  (id: string) => void;
 }
 
-export const VaultJobCard: React.FC<Props> = ({ job, onQuickCheck, onBuildCV, onDelete }) => {
+export const VaultJobCard: React.FC<Props> = ({
+  job, onQuickCheck, onBuildCV, onDelete,
+  selectMode = false, isSelected = false, onToggleSelect,
+}) => {
   const [menuOpen, setMenuOpen] = useState(false);
 
   const isApplied  = job.status === 'applied';
@@ -186,20 +193,43 @@ export const VaultJobCard: React.FC<Props> = ({ job, onQuickCheck, onBuildCV, on
     : null;
   const isUrgent = deadlineDays !== null && deadlineDays >= 0 && deadlineDays <= 3;
 
+  function handleCardClick() {
+    if (selectMode) { onToggleSelect?.(job.id); return; }
+    if (!menuOpen) onQuickCheck(job);
+  }
+
   return (
     <div
       className={`relative rounded-2xl border bg-white dark:bg-neutral-800 transition-all duration-200 flex flex-col overflow-hidden cursor-pointer ${
-        isApplied ? 'opacity-60' : ''
+        isApplied && !selectMode ? 'opacity-60' : ''
       } ${
-        isUrgent
+        selectMode && isSelected
+          ? 'border-[#C9A84C] shadow-md shadow-[#C9A84C]/10 ring-1 ring-[#C9A84C]/30'
+          : isUrgent
           ? 'border-rose-300 dark:border-rose-700 shadow-rose-100 dark:shadow-rose-900/20 shadow-md hover:shadow-rose-200 dark:hover:shadow-rose-800/30'
           : 'border-zinc-100 dark:border-neutral-700 hover:border-[#C9A84C]/40 hover:shadow-lg'
       }`}
-      onClick={() => { if (!menuOpen) onQuickCheck(job); }}
+      onClick={handleCardClick}
       role="button"
       tabIndex={0}
-      onKeyDown={e => { if (e.key === 'Enter') onQuickCheck(job); }}
+      onKeyDown={e => { if (e.key === 'Enter') handleCardClick(); }}
     >
+      {/* ── Select-mode checkbox overlay ───────────────────────── */}
+      {selectMode && (
+        <div className="absolute top-3 right-3 z-10" onClick={e => { e.stopPropagation(); onToggleSelect?.(job.id); }}>
+          <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all ${
+            isSelected
+              ? 'border-[#C9A84C] bg-[#C9A84C]'
+              : 'border-zinc-300 dark:border-neutral-500 bg-white dark:bg-neutral-700 hover:border-[#C9A84C]'
+          }`}>
+            {isSelected && (
+              <svg className="h-3 w-3 text-white" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round">
+                <polyline points="2,6 5,9 10,3"/>
+              </svg>
+            )}
+          </div>
+        </div>
+      )}
       {/* ── Priority / room stripe ─────────────────────────────── */}
       {stripeColor !== 'transparent' && (
         <div className="h-1 w-full flex-shrink-0" style={{ background: stripeColor }} />
@@ -296,8 +326,8 @@ export const VaultJobCard: React.FC<Props> = ({ job, onQuickCheck, onBuildCV, on
           </div>
         </div>
 
-        {/* Action row */}
-        {!isApplied && (
+        {/* Action row — hidden in select mode */}
+        {!isApplied && !selectMode && (
           <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
             {/* Apply link */}
             {(job.website || job.email) && (
