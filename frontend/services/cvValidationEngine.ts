@@ -221,6 +221,21 @@ const ruleHollowBullets: ValidationRule = {
     });
     return violations;
   },
+  // Auto-repair: drop bullets under the word minimum — they carry no information
+  // and are worse than having one fewer bullet (a 3-word stub confuses recruiters
+  // and ATS parsers). The finalGuard already drops these via purifyBullets;
+  // this repair runs the same logic on any CV that bypasses that path.
+  repair(cv) {
+    return {
+      ...cv,
+      experience: cv.experience.map(role => ({
+        ...role,
+        responsibilities: (role.responsibilities ?? []).filter(
+          b => wordCount(b) >= BULLET_MIN_WORDS
+        ),
+      })),
+    };
+  },
 };
 
 const ruleOverlongBullets: ValidationRule = {

@@ -161,10 +161,14 @@ function purgeSingleBullet(b: string): string {
     return b;
 }
 
+function bulletWordCount(b: string): number {
+    return b.trim().split(/\s+/).filter(Boolean).length;
+}
+
 function purifyBullets(bullets: string[]): string[] {
     return bullets
         .map(b => cleanText(purgeSingleBullet(b)))
-        .filter(b => b.trim().length >= 8);   // drop stubs left after cleaning
+        .filter(b => bulletWordCount(b) >= 8);  // drop stubs under 8 words (was: char length ≥ 8, which let 3-word bullets through)
 }
 
 // ─── 5. Project content compliance ───────────────────────────────────────────
