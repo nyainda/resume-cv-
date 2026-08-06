@@ -168,8 +168,8 @@ describe('Category D — Structural fragments (document pipeline behaviour)', ()
     expect(out).toMatch(/\.$/);
   });
 
-  it('"By implementing continuous integration across all services." — fragment, ≥ 8 words → not short_bullet flagged', () => {
-    const fragment = 'By implementing continuous integration across all services.';
+  it('"By implementing continuous integration across all our services." — fragment, ≥ 8 words → not short_bullet flagged', () => {
+    const fragment = 'By implementing continuous integration across all our services.';
     const { report } = purifyCV(makeCV([fragment]));
     const shortLeaks = report.leaks.filter(l => l.leakType === 'short_bullet');
     // 8 words — passes the word-count gate, slips through as a structural gap
