@@ -1136,7 +1136,11 @@ const WEAK_OPENERS: Array<[RegExp, string]> = [
     [/^was\s+responsible\s+for\s+/i,                   'Owned '],
     [/^responsible\s+for\s+(\w+ing)/i,                 'Owned $1'],
     [/^responsible\s+for\s+/i,                         'Owned '],
-    [/^helped\s+(?:to\s+)?(\w+)/i,                     'Supported $1'],
+    // "Helped to improve X" → "Improved X" (base verb directly, not "Supported improve")
+    // "Helped improving X" → "Supported improving X" (gerund form stays natural)
+    [/^helped\s+to\s+([a-z])(\w*)/i,                   (_, a, b) => a.toUpperCase() + b + ' '],
+    [/^helped\s+(\w+ing)/i,                             'Supported $1'],
+    [/^helped\s+(\w+)/i,                                'Supported $1'],
     [/^assisted\s+(?:in|with)\s+(\w+ing)/i,            'Supported $1'],
     [/^assisted\s+(?:in|with)\s+/i,                    'Supported '],
     [/^worked\s+on\s+(\w+ing)/i,                       'Built $1'],
@@ -1731,6 +1735,10 @@ function rewriteWeirdOpeners(text: string): { text: string; changed: boolean } {
         [/^(\s*[-•·*»"']?\s*)Leveraged\b/,                       '$1Used'],
         [/^(\s*[-•·*»"']?\s*)Spearheaded\b/,                     '$1Led'],
         [/^(\s*[-•·*»"']?\s*)Orchestrated\b/,                    '$1Led'],
+        // Banned in worker prompt but missing from auto-fix — added to close the gap.
+        [/^(\s*[-•·*»"']?\s*)Facilitated\b/,                     '$1Led'],
+        [/^(\s*[-•·*»"']?\s*)Empowered\b/,                       '$1Enabled'],
+        [/^(\s*[-•·*»"']?\s*)Championed\b/,                      '$1Drove'],
     ];
     for (const [rx, repl] of OPENER_SWAPS) {
         out = out.replace(rx, repl);
