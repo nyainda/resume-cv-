@@ -150,8 +150,8 @@ export const _CV_HUMANIZATION_INSTRUCTION_HEADER = `
     Write as if a confident, accomplished senior professional personally crafted every word in a focused 2-hour session. AI detectors (GPTZero, Originality.ai, Turnitin) and experienced recruiters must be 100% certain a human wrote this.
 
     SENTENCE RHYTHM (mandatory):
-    - Deliberately alternate between short punchy statements (4–8 words) and longer elaborative ones (15–25 words).
-    - Three sentences of similar length in a row = failure. Break the pattern.
+    - Deliberately alternate between short punchy bullets (8–12 words) and longer elaborative ones (15–25 words).
+    - Three bullets of similar length in a row = failure. Break the pattern.
     - Start at least 2 sentences per section with a number or a past-tense verb for natural variation.
 
     INFORMATION DENSITY (mandatory — do not confuse length with substance):
@@ -244,7 +244,7 @@ ANTI-DETECTION RULES (binding — never skip, even on regenerate/optimize/improv
 
 - VOICE (this is the target — read carefully):
     Write as if a confident, slightly understated senior professional is describing their own work to a peer they respect. Direct, specific, a little dry. Quietly proud, never boastful. Sounds like a person, not a press release or a LinkedIn post. The reader should feel: "this person actually did the work and knows what they're talking about."
-    DO: vary sentence length deliberately (mix 5–8 word punchy lines with 15–25 word elaborative ones); allow one slightly informal phrase per section; use first-person and contractions ("I've", "didn't", "wasn't") in the summary; let one honest opinion show through (e.g. "actually secure, not just compliant on paper").
+    DO: vary sentence length deliberately (mix 8–12 word punchy bullets with 15–25 word elaborative ones); allow one slightly informal phrase per section; use first-person and contractions ("I've", "didn't", "wasn't") in the summary; let one honest opinion show through (e.g. "actually secure, not just compliant on paper").
     DON'T: write every sentence in perfect formal grammar; repeat the same sentence shape three times in a row; sound like a legal document, marketing copy, or recruiter template.
 
 - BANNED BUZZWORDS / FILLER (zero tolerance — strip every instance, replace with a concrete fact):
@@ -325,7 +325,7 @@ export const _CV_SYSTEM_HUMANIZER = `
 You are a senior editor at a top career consultancy. Your job is to rewrite professional text so it sounds exactly like it was written by a highly accomplished human — someone who is confident, direct, and slightly understated. AI detectors and experienced recruiters must be unable to identify it as AI-generated.
 
 Critical rules:
-- SENTENCE RHYTHM: Deliberately alternate between short punchy statements (5–8 words) and longer elaborative ones (15–25 words). Three sentences of similar length in a row is a failure.
+- SENTENCE RHYTHM: Deliberately alternate between short punchy bullets (8–12 words) and longer elaborative ones (15–25 words). Three bullets of similar length in a row is a failure. Never write a bullet under 8 words — that is a fragment, not a bullet.
 - OPENING VARIETY: No two sentences in the same section may start with the same word or grammatical structure.
 - BANNED AI PHRASES (zero tolerance): "delve", "utilize" (use "use"), "leverage" (max once per document), "synergy", "robust", "seamlessly", "cutting-edge", "state-of-the-art", "in today's world", "it's worth noting", "navigate", "landscape", "groundbreaking", "transformative", "impactful" (show impact instead), "passionate" (show passion through specifics), "excited to", "dynamic", "innovative" (show innovation through facts), "thought leader", "holistic approach", "moving the needle", "at the end of the day", "take it to the next level".
 - SPECIFICITY RULE: Replace every vague phrase with a concrete fact. Never say "improved efficiency" — say "cut report generation time from 4 hours to 23 minutes". Never say "led a team" — say "managed a 7-person cross-functional team".
@@ -1186,9 +1186,13 @@ export function runFinalVisibleTextGate(cv: any): GateResult {
                 allBulletPrefixes.add(prefix);
             }
 
-            // Bullet too short (fewer than 7 words is essentially a fragment)
+            // Bullet too short (fewer than 8 words is essentially a fragment).
+            // 8 matches the frontend contracts in cvValidationEngine.ts (BULLET_MIN_WORDS=8),
+            // cvQualityGate.ts (BULLET_MIN_WORDS=8), and cvPurificationPipeline.ts (min=8).
+            // The old threshold of 7 was a floor mismatch that caused 7-word bullets to pass
+            // this validator but fail all three frontend layers as stubs.
             const wc = b.split(/\s+/).filter(Boolean).length;
-            if (wc < 7) {
+            if (wc < 8) {
                 flag(fieldRef, 'bullet_too_short', `"${b}" (${wc} words)`, 'medium');
             }
         }

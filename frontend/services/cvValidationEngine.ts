@@ -48,7 +48,10 @@ const SKILLS_MAX = 15;
 // it is physically impossible to answer even two of the five questions
 // (what/how/where/scale/result) that make a bullet worth reading.
 const BULLET_MIN_WORDS = 8;
-const BULLET_MAX_WORDS = 50;
+// Ceiling aligned with cvPurificationPipeline.ts (long_bullet threshold = 45).
+// Was 50 — the gap between 45 and 50 created a dead zone where purification
+// flagged 46–50w bullets as leaks but validationEngine never saw them.
+const BULLET_MAX_WORDS = 45;
 
 const SEEKING_PATTERNS: RegExp[] = [
   /\b(currently\s+)?(seeking|looking\s+for|searching\s+for|hoping\s+to\s+(?:find|join|work))\b/gi,
