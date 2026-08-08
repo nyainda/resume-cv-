@@ -65,7 +65,7 @@ export function getClaudeApiKey(): string | null {
  * when the browser calls api.anthropic.com directly.
  * Falls back to a direct browser call only when the worker is unreachable.
  */
-async export function claudeMultimodalCall(
+export async function claudeMultimodalCall(
     apiKey: string,
     base64Data: string,
     mimeType: string,
@@ -119,7 +119,7 @@ async export function claudeMultimodalCall(
 }
 
 // --- Gemini Retry Logic (for multimodal calls) ---
-async export function retryGemini<T>(operation: () => Promise<T>, retries = 4, delayMs = 1500): Promise<T> {
+export async function retryGemini<T>(operation: () => Promise<T>, retries = 4, delayMs = 1500): Promise<T> {
     try {
         return await operation();
     } catch (error: any) {

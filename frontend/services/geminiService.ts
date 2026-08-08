@@ -2420,7 +2420,6 @@ function buildScholarshipFormatInstruction(format: ScholarshipFormat): string {
     }
 }
 
-/**
 export const generateCV = async (
     profileInput: UserProfile,
     contextDescription: string,
