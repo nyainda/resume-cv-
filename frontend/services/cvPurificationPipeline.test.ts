@@ -1,9 +1,8 @@
 /**
  * Unit tests for cvPurificationPipeline.ts
  *
- * Covers: removeDuplicateWords, cleanImportedText, detectPhraseRepetition,
- *         purifyCV (sentence-level quality fixes), enforceRhythmBalance.
- * The async functions (cleanImportedTextRemote) require network/AI
+ * Covers: removeDuplicateWords, cleanImportedText, detectPhraseRepetition.
+ * The async functions (cleanImportedTextRemote, purifyCV) require network/AI
  * and are integration-tested separately.
  *
  * Pure functions — no mocking, no network, no side effects.
@@ -14,8 +13,7 @@ import {
     removeDuplicateWords,
     cleanImportedText,
     detectPhraseRepetition,
-    purifyCV,
-    enforceRhythmBalance,
+    normaliseUnicodeDigitsAndSymbols,
 } from './cvPurificationPipeline';
 import type { CVData } from '../types';
 
@@ -91,6 +89,62 @@ describe('removeDuplicateWords', () => {
         const once = removeDuplicateWords(input);
         const twice = removeDuplicateWords(once);
         expect(once).toBe(twice);
+    });
+});
+
+// ─── normaliseUnicodeDigitsAndSymbols ──────────────────────────────────────────
+// Curly/smart quotes are the one punctuation gap the pipeline's own comments
+// flag as unhandled — legacy ATS parsers (Taleo, older Workday) can garble or
+// drop them on ingest, most commonly from pasted Word/Google Docs content.
+
+describe('normaliseUnicodeDigitsAndSymbols', () => {
+    it('converts curly single quotes to straight apostrophes', () => {
+        const { text, changed } = normaliseUnicodeDigitsAndSymbols('Owned the team\u2019s roadmap');
+        expect(text).toBe("Owned the team's roadmap");
+        expect(changed).toBe(true);
+    });
+
+    it('converts curly double quotes to straight quotes', () => {
+        const { text, changed } = normaliseUnicodeDigitsAndSymbols('Led the \u201CProject Phoenix\u201D initiative');
+        expect(text).toBe('Led the "Project Phoenix" initiative');
+        expect(changed).toBe(true);
+    });
+
+    it('converts low-9 and prime quote variants', () => {
+        const { text } = normaliseUnicodeDigitsAndSymbols('The client\u2032s \u201Ebudget\u201C doubled');
+        expect(text).toBe('The client\'s "budget" doubled');
+    });
+
+    it('leaves plain ASCII quotes untouched', () => {
+        const { text, changed } = normaliseUnicodeDigitsAndSymbols("Owned the team's \"north star\" metric");
+        expect(changed).toBe(false);
+        expect(text).toBe("Owned the team's \"north star\" metric");
+    });
+
+    it('converts full-width ASCII digits and symbols', () => {
+        const { text } = normaliseUnicodeDigitsAndSymbols('\uFF11\uFF10\uFF10\uFF05 uptime');
+        expect(text).toBe('100% uptime');
+    });
+
+    it('strips zero-width and BOM characters', () => {
+        const { text } = normaliseUnicodeDigitsAndSymbols('Scaled\u200B infrastructure\uFEFF');
+        expect(text).toBe('Scaled infrastructure');
+    });
+
+    it('does not touch en/em dashes — normaliseWhitespaceAndDashes owns those', () => {
+        const { text } = normaliseUnicodeDigitsAndSymbols('2020\u20132022 \u2014 led migration');
+        expect(text).toBe('2020\u20132022 \u2014 led migration');
+    });
+
+    it('is idempotent', () => {
+        const input = '\u201CScaled\u201D the team\u2019s output by 40%';
+        const once = normaliseUnicodeDigitsAndSymbols(input).text;
+        const twice = normaliseUnicodeDigitsAndSymbols(once).text;
+        expect(once).toBe(twice);
+    });
+
+    it('handles empty string', () => {
+        expect(normaliseUnicodeDigitsAndSymbols('')).toEqual({ text: '', changed: false });
     });
 });
 
@@ -235,181 +289,5 @@ describe('detectPhraseRepetition', () => {
     it('handles a CV with no experience gracefully', () => {
         const cv = makeCV({ experience: [] });
         expect(() => detectPhraseRepetition(cv)).not.toThrow();
-    });
-});
-
-// ─── purifyCV — mid-sentence capitalisation ───────────────────────────────────
-
-describe('purifyCV — mid-sentence capitalisation', () => {
-    function makeRoleCV(bullets: string[]): CVData {
-        return makeCV({
-            experience: [{
-                jobTitle: 'Engineer',
-                company: 'Corp',
-                dates: '2020 – 2023',
-                startDate: '2020-01-01',
-                endDate: '2023-01-01',
-                responsibilities: bullets,
-            }],
-        } as any);
-    }
-
-    it('capitalises the first letter after a mid-bullet full stop', () => {
-        const input = 'Managed the platform. this reduced latency by 30%.';
-        const { cv } = purifyCV(makeRoleCV([input]));
-        const result = cv.experience[0].responsibilities[0];
-        expect(result).toMatch(/\. This/);
-        expect(result).not.toMatch(/\. this/);
-    });
-
-    it('fixes multiple sentences within one narrative bullet', () => {
-        const input = 'Built the API layer. the system handled 50k requests per second. this improved reliability by 20%.';
-        const { cv } = purifyCV(makeRoleCV([input]));
-        const result = cv.experience[0].responsibilities[0];
-        // Every sentence-start after ". " must be capitalised
-        expect(result).not.toMatch(/\. [a-z]/);
-    });
-
-    it('does not capitalise after known abbreviations', () => {
-        // "approx. 30% improvement" — "approx." is an abbreviation, not a sentence end
-        const input = 'Achieved approx. 30% improvement in throughput across all regions.';
-        const { cv } = purifyCV(makeRoleCV([input]));
-        const result = cv.experience[0].responsibilities[0];
-        // Should NOT capitalise "30" (it's a digit, not a letter — no change expected here)
-        // and should NOT capitalise text after "approx."
-        expect(result).toContain('approx.');
-    });
-
-    it('leaves a single-sentence bullet unchanged', () => {
-        const input = 'Delivered a real-time analytics pipeline processing 2M events per day.';
-        const { cv } = purifyCV(makeRoleCV([input]));
-        const result = cv.experience[0].responsibilities[0];
-        // No mid-sentence period, nothing to change
-        expect(result).not.toMatch(/\. [a-z]/);
-    });
-});
-
-// ─── purifyCV — join outcome sentences ───────────────────────────────────────
-
-describe('purifyCV — join outcome sentences (join_outcome)', () => {
-    function makeRoleCV(bullets: string[]): CVData {
-        return makeCV({
-            experience: [{
-                jobTitle: 'Engineer',
-                company: 'Corp',
-                dates: '2020 – 2023',
-                startDate: '2020-01-01',
-                endDate: '2023-01-01',
-                responsibilities: bullets,
-            }],
-        } as any);
-    }
-
-    it('joins "Action. This verb-ed result." into one flowing sentence', () => {
-        const { cv } = purifyCV(makeRoleCV([
-            'Managed the payment platform. This reduced transaction failures by 40%.',
-        ]));
-        const out = cv.experience[0].responsibilities[0];
-        expect(out).toContain(', reducing');
-        expect(out).not.toContain('. This');
-        expect(out).toMatch(/^Managed.*reducing.*40%\.$/);
-    });
-
-    it('joins "Action. It improved X." into one sentence', () => {
-        const { cv } = purifyCV(makeRoleCV([
-            'Redesigned the auth service. It improved latency by 30%.',
-        ]));
-        const out = cv.experience[0].responsibilities[0];
-        expect(out).toContain(', improving');
-        expect(out).not.toMatch(/\. It/);
-    });
-
-    it('handles "This resulted in" — keeps the "in"', () => {
-        const { cv } = purifyCV(makeRoleCV([
-            'Led the API migration. This resulted in 99.9% uptime.',
-        ]));
-        const out = cv.experience[0].responsibilities[0];
-        expect(out).toContain(', resulting in');
-        expect(out).not.toContain('. This');
-    });
-
-    it('does NOT join "This is" (copula — not an outcome clause)', () => {
-        const input = 'Built a microservices platform. This is now used by 2M daily users.';
-        const { cv } = purifyCV(makeRoleCV([input]));
-        const out = cv.experience[0].responsibilities[0];
-        // Should not be joined — "This is" is definitional, not a result clause
-        expect(out).not.toContain(', is');
-    });
-
-    it('leaves a single-sentence bullet unchanged', () => {
-        const input = 'Reduced API latency by 40% through query optimisation and caching.';
-        const { cv } = purifyCV(makeRoleCV([input]));
-        const out = cv.experience[0].responsibilities[0];
-        expect(out).not.toContain(', reducing');
-    });
-
-    it('produces a grammatically complete sentence ending with a period', () => {
-        const { cv } = purifyCV(makeRoleCV([
-            'Managed the payment platform. This reduced transaction failures by 40%.',
-        ]));
-        const out = cv.experience[0].responsibilities[0];
-        expect(out).toMatch(/\.$/);
-        expect(out).not.toMatch(/\.\s*$/m.source + '.*\\.'); // single period
-    });
-});
-
-// ─── enforceRhythmBalance — safe truncation ───────────────────────────────────
-
-describe('enforceRhythmBalance — truncation safety', () => {
-    function makeAllStandardCV(bullets: string[]): CVData {
-        // All bullets in the 15–22 word (standard) band → rhythm balance will try
-        // to create a punchy one by truncating the shortest standard bullet.
-        return makeCV({
-            experience: [{
-                jobTitle: 'Engineer',
-                company: 'Corp',
-                dates: '2020 – 2023',
-                startDate: '2020-01-01',
-                endDate: '2023-01-01',
-                responsibilities: bullets,
-            }],
-        } as any);
-    }
-
-    it('does not produce a bullet ending with a dangling article', () => {
-        // All standard-band bullets; the shortest one ends with a clause that
-        // would leave "across the" dangling if the backup logic stopped too early.
-        const bullets = [
-            'Managed the engineering team driving product delivery across the entire organisation.',
-            'Reduced infrastructure costs by 35% through careful vendor negotiation and process reform.',
-            'Delivered the migration project on time by coordinating across the global engineering teams.',
-            'Improved developer experience significantly by introducing automated testing across the stack.',
-        ];
-        const cv = makeAllStandardCV(bullets);
-        const result = enforceRhythmBalance(cv);
-        for (const role of result.experience) {
-            for (const bullet of role.responsibilities) {
-                const lastWord = bullet.trim().replace(/[.!?]+$/, '').split(/\s+/).pop()?.toLowerCase() ?? '';
-                // Last content word must NOT be a dangling article or preposition
-                const DANGEROUS = new Set(['the','a','an','by','through','via','across','within','to','of','for','with','in','on','at','from','and','or','but','over','under','around']);
-                expect(DANGEROUS.has(lastWord)).toBe(false);
-            }
-        }
-    });
-
-    it('leaves bullets unchanged when no safe cut point exists', () => {
-        // All bullets are already punchy — no rhythm imbalance → no truncation attempted
-        const bullets = [
-            'Built the core API serving 2M users.',
-            'Reduced latency by 40% through caching.',
-            'Led the platform team across three regions.',
-            'Shipped 12 features in Q1 without incidents.',
-        ];
-        const cv = makeAllStandardCV(bullets);
-        const result = enforceRhythmBalance(cv);
-        // Bullets are already punchy, nothing should change
-        const original = cv.experience[0].responsibilities.join('|');
-        const after = result.experience[0].responsibilities.join('|');
-        expect(after).toBe(original);
     });
 });

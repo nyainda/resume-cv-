@@ -347,7 +347,7 @@ export function applyRemoteBannedPhrasesToCV(
                 ? (p as any).bullets.map((b: string) => applyToText(b))
                 : (p as any).bullets,
         })),
-        education: (Array.isArray(cv.education) ? cv.education : []).map(e => ({
+        education: (cv.education || []).map(e => ({
             ...e,
             description: applyToText(e.description || ''),
         })),
@@ -363,7 +363,7 @@ function gatherCVText(cv: CVData): string {
     const parts: string[] = [];
     if (cv.summary) parts.push(cv.summary);
     (cv.experience || []).forEach(e => (e.responsibilities || []).forEach(b => parts.push(b)));
-    (Array.isArray(cv.education) ? cv.education : []).forEach(e => e.description && parts.push(e.description));
+    (cv.education || []).forEach(e => e.description && parts.push(e.description));
     (cv.projects || []).forEach(p => p.description && parts.push(p.description));
     return parts.join(' \n ');
 }
@@ -552,41 +552,6 @@ const VERB_TENSE_MAP: Array<{ present: string; past: string }> = [
     { present: 'Fires',         past: 'Fired' },
     { present: 'Closes',        past: 'Closed' },
     { present: 'Opens',         past: 'Opened' },
-    // ── Additional past-tense → present-tense entries ──────────────────────
-    // These fill the gap identified in the pipeline audit: the NLP fallback is
-    // unreliable under race conditions, so common past-tense verbs must also
-    // live in the static table to guarantee deterministic correction in current roles.
-    { present: 'Redesigns',     past: 'Redesigned' },
-    { present: 'Rebuilds',      past: 'Rebuilt' },
-    { present: 'Replaces',      past: 'Replaced' },
-    { present: 'Introduces',    past: 'Introduced' },
-    { present: 'Revamps',       past: 'Revamped' },
-    { present: 'Restructures',  past: 'Restructured' },
-    { present: 'Consolidates',  past: 'Consolidated' },
-    { present: 'Transforms',    past: 'Transformed' },
-    { present: 'Expands',       past: 'Expanded' },
-    { present: 'Recruits',      past: 'Recruited' },
-    { present: 'Sources',       past: 'Sourced' },
-    { present: 'Aligns',        past: 'Aligned' },
-    { present: 'Prioritises',   past: 'Prioritised' },
-    { present: 'Prioritizes',   past: 'Prioritized' },
-    { present: 'Defines',       past: 'Defined' },
-    { present: 'Evaluates',     past: 'Evaluated' },
-    { present: 'Enables',       past: 'Enabled' },
-    { present: 'Governs',       past: 'Governed' },
-    { present: 'Transitions',   past: 'Transitioned' },
-    { present: 'Accelerates',   past: 'Accelerated' },
-    { present: 'Renegotiates',  past: 'Renegotiated' },
-    { present: 'Revises',       past: 'Revised' },
-    { present: 'Overhauls',     past: 'Overhauled' },
-    { present: 'Repositions',   past: 'Repositioned' },
-    { present: 'Redefines',     past: 'Redefined' },
-    { present: 'Reengineers',   past: 'Reengineered' },
-    { present: 'Formulates',    past: 'Formulated' },
-    { present: 'Spearheads',    past: 'Spearheaded' },
-    { present: 'Champions',     past: 'Championed' },
-    { present: 'Steers',        past: 'Steered' },
-    { present: 'Unifies',       past: 'Unified' },
 ];
 
 function isCurrentRole(role: { endDate?: string }): boolean {
@@ -932,7 +897,7 @@ export function jitterRoundNumbers(cv: CVData): { cv: CVData; changes: string[] 
             ...e,
             responsibilities: (e.responsibilities || []).map(jit),
         })),
-        education: (Array.isArray(cv.education) ? cv.education : []).map(e => ({ ...e, description: jit(e.description || '') })),
+        education: (cv.education || []).map(e => ({ ...e, description: jit(e.description || '') })),
         projects: (cv.projects || []).map(p => ({ ...p, description: jit(p.description || '') })),
     };
     return { cv: out, changes };
@@ -1032,8 +997,8 @@ export function revertCorruptedMetrics(
         return p;
     });
 
-    const education = (Array.isArray(newCV.education) ? newCV.education : []).map((e, ei) => {
-        const orig = (Array.isArray(originalCV.education) ? originalCV.education : [])[ei];
+    const education = (newCV.education || []).map((e, ei) => {
+        const orig = (originalCV.education || [])[ei];
         if (orig && hasCorruptedMetric(e.description || '') && !hasCorruptedMetric(orig.description || '')) {
             reverted.push(`education: ${e.degree || `#${ei + 1}`}`);
             return { ...e, description: orig.description || '' };
@@ -1136,11 +1101,7 @@ const WEAK_OPENERS: Array<[RegExp, string]> = [
     [/^was\s+responsible\s+for\s+/i,                   'Owned '],
     [/^responsible\s+for\s+(\w+ing)/i,                 'Owned $1'],
     [/^responsible\s+for\s+/i,                         'Owned '],
-    // "Helped to improve X" → "Improved X" (base verb directly, not "Supported improve")
-    // "Helped improving X" → "Supported improving X" (gerund form stays natural)
-    [/^helped\s+to\s+([a-z])(\w*)/i,                   (_, a, b) => a.toUpperCase() + b + ' '],
-    [/^helped\s+(\w+ing)/i,                             'Supported $1'],
-    [/^helped\s+(\w+)/i,                                'Supported $1'],
+    [/^helped\s+(?:to\s+)?(\w+)/i,                     'Supported $1'],
     [/^assisted\s+(?:in|with)\s+(\w+ing)/i,            'Supported $1'],
     [/^assisted\s+(?:in|with)\s+/i,                    'Supported '],
     [/^worked\s+on\s+(\w+ing)/i,                       'Built $1'],
@@ -1280,7 +1241,7 @@ function rewriteWeakOpener(text: string): { text: string; changed: boolean } {
  * (ZWSP, ZWNJ, ZWJ, BOM) — they're invisible in editors but break PDF text
  * extraction and copy-paste.
  */
-function normaliseUnicodeDigitsAndSymbols(text: string): { text: string; changed: boolean } {
+export function normaliseUnicodeDigitsAndSymbols(text: string): { text: string; changed: boolean } {
     if (!text) return { text: text || '', changed: false };
     let out = text;
 
@@ -1316,6 +1277,17 @@ function normaliseUnicodeDigitsAndSymbols(text: string): { text: string; changed
     // Fancy minus signs and unicode hyphens that aren't typographic em/en dashes.
     // (We leave en/em dashes alone — normaliseWhitespaceAndDashes handles those.)
     out = out.replace(/[\u2010\u2011\u2212]/g, '-');  // hyphen, NB-hyphen, minus → -
+
+    // Curly/smart quotes → straight ASCII quotes. Unlike en/em dashes (which
+    // normaliseWhitespaceAndDashes intentionally preserves as typographic
+    // marks), curly quotes have no equivalent downstream handling anywhere
+    // in the pipeline and legacy ATS parsers (Taleo, older Workday) can
+    // garble or drop them on ingest. Source: pasted Word/Google Docs content
+    // (autocorrect) and occasional LLM output. Straight quotes render
+    // identically in every template, so there's no typography trade-off here
+    // the way there is with dashes.
+    out = out.replace(/[\u2018\u2019\u201A\u2032]/g, "'");  // ‘ ’ ‚ ′ → '
+    out = out.replace(/[\u201C\u201D\u201E\u2033]/g, '"');  // “ ” „ ″ → "
 
     return { text: out, changed: out !== text };
 }
@@ -1735,10 +1707,6 @@ function rewriteWeirdOpeners(text: string): { text: string; changed: boolean } {
         [/^(\s*[-•·*»"']?\s*)Leveraged\b/,                       '$1Used'],
         [/^(\s*[-•·*»"']?\s*)Spearheaded\b/,                     '$1Led'],
         [/^(\s*[-•·*»"']?\s*)Orchestrated\b/,                    '$1Led'],
-        // Banned in worker prompt but missing from auto-fix — added to close the gap.
-        [/^(\s*[-•·*»"']?\s*)Facilitated\b/,                     '$1Led'],
-        [/^(\s*[-•·*»"']?\s*)Empowered\b/,                       '$1Enabled'],
-        [/^(\s*[-•·*»"']?\s*)Championed\b/,                      '$1Drove'],
     ];
     for (const [rx, repl] of OPENER_SWAPS) {
         out = out.replace(rx, repl);
@@ -1753,38 +1721,6 @@ function capitaliseFirst(text: string): { text: string; changed: boolean } {
     const m = text.match(/^(\s*[-•·*»"']?\s*)([a-z])([\s\S]*)$/);
     if (!m) return { text, changed: false };
     return { text: m[1] + m[2].toUpperCase() + m[3], changed: true };
-}
-
-/**
- * Capitalises the first letter of every sentence WITHIN a bullet or summary,
- * fixing patterns like "Managed the team. this reduced onboarding time." →
- * "Managed the team. This reduced onboarding time."
- *
- * Only fires after `. ` (period + space) where the next character is a
- * lowercase letter. Excludes known abbreviations used in professional writing
- * (e.g., i.e., vs., No., approx.) by checking the word immediately before the
- * dot — if it matches a known abbreviation, the lowercase is left alone.
- *
- * Also excluded: digits before the dot (decimal numbers like "1.5 times").
- */
-function fixMidSentenceCapitalization(text: string): { text: string; changed: boolean } {
-    if (!text) return { text: text || '', changed: false };
-
-    // Words that, when followed by ". ", are abbreviations — NOT sentence ends.
-    const ABBREV_BEFORE_DOT = new Set([
-        'eg', 'ie', 'etc', 'vs', 'no', 'approx', 'fig', 'dept', 'mgr',
-        'sr', 'jr', 'dr', 'mr', 'mrs', 'ms', 'prof', 'inc', 'ltd', 'corp',
-        'est', 'ref', 'vol', 'pp', 'para', 'sect', 'ch', 'avg', 'max', 'min',
-    ]);
-
-    // Match: two-or-more letters (excluding single initials), then ". ", then lowercase.
-    // Does NOT match when a digit precedes the dot (decimal numbers stay untouched).
-    const out = text.replace(/([A-Za-z]{2,})\.\s+([a-z])/g, (match, beforeDot, afterChar) => {
-        if (ABBREV_BEFORE_DOT.has(beforeDot.toLowerCase())) return match;
-        return `${beforeDot}. ${afterChar.toUpperCase()}`;
-    });
-
-    return { text: out, changed: out !== text };
 }
 
 /**
@@ -1976,126 +1912,6 @@ function stripSummaryTargetingClause(text: string): { text: string; changed: boo
     return { text: out, changed: true };
 }
 
-/**
- * Map of irregular past-tense verbs that cannot be derived by simple rule
- * from their "-ed" form, mapped directly to their gerund (-ing) form.
- */
-const IRREGULAR_PAST_TO_GERUND: Record<string, string> = {
-    'led': 'leading',         'drove': 'driving',       'grew': 'growing',
-    'fell': 'falling',        'rose': 'rising',          'gave': 'giving',
-    'brought': 'bringing',    'made': 'making',          'cut': 'cutting',
-    'kept': 'keeping',        'ran': 'running',          'built': 'building',
-    'went': 'going',          'came': 'coming',          'took': 'taking',
-    'got': 'getting',         'put': 'putting',          'set': 'setting',
-    'hit': 'hitting',         'let': 'letting',          'won': 'winning',
-    'met': 'meeting',         'paid': 'paying',          'held': 'holding',
-    'left': 'leaving',        'lost': 'losing',          'sold': 'selling',
-    'told': 'telling',        'found': 'finding',        'felt': 'feeling',
-    'meant': 'meaning',       'heard': 'hearing',        'stood': 'standing',
-    'sent': 'sending',        'spent': 'spending',       'sat': 'sitting',
-    'became': 'becoming',     'began': 'beginning',      'bore': 'bearing',
-    'had': 'having',          'was': 'being',            'were': 'being',
-    'said': 'saying',         'saw': 'seeing',           'chose': 'choosing',
-    'drew': 'drawing',        'knew': 'knowing',         'threw': 'throwing',
-    'bought': 'buying',       'taught': 'teaching',      'caught': 'catching',
-    'thought': 'thinking',    'fought': 'fighting',      'sought': 'seeking',
-    'read': 'reading',        'spread': 'spreading',     'beat': 'beating',
-    'fit': 'fitting',         'hurt': 'hurting',         'cost': 'costing',
-    // Commonly irregular in CV context
-    'helped': 'helping',      'resulted': 'resulting',   'arose': 'arising',
-};
-
-/**
- * Convert a past-tense verb to its gerund (-ing) form.
- *
- * Strategy (in order):
- *   1. Check the irregular table — covers all genuinely irregular English past forms.
- *   2. Regular "-ed" verbs: strip the trailing "d" (leaving the stem with silent-e
- *      intact, e.g. "reduced" → "reduce", "dropped" → "droppe", "resulted" → "resulte")
- *      then call the existing gerundSynonym() which handles the silent-e rule:
- *        • "reduce"   → "reducing"   ✓
- *        • "droppe"   → "dropping"   ✓  (silent-e drop → "dropp" + "ing")
- *        • "resulte"  → "resulting"  ✓  (silent-e drop → "result" + "ing")
- *        • "improve"  → "improving"  ✓
- *        • "generate" → "generating" ✓
- *   3. Returns null if neither rule applies (caller skips the join).
- */
-function pastToGerund(past: string): string | null {
-    const lower = past.toLowerCase();
-    if (IRREGULAR_PAST_TO_GERUND[lower]) return IRREGULAR_PAST_TO_GERUND[lower];
-    // Regular: remove trailing "d" from the "-ed" suffix, then gerundSynonym handles the rest
-    if (lower.length > 3 && lower.endsWith('ed')) {
-        return gerundSynonym(lower.slice(0, -1)); // e.g. "reduced" → gerundSynonym("reduce") → "reducing"
-    }
-    return null;
-}
-
-/**
- * Joins a two-sentence bullet when the second sentence is a result/outcome
- * clause starting with "This" or "It" — the single most common AI pattern
- * that produces choppy, logically disconnected bullet text.
- *
- * Pattern detected:
- *   "Action sentence. This verb-ed result."   (or "It verb-ed result.")
- *
- * Transformation applied:
- *   "Action sentence, gerunding result."
- *
- * Examples:
- *   • "Managed the payment platform. This reduced failures by 40%."
- *     → "Managed the payment platform, reducing failures by 40%."
- *
- *   • "Redesigned the auth service. It improved latency by 30%."
- *     → "Redesigned the auth service, improving latency by 30%."
- *
- *   • "Led the API migration. This resulted in 99.9% uptime."
- *     → "Led the API migration, resulting in 99.9% uptime."
- *
- * Safety rules:
- *   – Only fires on exactly two sentences (split by ". ").
- *   – Only fires when the second sentence starts with "This/It" + a
- *     convertible past-tense verb (known irregular or regular "-ed").
- *   – Leaves bullet unchanged if gerund conversion fails (unknown irregular).
- *   – Does NOT fire on "This is / It is" (copula — these are definitional,
- *     not outcome clauses).
- */
-function joinOutcomeSentences(text: string): { text: string; changed: boolean } {
-    if (!text) return { text: text || '', changed: false };
-
-    // Split on ". " to get potential sentences — but avoid splitting on
-    // known abbreviations by requiring the preceding word to be ≥3 chars.
-    // Simple heuristic: look for exactly one ". " between two content words.
-    const splitRx = /^(.+?[a-zA-Z0-9])\.\s+((?:This|It)\s+.+)$/s;
-    const m = text.replace(/\.\s*$/, '').match(splitRx);
-    if (!m) return { text, changed: false };
-
-    const s1 = m[1].trim();
-    const s2 = m[2].trim();
-
-    // Must start with "This <verb>" or "It <verb>" (not "This is" / "It is" copula)
-    const resultM = s2.match(/^(?:This|It)\s+(\w+)\s*(.*?)\.?\s*$/is);
-    if (!resultM) return { text, changed: false };
-
-    const [, verbWord, restRaw] = resultM;
-    // Skip copula — "This is/was/were/are" → not an outcome clause
-    if (/^(?:is|was|were|are|has|had|have|does|did)$/i.test(verbWord)) {
-        return { text, changed: false };
-    }
-
-    const gerund = pastToGerund(verbWord);
-    if (!gerund) return { text, changed: false };
-
-    const rest = restRaw.trim();
-    const joined = rest
-        ? `${s1}, ${gerund} ${rest}.`
-        : `${s1}, ${gerund}.`;
-
-    // Sanity: joined sentence shouldn't be absurdly long (>55 words → skip)
-    if (joined.split(/\s+/).length > 55) return { text, changed: false };
-
-    return { text: joined, changed: true };
-}
-
 /** Composite polish pass for a single bullet — order matters. */
 function polishBullet(bullet: string): { text: string; fixes: string[] } {
     const fixes: string[] = [];
@@ -2138,17 +1954,8 @@ function polishBullet(bullet: string): { text: string; fixes: string[] } {
     // doesn't mask a still-dangling clause ("…, achieving water savings").
     apply('unquantified_metric_verb', stripUnquantifiedMetricGerund);
     apply('whitespace_dashes', normaliseWhitespaceAndDashes);
-    // join_outcome: convert two-sentence "Action. This verb-ed result." bullets
-    // into a single flowing sentence "Action, gerunding result." — runs BEFORE
-    // trailing_period so the merged sentence gets a clean single period, and
-    // BEFORE mid_sentence_cap (no mid-sentence period left to capitalise after
-    // the join succeeds).
-    apply('join_outcome',     joinOutcomeSentences);
     apply('trailing_period',  ensureTrailingPeriod);
     apply('capitalise',       capitaliseFirst);
-    // mid_sentence_cap: safety net for any two-sentence bullets where the join
-    // didn't apply — ensures the second sentence still starts with a capital.
-    apply('mid_sentence_cap', fixMidSentenceCapitalization);
     return { text: cur, fixes };
 }
 
@@ -2197,7 +2004,6 @@ function polishSummary(text: string): { text: string; fixes: string[] } {
     apply('whitespace_dashes', normaliseWhitespaceAndDashes);
     // trailing_period SKIPPED — summaries DO end with a period.
     apply('capitalise',       capitaliseFirst);
-    apply('mid_sentence_cap', fixMidSentenceCapitalization);
     return { text: cur, fixes };
 }
 
@@ -2862,28 +2668,6 @@ export function stripInstructionLeakPreamble(text: string): { text: string; stri
     return { text, stripped: null };
 }
 
-/**
- * Defensive normalization: LLMs occasionally return array fields as plain objects
- * (`{}`) or omit them entirely. `(x || []).map` is not enough — if `x` is `{}`
- * it is truthy so `|| []` is skipped, and `.map` is not a function on a plain
- * object. Call this once at the entry of every exported function that maps over
- * CV arrays to guarantee the invariant before any `.map()` call.
- */
-export function normalizeCVArrays(cv: CVData): CVData {
-    const arr = <T>(v: unknown): T[] => (Array.isArray(v) ? (v as T[]) : []);
-    return {
-        ...cv,
-        skills:          arr(cv.skills),
-        experience:      arr(cv.experience),
-        education:       arr(cv.education),
-        projects:        arr(cv.projects),
-        certifications:  arr(cv.certifications),
-        customSections:  arr(cv.customSections),
-        publications:    arr(cv.publications),
-        awards:          arr((cv as any).awards),
-    };
-}
-
 export function purifyCV(
     cv: CVData,
     opts?: { skipWorkerDuplicatePasses?: boolean },
@@ -2898,9 +2682,6 @@ export function purifyCV(
         leaks: [],
     };
     if (!cv) return { cv, report: emptyReport };
-    // Normalize all array fields so every downstream .map() call is safe even
-    // when the LLM returned {} instead of [] for an array field.
-    cv = normalizeCVArrays(cv);
 
     const leaks: PurifyLeak[] = [];
     let substitutionsMade = 0;
@@ -2935,7 +2716,7 @@ export function purifyCV(
             bullets: (p.bullets || []).map((b, j) =>
                 leakStripField(b, `projects[${i}].bullets[${j}]`)),
         })),
-        education: (Array.isArray(cv.education) ? cv.education : []).map((e, i) => ({
+        education: (cv.education || []).map((e, i) => ({
             ...e,
             description: leakStripField(e.description || '', `education[${i}].description`),
         })),
@@ -2972,7 +2753,7 @@ export function purifyCV(
     const subTrackMaybe = (text: string, fieldLocation: string): string =>
         skipDup ? (text || '') : subTrack(text, fieldLocation);
 
-    const cleanedEducation = (Array.isArray(cv.education) ? cv.education : []).map((e, idx) => {
+    const cleanedEducation = (cv.education || []).map((e, idx) => {
         const sub = subTrackMaybe(e.description || '', `education[${idx}].description`);
         const stripped = stripPursuingForCompletedDegree(sub, e.year);
         if (stripped !== sub) {
@@ -3188,7 +2969,7 @@ export function purifyCV(
             bullets: (p.bullets || []).map((b, j) =>
                 polish(b, `projects[${i}].bullets[${j}]`)),
         })),
-        education: (Array.isArray(working.education) ? working.education : []).map((ed, i) => ({
+        education: (working.education || []).map((ed, i) => ({
             ...ed, description: polish(ed.description || '', `education[${i}].description`),
         })),
     };
@@ -3564,7 +3345,7 @@ export function purifyProfile(profile: UserProfile): UserProfile {
             ...e,
             responsibilities: splitMergedResponsibilities(sub(e.responsibilities || '')),
         })),
-        education: (Array.isArray(profile.education) ? profile.education : []).map(e => ({ ...e })),
+        education: (profile.education || []).map(e => ({ ...e })),
         projects: (profile.projects || []).map(p => ({
             ...p,
             description: sub(p.description || ''),
@@ -3813,254 +3594,6 @@ export function enforceOpenerDiversity(cv: CVData): CVData {
     });
 
     return { ...cv, experience, projects };
-}
-
-// ────────────────────────────────────────────────────────────────────────────
-// Rhythm balance — deterministic post-generation band enforcer
-//
-// When a role has ≥4 bullets all stuck in the same length band the AI ignored
-// the mix rule in the prompt. This pass physically reshapes two bullets:
-//   1. Shortens the shortest standard bullet to the punchy band (≤14 words)
-//      by cutting at the first trailing clause separator (comma / semicolon /
-//      dash) past word 9, or at word 12.
-//   2. Expands the metric-richest standard bullet to the narrative band (≥23 w)
-//      by splitting it at the first conjunction/connector past word 10 and
-//      capitalising the second fragment as a new sentence.
-//
-// Never touches bullet[0] (scope anchor), never invents content, safe to call
-// multiple times (idempotent once a role is already balanced).
-// ────────────────────────────────────────────────────────────────────────────
-export function enforceRhythmBalance(cv: CVData): CVData {
-    const bandOf = (b: string): 'punchy' | 'standard' | 'narrative' | null => {
-        const n = (b || '').trim().split(/\s+/).filter(Boolean).length;
-        if (n >= 8  && n <= 14) return 'punchy';
-        if (n >= 15 && n <= 22) return 'standard';
-        if (n >= 23 && n <= 45) return 'narrative';
-        return null;
-    };
-
-    const experience = (cv.experience || []).map(role => {
-        const bullets = role.responsibilities || [];
-        if (bullets.length < 4) return role;
-
-        const bands = bullets.map(bandOf);
-        const counts = { punchy: 0, standard: 0, narrative: 0 };
-        bands.forEach(b => { if (b) counts[b]++; });
-
-        // Only intervene when every bullet with a valid band falls in one band.
-        const total = counts.punchy + counts.standard + counts.narrative;
-        if (total < 4) return role;
-        const singleBand = total === counts.punchy || total === counts.standard || total === counts.narrative;
-        if (!singleBand) return role;
-
-        const newBullets = [...bullets];
-        let changed = false;
-
-        // ── Step 1: Create a PUNCHY bullet (≤14 w) ───────────────────────────
-        // Words that must NEVER be the last word before the period — they leave
-        // the sentence grammatically incomplete (dangling article/preposition).
-        const UNSAFE_TRAIL = new Set([
-            'the','a','an','this','that','these','those','our','their','its','my',
-            'through','by','via','using','for','with','in','on','at','from','to',
-            'across','within','between','among','after','before','during','over',
-            'under','around','about','of','as','than','like','such','and','or',
-            'but','so','yet','nor','both','either','neither','not','also','then',
-        ]);
-
-        if (counts.punchy === 0) {
-            let shortestIdx = -1, shortestLen = Infinity;
-            for (let i = 1; i < newBullets.length; i++) {
-                if (bands[i] !== 'standard') continue;
-                const words = newBullets[i].trim().split(/\s+/).filter(Boolean);
-                if (words.length < shortestLen) { shortestLen = words.length; shortestIdx = i; }
-            }
-            if (shortestIdx >= 0) {
-                const words = newBullets[shortestIdx].trim().split(/\s+/).filter(Boolean);
-
-                // Safe cut-point resolution (priority order):
-                //   1. Clause separator (comma / semicolon / em-dash) in words 7–13 → cut there.
-                //   2. "to + infinitive" boundary in words 7–15 → cut before it (purpose clause).
-                //   3. Elaboration connectors (while/across/within/through) in words 8–14 → cut before.
-                //   4. Right after a metric token (%, currency, number+unit) in words 6–12 → cut after it.
-                //   5. Fall back to word 11, backing up past UNSAFE_TRAIL words.
-                //
-                // After any strategy, verify the last word is not in UNSAFE_TRAIL.
-                // If no safe cut ≥8 words is found, skip (leave bullet unchanged).
-
-                // Metrics: a token containing %, £$€, or digit+unit
-                const isMetric = (w: string) => /[%£$€¥₦]|^\d[\d,.]*(?:M|K|B|m|k)?$/.test(w.replace(/[,]/g, ''));
-
-                let cutAt = -1;
-
-                // Strategy 1: clause separator
-                for (let w = 7; w < Math.min(14, words.length); w++) {
-                    if (/[,;–—]$/.test(words[w])) { cutAt = w; break; }
-                }
-
-                // Strategy 2: "to + infinitive" boundary (cut BEFORE "to").
-                // Start from word 4 so we catch early purpose clauses like
-                // "Coordinate X to ensure…" where "to" falls at word 4 or 5.
-                if (cutAt < 0) {
-                    for (let w = 4; w < Math.min(15, words.length - 1); w++) {
-                        if (words[w].toLowerCase() === 'to' &&
-                            /^[a-z]/.test(words[w + 1] ?? '') &&
-                            !/^(the|a|an|this|that)$/i.test(words[w + 1] ?? '')) {
-                            const candidate = w - 1;
-                            if (candidate >= 7) { cutAt = candidate; break; }
-                        }
-                    }
-                }
-
-                // Strategy 3: elaboration connectors (cut BEFORE them).
-                // Only fire when cutting there leaves ≥8 words.
-                if (cutAt < 0) {
-                    const ELAB = new Set(['while', 'across', 'within', 'through', 'throughout', 'alongside', 'via']);
-                    for (let w = 8; w < Math.min(14, words.length); w++) {
-                        if (ELAB.has(words[w].toLowerCase()) && w - 1 >= 7) {
-                            cutAt = w - 1; break;
-                        }
-                    }
-                }
-
-                // Strategy 4: right after the FIRST metric token (%, currency, number+unit).
-                // Use the first rather than last so we don't strand a bare % at end.
-                if (cutAt < 0) {
-                    for (let w = 5; w < Math.min(13, words.length); w++) {
-                        if (isMetric(words[w]) && w >= 7) { cutAt = w; break; }
-                    }
-                }
-
-                // Strategy 5: word 11 fallback
-                if (cutAt < 0) cutAt = Math.min(11, words.length - 1);
-
-                // Back up past UNSAFE_TRAIL words to leave a clean trailing content word.
-                // NOTE: the condition is >= 7 (not > 7) so we keep backing up even
-                // when cutAt reaches the minimum index — if words[7] is still an
-                // unsafe function word we decrement to 6 and the guard below skips
-                // the cut entirely rather than emitting a dangling sentence like
-                // "…across the." or "…by through.".
-                while (cutAt >= 7 && UNSAFE_TRAIL.has((words[cutAt] ?? '').toLowerCase().replace(/[^a-z]/g, ''))) {
-                    cutAt--;
-                }
-
-                if (cutAt >= 7) {
-                    // Strip any trailing punctuation from the last word (comma, semicolon,
-                    // em-dash, or existing period) before appending a clean period.
-                    const rawSlice = words.slice(0, cutAt + 1).join(' ');
-                    const shortened = rawSlice.replace(/[,;–—.!?]+$/, '') + '.';
-                    const shortenedLen = shortened.split(/\s+/).length;
-                    if (shortenedLen >= 8 && shortenedLen <= 14) {
-                        newBullets[shortestIdx] = shortened;
-                        counts.punchy++;
-                        counts.standard--;
-                        changed = true;
-                    }
-                }
-            }
-        }
-
-        // ── Step 2: Create a NARRATIVE bullet (≥23 w) ────────────────────────
-        if (counts.narrative === 0 && bullets.length >= 4) {
-            const hasMetric = (b: string) => /\d/.test(b);
-            let richestIdx = -1;
-            for (let i = 1; i < newBullets.length; i++) {
-                const band = bandOf(newBullets[i]);
-                if (band !== 'standard') continue;
-                if (richestIdx === -1 || (hasMetric(newBullets[i]) && !hasMetric(newBullets[richestIdx]))) {
-                    richestIdx = i;
-                }
-            }
-            if (richestIdx >= 0) {
-                const words = newBullets[richestIdx].trim().split(/\s+/).filter(Boolean);
-                const CONNECTORS = new Set([
-                    'through', 'by', 'via', 'using', 'while', 'enabling', 'resulting',
-                    'improving', 'reducing', 'delivering', 'driving', 'achieving',
-                ]);
-                let splitAt = -1;
-                for (let w = 10; w < Math.min(18, words.length); w++) {
-                    if (CONNECTORS.has(words[w].toLowerCase())) { splitAt = w; break; }
-                }
-                if (splitAt > 0 && splitAt < words.length - 3) {
-                    const s1 = words.slice(0, splitAt).join(' ').replace(/[,;]$/, '') + ',';
-                    const connector = words[splitAt];
-                    const rest = words.slice(splitAt + 1).join(' ');
-                    const narrative = `${s1} ${connector.charAt(0).toUpperCase() + connector.slice(1)} ${rest}`;
-                    if (narrative.split(/\s+/).length >= 23) {
-                        newBullets[richestIdx] = narrative;
-                        changed = true;
-                    }
-                }
-            }
-        }
-
-        if (changed && import.meta.env.DEV) {
-            console.info(`[RhythmBalance] Fixed band imbalance in "${role.jobTitle} @ ${role.company}"`);
-        }
-        return changed ? { ...role, responsibilities: newBullets } : role;
-    });
-
-    return { ...cv, experience };
-}
-
-// ────────────────────────────────────────────────────────────────────────────
-// Scope anchor enforcer — all roles (current AND past)
-//
-// The prompt requires bullet[0] of EVERY role to establish scope (team size,
-// budget, project count, etc.), not lead with an achievement. The LLM follows
-// this for the current role reliably but slips on past roles where the raw
-// profile responsibilities already open with a metric-led achievement.
-//
-// Strategy (zero content invention):
-//   1. bullet[0] already contains a scope signal in its first 10 words → leave it.
-//   2. Scan bullets[1..] for the first bullet with a scope signal in its first
-//      10 words → swap with bullet[0].
-//   3. No qualifying bullet found → leave unchanged (cannot invent facts).
-//
-// "First 10 words" constraint prevents matching scope words buried at the END
-// of an achievement bullet (e.g. "...while collaborating with product and design
-// teams" — 'teams' is a collaboration target, not a scope statement).
-// ────────────────────────────────────────────────────────────────────────────
-/**
- * Matches OWNERSHIP/SCALE signals that establish the scope of a role.
- *
- * Covers two categories:
- *   A. Headcount/portfolio scope — team of N, N engineers, N clients, budget, etc.
- *   B. Financial/volume scope   — currency amounts (£2.3M, $500K), transaction
- *      throughput (50,000 TPS, 15,000 RPS), and daily/monthly/annual volume.
- *      These signal the SCALE of the system the candidate owned, which is
- *      equally valid as a scope anchor (e.g. "Engineered an FX engine handling
- *      £2.3M daily volume" establishes scope just as clearly as "Led a team of 5").
- */
-const SCOPE_SIGNAL_RE = /(?:\b(?:team\s+of|engineers?\s+team|a\s+team|manage[sd]?\s+(?:a\s+)?team|led?\s+(?:a\s+)?team|oversaw?\s+(?:a\s+)?team|headed?\s+(?:a\s+)?team|squad|staff|headcount|portfolio|budget|clients?|users?|customers?|projects?\s+(?:across|for|covering)|contracts?|region|offices?|countries|coverage|markets?|programmes?|grants?)\b|[£$€¥₦₹]\s*[\d,.]+\s*(?:M|K|B|billion|million|thousand)?|[\d,]+\s*(?:TPS|RPS|req(?:uests?)?\s*(?:per|\/)\s*sec(?:ond)?|transactions?\s*per\s*(?:second|minute|day)|daily\s+(?:volume|revenue|transactions?)|monthly\s+(?:volume|revenue)|annual\s+(?:revenue|ARR)))/i;
-
-/** Returns true when `bullet` has a scope signal within its first `wordLimit` words. */
-function hasScopeSignalEarly(bullet: string, wordLimit = 12): boolean {
-    const firstN = (bullet || '').trim().split(/\s+/).slice(0, wordLimit).join(' ');
-    return SCOPE_SIGNAL_RE.test(firstN);
-}
-
-export function enforceScopeAnchors(cv: CVData): CVData {
-    const experience = (cv.experience || []).map(role => {
-        const bullets = role.responsibilities || [];
-        if (bullets.length < 2) return role;
-
-        // Already anchored (scope signal in first 10 words)
-        if (hasScopeSignalEarly(bullets[0])) return role;
-
-        // Find first bullet with an early scope signal in positions 1+
-        const scopeIdx = bullets.findIndex((b, i) => i > 0 && hasScopeSignalEarly(b));
-        if (scopeIdx === -1) return role; // can't fix without inventing content
-
-        const newBullets = [...bullets];
-        [newBullets[0], newBullets[scopeIdx]] = [newBullets[scopeIdx], newBullets[0]];
-
-        if (import.meta.env.DEV) {
-            console.info(`[ScopeAnchor] Swapped bullet[${scopeIdx}] → bullet[0] in "${role.jobTitle} @ ${role.company}"`);
-        }
-        return { ...role, responsibilities: newBullets };
-    });
-
-    return { ...cv, experience };
 }
 
 // ────────────────────────────────────────────────────────────────────────────
