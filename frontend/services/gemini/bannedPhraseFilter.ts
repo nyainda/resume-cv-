@@ -64,7 +64,7 @@ export function applyBannedPhraseFilter(cvData: CVData): CVData {
     //    a/an disagreement, doubled "the the", leading commas, and
     //    sentence-start capitalization that substitutions can break —
     //    e.g. "Worked on X" → "built X" needs to become "Built X").
-    export function tidy(s: string, originalStartedUpper: boolean): string {
+    function tidy(s: string, originalStartedUpper: boolean): string {
         let out = s;
         // Collapse runs of whitespace created by deletions.
         out = out.replace(/\s{2,}/g, ' ');
@@ -94,7 +94,7 @@ export function applyBannedPhraseFilter(cvData: CVData): CVData {
     const stripped: string[] = [];
     let revertedCount = 0;
 
-    export function cleanText(text: string): string {
+    function cleanText(text: string): string {
         if (!text || typeof text !== 'string') return text;
         const original = text;
         const origLen = original.replace(/\s+/g, ' ').trim().length;
