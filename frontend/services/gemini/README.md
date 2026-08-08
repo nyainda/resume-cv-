@@ -1,24 +1,27 @@
 # geminiService modules
 
-Split from the monolithic `geminiService.ts` for readability.
-**No intentional logic changes.**
+Structural split of the former monolithic `geminiService.ts`.
+**No intentional logic or behaviour changes** — code was moved into smaller files only.
 
-`../geminiService.ts` is a thin ~80-line barrel that re-exports the public API.
+## Entry point
 
-| Module | Lines (approx) | Responsibility |
-|--------|----------------|----------------|
-| `generateCVCore.ts` | ~1.5k | Main `generateCV` orchestrator |
-| `fidelityAndGuardian.ts` | ~800 | Source fidelity + silent guardian + finalize |
-| `validatorHumanizer.ts` | ~600 | Post-gen validator + banned filter |
-| `preGeneration.ts` | ~570 | Currency, seniority, scenario, gaps |
-| `qualityPolish.ts` | ~470 | `runQualityPolishPasses` |
-| `profileGeneration.ts` | ~350 | humanize, generateProfile, parse |
-| `optimizeImprove.ts` | ~340 | optimize, improve, polish, GitHub CV |
-| `fileImport.ts` | ~320 | PDF/image profile import |
-| + feature modules | smaller | cover letter, coaching, scholarship, etc. |
-
-Import from the barrel only:
+`../geminiService.ts` is a thin (~80-line) barrel. Import from there:
 
 ```ts
 import { generateCV, loadRules, improveCV } from './geminiService';
 ```
+
+## Layout
+
+| Area | Modules |
+|------|---------|
+| **CV generation** | `generateCVCore.ts`, `cvJsonUtils.ts`, `qualityPolish.ts`, `voiceConsistency.ts` |
+| **Fidelity / polish** | `sourceFidelity.ts`, `silentGuardian.ts`, `finalizeCvData.ts` |
+| **Validation** | `postGenValidator.ts`, `bannedPhraseFilter.ts` |
+| **Pre-generation** | `preGenDetect.ts`, `preGenBlocks.ts` |
+| **Profile** | `profileGeneration.ts`, `profileSerialize.ts`, `fileImportExtract.ts`, `fileImportGenerate.ts` |
+| **Optimize / improve** | `optimizeCVForJob.ts`, `polishExistingCV.ts`, `improveCV.ts`, `githubCV.ts` |
+| **Features** | cover letter, interview, email, scholarship, coaching fixes, score, etc. |
+| **Shims** | `preGeneration.ts`, `fidelityAndGuardian.ts`, `validatorHumanizer.ts`, `fileImport.ts`, `optimizeImprove.ts`, `coachingFixes.ts`, `fieldEnhancers.ts` re-export for compatibility |
+
+Largest remaining unit is `generateCVCore.ts` (~1.5k) because `generateCV` is a single orchestrator function; only pure helpers (JSON repair) were lifted out without rewriting control flow.

@@ -8,7 +8,8 @@
 // Core generation
 export { generateCV } from './gemini/generateCVCore';
 export { generateProfile, humanizeText, parseProfileJson, buildSectionOrderInstruction, buildScholarshipFormatInstruction } from './gemini/profileGeneration';
-export { finalizeCvData, applySourceFidelityRules, applyFidelityAgainstSourceCV } from './gemini/fidelityAndGuardian';
+export { finalizeCvData } from './gemini/finalizeCvData';
+export { applySourceFidelityRules, applyFidelityAgainstSourceCV } from './gemini/sourceFidelity';
 export { enforceVoiceConsistency } from './gemini/voiceConsistency';
 export { runQualityPolishPasses, logLeakSummary, type LeakSummaryPayload, buildLeakSummaryPayload } from './gemini/qualityPolish';
 export { optimizeCVForJob, polishExistingCV, improveCV, generateCVFromGitHub, type GitHubRepoForCV } from './gemini/optimizeImprove';

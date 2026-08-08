@@ -10,7 +10,8 @@ import {
     enforceRhythmBalance, enforceScopeAnchors, applyRemoteBannedPhrasesToCV,
     type PurifyReport,
 } from '../cvPurificationPipeline';
-import { finalizeCvData, _runSilentQualityGuardian } from './fidelityAndGuardian';
+import { finalizeCvData } from './finalizeCvData';
+import { _runSilentQualityGuardian } from './silentGuardian';
 import { enforceVoiceConsistency } from './voiceConsistency';
 import { fixPronounsInCV } from '../cvPromptHelpers';
 import { auditCvQuality as _auditCvQuality } from '../cvNumberFidelity';
