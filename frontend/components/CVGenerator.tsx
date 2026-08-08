@@ -1038,7 +1038,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
   const jdRequired = cvPurpose === 'job';
   const jdOptional = cvPurpose === 'academic'; // optional for scholarship, not needed for general
 
-  const handleGenerateCV = useCallback(async () => {
+  const handleGenerateCV = useCallback(async (explicitRegenerate = false) => {
     if (!apiKeySet) {
       setError("The CV Engine is not reachable right now. Please check your connection and try again.");
       return;
@@ -1148,9 +1148,14 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
       return union === 0 ? 0 : intersect / union;
     };
 
+    const freshGenerationRequested = explicitRegenerate || forceFreshRef.current;
+    forceFreshRef.current = false; // consume the one-shot flag; retries reuse the local decision
+
     const runGenerate = async (): Promise<CVData> => {
-      let skipSmartPath = forceFreshRef.current;
-      forceFreshRef.current = false; // consume the flag immediately
+      // Keep this decision stable across an automatic retry. Previously the
+      // ref was consumed before the retry, allowing a forced regeneration to
+      // fall back into the smart-purify path.
+      let skipSmartPath = freshGenerationRequested;
 
       // ── Bug 1: JD fingerprinting — skip smart path when a NEW JD is detected ──
       // If the user changed the JD significantly since the last generation, always
@@ -1253,6 +1258,8 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
         // Pass the active slot ID so the profile cache lookup is scoped to
         // THIS room only — prevents cross-room hash reuse on cloned profiles.
         profileId,
+        currentCV || undefined,
+        freshGenerationRequested,
       );
       advanceStage('polishing', 'Polishing every line — capitals, punctuation, numbers…');
       await new Promise(r => setTimeout(r, 300));
@@ -1444,7 +1451,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
     setIsLoading(false);
     setLoadingMessage('Generating...');
     resetProgress();
-  }, [jobDescription, userProfile, setCurrentCV, generationMode, setCoverLetter, apiKeySet, openSettings, cvPurpose, scholarshipFormat, jdRequired, targetLanguage, advanceStage, resetProgress, syncCurrentCVToD1, onAutoSaveCV, targetJobTitle, targetCompany]);
+  }, [jobDescription, userProfile, currentCV, profileId, setCurrentCV, generationMode, setCoverLetter, apiKeySet, openSettings, cvPurpose, scholarshipFormat, jdRequired, targetLanguage, advanceStage, resetProgress, syncCurrentCVToD1, onAutoSaveCV, targetJobTitle, targetCompany]);
 
   /**
    * Zero-LLM fallback: assembles a clean CV directly from the user's profile
@@ -2751,7 +2758,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
               </button>
               {/* Regenerate */}
               <button
-                onClick={() => { setCvScore(null); handleGenerateCV(); }}
+                onClick={() => { setCvScore(null); handleGenerateCV(true); }}
                 disabled={isLoading || isEditing || !apiKeySet}
                 title="Regenerate CV"
                 className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold border bg-zinc-50 dark:bg-neutral-700 text-zinc-600 dark:text-zinc-300 border-zinc-200 dark:border-neutral-600 hover:border-zinc-300 dark:hover:border-neutral-500 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"

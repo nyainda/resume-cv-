@@ -59,3 +59,4 @@
 - [Tier sync dual-source bug](tier-sync-dual-source-bug.md) — real feature-gating tier never synced from server plan (dead/one-way fn); now two-way via AuthContext; 'pro' plan string retired to 'premium'.
 - [Onboarding premium self-grant bug](onboarding-premium-self-grant.md) — picking "Premium" in onboarding must never call setTier('premium') without real payment; route to waitlist/notify-me instead until checkout exists.
 - [Cross-device sync 3-bug patch](sync-cross-device-fix.md) — currentCV protection in payload trimming; immediate flush on generation; merge-guard fix on receiving device.
+- [Fit-aware narrative angles](fit-aware-narrative-angles.md) — score profile/JD evidence, rotate among suitable framings, and bypass cache on explicit regeneration.

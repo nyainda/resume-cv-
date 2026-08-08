@@ -71,6 +71,21 @@ import {
     type NarrativeAngle,
 } from './cvExamplesClient';
 import { getHashIfCached, getProfileCacheHash, sha256Hex } from './profileCacheClient';
+import {
+    selectFreshAngleDetailed,
+    recordAngleUsed,
+    buildNarrativeAngleBlock,
+    verifyNarrativeAngle,
+} from './narrativeAngle';
+// Preserve the existing public helpers for callers that used the original
+// in-file implementation.
+export {
+    selectFreshAngle,
+    selectFreshAngleDetailed,
+    recordAngleUsed,
+    buildNarrativeAngleBlock,
+    verifyNarrativeAngle,
+} from './narrativeAngle';
 
 // ── Variance helpers ──────────────────────────────────────────────────────────
 // These inject controlled randomness at the prompt level so each generation
@@ -86,97 +101,6 @@ function shuffleArray<T>(arr: readonly T[]): T[] {
     return a;
 }
 
-// ── Narrative Angle System ────────────────────────────────────────────────────
-// Each generation randomly picks one of four angles.
-// The angle changes FRAMING only — facts, metrics, companies are always fixed.
-const NARRATIVE_ANGLES: Record<NarrativeAngle, {
-    name: string;
-    description: string;
-    summaryFocus: string;
-    bulletBias: string;
-}> = {
-    impact: {
-        name: 'Impact',
-        description: 'Lead with quantified outcomes and business results. Every role is told through what changed because of this person.',
-        summaryFocus: 'open with the strongest measurable result delivered, then prove it with a second achievement',
-        bulletBias: 'lead with the outcome when strong data exists ("Cut X by Y%, saving Z") rather than always opening with an action verb',
-    },
-    process: {
-        name: 'Process',
-        description: 'Lead with systems, methods, and how work was done. Emphasise the HOW over the WHAT.',
-        summaryFocus: 'open with the signature working method or the system/framework this person is known for building or improving',
-        bulletBias: 'show the mechanism ("By redesigning X, achieved Y") — the method is the story; use scope-openers and context-openers frequently',
-    },
-    people: {
-        name: 'People',
-        description: 'Lead with collaboration, influence, and team impact. Emphasise who was worked with and who was developed.',
-        summaryFocus: 'open with the leadership or collaboration style and the team/stakeholder scale operated at',
-        bulletBias: 'anchor bullets in team size, stakeholder scope, or mentorship outcomes where genuine data exists',
-    },
-    growth: {
-        name: 'Growth',
-        description: 'Lead with progression, expanding scope, and learning trajectory. Show momentum over time.',
-        summaryFocus: 'open with the arc — the expanding responsibility earned and the trajectory demonstrated',
-        bulletBias: 'show before/after scope within roles where the progression is real; use timeframe-openers ("Over X months,…") to show pace',
-    },
-};
-
-// ─── Narrative angle history (localStorage, zero tokens) ─────────────────────
-// Tracks which angles have been used recently so each new generation picks
-// the LEAST-recently-used angle. All 4 angles rotate evenly across sessions.
-const _ANGLE_HISTORY_KEY = 'cv:angleHistory';
-const _ALL_ANGLES: NarrativeAngle[] = ['impact', 'process', 'people', 'growth'];
-
-function _readAngleHistory(): NarrativeAngle[] {
-    try {
-        const raw = localStorage.getItem(_ANGLE_HISTORY_KEY);
-        const arr: unknown = raw ? JSON.parse(raw) : [];
-        if (!Array.isArray(arr)) return [];
-        return (arr as unknown[]).filter((a): a is NarrativeAngle =>
-            typeof a === 'string' && (_ALL_ANGLES as string[]).includes(a)
-        );
-    } catch { return []; }
-}
-
-/** Call after a successful generation to record the angle that was used. */
-export function recordAngleUsed(angle: NarrativeAngle): void {
-    try {
-        const history = _readAngleHistory();
-        // Keep last 8 entries (2 full rotations), move used angle to the end.
-        const updated = [...history.filter(a => a !== angle), angle].slice(-8);
-        localStorage.setItem(_ANGLE_HISTORY_KEY, JSON.stringify(updated));
-    } catch { /* localStorage unavailable — silent */ }
-}
-
-/**
- * Picks the narrative angle least recently used by this user.
- * An optional `historyOverride` is accepted so unit tests can inject history
- * without touching localStorage.
- *
- * Algorithm:
- *   - Each angle gets a "recency score" = its position in history (higher = newer).
- *   - Angles not yet in history score 0 (freshest possible — pick these first).
- *   - Among ties, pick randomly so the first-time experience is still varied.
- */
-export function selectFreshAngle(historyOverride?: NarrativeAngle[]): NarrativeAngle {
-    const history = historyOverride ?? _readAngleHistory();
-    const scored = _ALL_ANGLES.map(angle => {
-        const lastIdx = history.lastIndexOf(angle); // -1 if never used
-        return { angle, recency: lastIdx === -1 ? 0 : lastIdx + 1 };
-    });
-    scored.sort((a, b) => a.recency - b.recency);
-    const minRecency = scored[0].recency;
-    const candidates = scored.filter(s => s.recency === minRecency);
-    return candidates[Math.floor(Math.random() * candidates.length)].angle;
-}
-
-function buildNarrativeAngleBlock(angle: NarrativeAngle): string {
-    const a = NARRATIVE_ANGLES[angle];
-    return `**NARRATIVE ANGLE — ${a.name.toUpperCase()}**: ${a.description}
-- Summary focus: ${a.summaryFocus}.
-- Bullet framing bias: ${a.bulletBias}.
-- CRITICAL: this angle affects framing and emphasis ONLY. Facts, metrics, company names, dates must never change.`;
-}
 import { runQualityGate, consumePreviousViolationsBlock } from './cvQualityGate';
 
 // ─── CV Generation Cache ──────────────────────────────────────────────────────
@@ -185,11 +109,11 @@ import { runQualityGate, consumePreviousViolationsBlock } from './cvQualityGate'
 // IMPORTANT: Bump CV_RULES_VERSION whenever generation instructions change —
 // this automatically invalidates every cached result so users always get CVs
 // built under the latest rules.
-const CV_RULES_VERSION = '2.5'; // bumped: 15-rule reminder, TITLE_FIELD_MAP, deterministic assembler
+const CV_RULES_VERSION = '2.6'; // fit-aware narrative angles + explicit regenerate
 const CV_CACHE_MAX = 12;
 const CV_CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutes
 
-import { cvCache as _cvCache, invalidateCVCache } from './cvCache';
+import { cvCache as _cvCache, invalidateCVCache, deleteCVCacheEntry } from './cvCache';
 export { invalidateCVCache };
 interface CacheEntry { result: CVData; ts: number; }
 const cvCache = _cvCache as Map<string, CacheEntry>;
@@ -3022,6 +2946,11 @@ export const generateCV = async (
      * previous one — preventing identical bullet openers on regeneration.
      */
     previousCvData?: CVData,
+    /**
+     * Explicit user regeneration. This bypasses the in-memory cache and asks
+     * the angle selector to avoid the most recently used suitable framing.
+     */
+    forceRegenerate = false,
 ): Promise<CVData> => {
 
     // ── HOT FIRE (inbound) ── Scrub banned phrases out of the source profile
@@ -3034,6 +2963,7 @@ export const generateCV = async (
     const jd = smartTruncateJD(contextDescription.trim());
 
     // ── Cache check: return immediately if profile+JD+mode haven't changed ──
+    // Explicit Redo/Force Fresh must never return the previous CV.
     const _pinnedKeywords = (targetKeywords || []).slice(0, 12);
     const cacheKey = cvCacheKey(profile, jd, generationMode, purpose, {
         targetLanguage,
@@ -3041,19 +2971,35 @@ export const generateCV = async (
         marketResearch: marketResearch || null,
         targetKeywords: _pinnedKeywords.length ? _pinnedKeywords : undefined,
     });
-    const cached = cvCacheGet(cacheKey);
-    if (cached) {
-        console.log('[CV Cache] Hit — returning cached result (no tokens used)');
-        return cached;
+    if (forceRegenerate) {
+        deleteCVCacheEntry(cacheKey);
+        console.log('[CV Cache] Explicit regeneration — cache entry invalidated');
+    } else {
+        const cached = cvCacheGet(cacheKey);
+        if (cached) {
+            console.log('[CV Cache] Hit — returning cached result (no tokens used)');
+            return cached;
+        }
     }
 
-    // ── Narrative angle — selected once per generation, never cached ──────────
-    // Different angle each run so the same profile produces different-feeling CVs.
-    // Academic CVs always use 'impact' — most effective for scholarship/fellowship applications.
-    const _narrativeAngle: NarrativeAngle = purpose === 'academic'
-        ? 'impact'
-        : selectFreshAngle();
-    console.log(`[CV Gen] Narrative angle: ${_narrativeAngle}`);
+    // ── Narrative angle — fit-aware selection with scoped LRU rotation ────────
+    // The score only chooses framing; it never supplies facts. Strong profiles
+    // rotate among their best-supported angles, while weak profiles retain the
+    // original all-angle LRU fallback.
+    const _anglePick = selectFreshAngleDetailed({
+        profile,
+        jd,
+        purpose,
+        slotId,
+        preferDifferent: forceRegenerate,
+    });
+    const _narrativeAngle: NarrativeAngle = _anglePick.angle;
+    const _angleHistoryKey = _anglePick.historyKey;
+    console.log(
+        `[CV Gen] Narrative angle: ${_narrativeAngle} ` +
+        `(mode=${_anglePick.mode}, pool=[${_anglePick.pool.join(',')}], ` +
+        `scores=${JSON.stringify(_anglePick.scores)})`,
+    );
 
     // ── Generation trace — lightweight audit trail for this generation ────────
     const _traceBuilder: TraceBuilder = startTrace(CV_RULES_VERSION, _narrativeAngle, _pinnedKeywords);
@@ -4355,8 +4301,21 @@ ${lines}
     }
 
     // ── Record angle used so next generation picks a different one ────────────
-    if (purpose !== 'academic') recordAngleUsed(_narrativeAngle);
-    console.log(`[CV Gen] Angle "${_narrativeAngle}" recorded — next run will prefer a different angle.`);
+    recordAngleUsed(_narrativeAngle, _angleHistoryKey);
+    console.log(`[CV Gen] Angle "${_narrativeAngle}" recorded for scoped history.`);
+
+    // Diagnostic only: confirm the selected framing left some trace in the
+    // result. This never rewrites or blocks a CV and therefore cannot invent
+    // content merely to satisfy the heuristic.
+    try {
+        const angleVerify = verifyNarrativeAngle(cvData, _narrativeAngle);
+        console[angleVerify.matched ? 'debug' : 'warn'](
+            `[CV Gen] ${angleVerify.detail}`,
+        );
+        _traceBuilder.record({ angleVerify } as any);
+    } catch {
+        // Verification is non-critical telemetry.
+    }
 
     // ── Validation Engine — hard structural rules, post-purification ──────────
     // Runs synchronously on the final CV before caching or returning.
