@@ -4,7 +4,7 @@
  */
 
 import type { UserProfile, CVData } from '../types';
-import { groqChat, GROQ_LARGE, GROQ_FAST } from './groqService';
+import { groqChat, GROQ_FAST } from './groqService';
 import { SYSTEM_INSTRUCTION_PARSER } from './pipelineRules';
 
 export interface CVCheckResult {
@@ -143,3 +143,24 @@ Return ONLY a JSON object:
         try { raw = JSON.parse(repaired) as CVScore; }
         catch { throw new Error('Could not parse score response — please try again.'); }
     }
+
+    // Sanitize: ensure no field contains a raw JSON string (LLM sometimes wraps a
+    // value in {} or []) — strip anything that looks like a JSON object/array dump
+    const cleanStr = (v: unknown): string => {
+        if (typeof v !== 'string') return '';
+        const t = v.trim();
+        if ((t.startsWith('{') && t.endsWith('}')) || (t.startsWith('[') && t.endsWith(']'))) return '';
+        return t;
+    };
+    const cleanArr = (arr: unknown[]): string[] =>
+        (arr || []).map(cleanStr).filter(Boolean);
+
+    return {
+        ...raw,
+        verdict: cleanStr(raw.verdict) || 'Score computed.',
+        strengths:       cleanArr(raw.strengths),
+        improvements:    cleanArr(raw.improvements),
+        missingKeywords: cleanArr(raw.missingKeywords),
+    } as CVScore;
+};
+
