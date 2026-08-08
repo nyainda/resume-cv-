@@ -112,6 +112,13 @@ export {
     generateThankYouLetter,
     generateSmartCoverLetter,
 } from './coverLetterService';
+export { generateInterviewQA } from './interviewPrepService';
+export {
+    EMAIL_TONE_PRESETS,
+    type EmailToneId,
+    generateApplicationEmail,
+} from './applicationEmailService';
+export { paraphraseText, type ParaphraseTone } from './paraphraseService';
 
 // Preserve the existing public helpers for callers that used the original
 // in-file implementation.
@@ -4770,49 +4777,6 @@ ${HUMANIZATION_CHECKLIST}
  * Generates tailored interview Q&A pairs from the CV + JD.
  * Uses GROQ_FAST for token efficiency (≈60% cheaper than GROQ_LARGE).
  */
-export const generateInterviewQA = async (
-    profile: UserProfile,
-    jd: string,
-    companyName?: string,
-    count: number = 10
-): Promise<Array<{ question: string; answer: string; category: string }>> => {
-    const jdCapped = jd.substring(0, 2000);
-    const company = companyName || 'the company';
-    const n = Math.max(5, Math.min(20, count));
-    // Distribute categories proportionally
-    const behav = Math.max(1, Math.round(n * 0.2));
-    const tech   = Math.max(1, Math.round(n * 0.2));
-    const sit    = Math.max(1, Math.round(n * 0.2));
-    const cult   = Math.max(1, Math.round(n * 0.2));
-    const str    = n - behav - tech - sit - cult;
-    const prompt = `
-You are an expert interview coach preparing a candidate for a specific job interview.
-
-CANDIDATE PROFILE (compact):
-${compactProfile(profile)}
-
-JOB DESCRIPTION:
-${jdCapped}
-
-TARGET COMPANY: ${company}
-
-Generate exactly ${n} tailored interview questions with model answers. Questions must be specific to this role and company — NOT generic. Mix these categories:
-- ${behav} Behavioural (STAR format — "Tell me about a time when...")
-- ${tech} Technical / Role-specific (test core skills from JD)
-- ${sit} Situational (hypothetical scenarios from the JD)
-- ${cult} Culture / Motivation (why this company, role, why now)
-- ${str} Strength / Weakness probes (digging into the CV)
-
-For each question, write a TAILORED model answer based on the candidate's ACTUAL experience. Reference real companies, skills, and achievements from their profile. Model answers should be 3–5 sentences.
-
-Return ONLY a JSON array of ${n} objects:
-[{ "question": "string", "answer": "string", "category": "Behavioural|Technical|Situational|Culture|Strength" }]
-`;
-    const tokens = Math.min(4000, n * 350);
-    const text = await groqChat(GROQ_FAST, SYSTEM_INSTRUCTION_PROFESSIONAL, prompt, { task: 'coaching', temperature: 0.6, json: true, maxTokens: tokens });
-    return JSON.parse(text.trim());
-};
-
 // ─── D1 JD analysis cache ─────────────────────────────────────────────────────
 
 const _JD_CACHE_ENGINE_URL: string = (import.meta as any).env?.VITE_CV_ENGINE_URL ?? '';
@@ -4865,123 +4829,6 @@ function storeJdAnalysisCache(jdHash: string, result: JobAnalysisResult): void {
         signal: AbortSignal.timeout(5000),
     }).catch(() => {});
 }
-
-// ── HR-compliant application email generator ────────────────────────────────
-// Rules based on recruiter research:
-// • 150-200 word body — recruiters spend ~7 seconds scanning
-// • Never open with "I am writing to apply" or any cliché
-// • One concrete metric / achievement in the body
-// • Reference the specific role and company
-// • Clear CTA in the closing line
-// • No banned phrases (same list as cover letter)
-// Curated tone presets for the email composer.
-// Each maps a user-facing label to a tone instruction injected into the prompt.
-export const EMAIL_TONE_PRESETS = [
-    {
-        id:    'confident',
-        label: 'Confident',
-        icon:  '⚡',
-        desc:  'Direct, bold, results-focused — mirrors a startup / delivery voice',
-        instruction: 'Write with lean, direct energy. Lead with impact. Short declarative sentences. Bias towards action verbs. Confident without arrogance.',
-    },
-    {
-        id:    'professional',
-        label: 'Professional',
-        icon:  '🎯',
-        desc:  'Measured, formal and precise — suited to finance, consulting, corporate',
-        instruction: 'Write with measured formality. Precise language, no contractions. Senior but not stiff. Every claim anchored to an outcome.',
-    },
-    {
-        id:    'warm',
-        label: 'Warm',
-        icon:  '🤝',
-        desc:  'Personable and collaborative — good for people-facing or creative roles',
-        instruction: 'Write with warmth and authenticity. Slightly conversational but still polished. Show genuine interest in the team and mission. Human, not robotic.',
-    },
-    {
-        id:    'executive',
-        label: 'Executive',
-        icon:  '🏛️',
-        desc:  'Strategic, board-facing — for senior / leadership applications',
-        instruction: 'Write at board-deck level. Strategic framing, not task-listing. Speak to vision and organisational impact. Authoritative and concise.',
-    },
-] as const;
-export type EmailToneId = typeof EMAIL_TONE_PRESETS[number]['id'];
-
-export const generateApplicationEmail = async (
-    profileInput: UserProfile,
-    jobTitle: string,
-    companyName: string,
-    keywords: string[],
-    _jobDescription: string,
-    toneId: EmailToneId = 'confident',
-    workerVoiceTone?: string,             // auto-detected tone string from /api/cv/brief
-    onChunk?: (delta: string) => void,    // optional streaming callback
-): Promise<{ subject: string; body: string }> => {
-    const profile = purifyProfile(profileInput);
-    const name     = profile.personalInfo?.name  || 'Applicant';
-    const email    = profile.personalInfo?.email || '';
-    const phone    = profile.personalInfo?.phone || '';
-
-    const topSkills  = (profile.skills || []).slice(0, 5).join(', ');
-    const topKeywords = keywords.slice(0, 6).join(', ');
-    const recentRole  = profile.workExperience?.[0]
-        ? `${profile.workExperience[0].jobTitle} at ${profile.workExperience[0].company}`
-        : '';
-    const achievements = (profile.workExperience || [])
-        .flatMap(e => (e.responsibilities || []).slice(0, 2))
-        .slice(0, 4)
-        .join(' | ');
-
-    const roleRef    = jobTitle  || 'the advertised position';
-    const companyRef = companyName && companyName !== 'Unknown' ? companyName : 'your organisation';
-
-    // Tone instruction — worker voice takes precedence if detected, else use preset
-    const preset = EMAIL_TONE_PRESETS.find(t => t.id === toneId) ?? EMAIL_TONE_PRESETS[0];
-    const toneInstruction = workerVoiceTone
-        ? `TONE (auto-detected from job description — worker voice: "${workerVoiceTone}"): ${preset.instruction}`
-        : `TONE: ${preset.instruction}`;
-
-    const prompt = `You are a career coach writing a SHORT, HIGH-IMPACT job application email for ${name}.
-
-ROLE: ${roleRef} at ${companyRef}
-APPLICANT BACKGROUND: ${recentRole || topSkills}
-KEY ACHIEVEMENTS (use ONE with a metric): ${achievements || 'Strong delivery track record'}
-TOP JD KEYWORDS (weave in naturally): ${topKeywords}
-SIGN-OFF NAME: ${name}${email ? `\n${email}` : ''}${phone ? `\n${phone}` : ''}
-${toneInstruction}
-
-MANDATORY RULES — every rule is non-negotiable:
-1. SUBJECT LINE: Return it on the very first line as exactly: Subject: <text>
-2. Leave one blank line, then write the email body.
-3. Body MUST be 150-200 words (salutation to sign-off name). Count carefully.
-4. Open with "Dear Hiring Manager," (or specific name if in JD).
-5. NEVER open the first paragraph with "I". Lead with a bold 1-sentence value claim or hook.
-6. THREE short paragraphs:
-   - Para 1 (~40 words): Value hook + role + company name.
-   - Para 2 (~80 words): One specific achievement with a real metric, then bridge to 2 JD keywords.
-   - Para 3 (~40 words): "Please find my CV attached." + a confident single-sentence CTA for a call/meeting.
-7. Sign off: "Best regards," then the applicant's name and contact info on separate lines.
-8. BANNED PHRASES — never use: "I am writing to apply", "I am writing to express", "please find attached my resume", "I look forward to hearing from you" (standalone), "passionate about", "proven track record", "team player", "self-starter", "detail-oriented", "excited to leverage", "results-driven", "synergize", "utilize".
-9. Honour the TONE instruction above — it shapes sentence length, formality, and vocabulary.
-10. Return ONLY the subject line + blank line + email body. No commentary.`;
-
-    const raw = onChunk
-        ? await groqChatStream(GROQ_LARGE, SYSTEM_INSTRUCTION_PROFESSIONAL, prompt, onChunk, { temperature: 0.6, maxTokens: 600 })
-        : await groqChat(GROQ_LARGE, SYSTEM_INSTRUCTION_PROFESSIONAL, prompt, { temperature: 0.6, maxTokens: 600 });
-    const text = purifyText(raw);
-
-    // Parse subject from first line
-    const lines   = text.split('\n');
-    const subjectLine = lines.find(l => /^subject:/i.test(l.trim()));
-    const subject = subjectLine
-        ? subjectLine.replace(/^subject:\s*/i, '').trim()
-        : `Application for ${roleRef} at ${companyRef} — ${name}`;
-    const bodyStart = subjectLine ? lines.indexOf(subjectLine) + 1 : 0;
-    const body = lines.slice(bodyStart).join('\n').trimStart();
-
-    return { subject, body };
-};
 
 export const analyzeJobDescriptionForKeywords = async (jobDescription: string): Promise<JobAnalysisResult> => {
     // Check D1 cache first — same JD text always produces the same result so
@@ -5516,40 +5363,6 @@ export const checkCVAgainstJob = async (
 // ─── Smart Cover Letter: JD + Company Research ───────────────────────────────
 
 // ─── Paraphrase: Rewrite text in different tones ──────────────────────────────
-
-export type ParaphraseTone = 'professional' | 'concise' | 'creative' | 'ats-friendly';
-
-export const paraphraseText = async (
-    text: string,
-    tone: ParaphraseTone = 'professional',
-    context: string = ''
-): Promise<string> => {
-    const banned = await _getBannedPhrasesForPrompt();
-    const toneInstructions: Record<ParaphraseTone, string> = {
-        professional: 'Rewrite in a polished, professional tone. Use strong past-tense action verbs (e.g. Led, Built, Delivered, Reduced, Launched). Keep formal language but sound human — not robotic.',
-        concise: 'Rewrite to be as concise as possible. Cut filler words, reduce length by 30-40%, but preserve ALL key information and impact. Each bullet should be one powerful line.',
-        creative: 'Rewrite with more engaging, dynamic language. Use vivid descriptions and compelling narrative while staying professional. Make it memorable.',
-        'ats-friendly': 'Rewrite to maximise ATS compatibility. Use standard industry keywords from the job description context where provided. Keep it keyword-rich but human-readable. Avoid jargon and buzzwords.',
-    };
-
-    const prompt = `
-        ${toneInstructions[tone]}
-
-        ${context ? `CONTEXT (job description this text is being tailored for):\n${context}\n` : ''}
-
-        TEXT TO REWRITE:
-        ${text}
-
-        RULES:
-        - Preserve ALL factual details: dates, numbers, company names, job titles, metrics. Do NOT invent new figures.
-        - Never use approximation markers like "~", "approx.", or hedged estimates.
-        - BANNED PHRASES — never use any of these: ${banned}
-        - Return ONLY the rewritten text, no commentary or explanation.
-        - Maintain the same general structure (if it's bullets, return bullets; if paragraphs, return paragraphs).
-    `;
-
-    return groqChat(GROQ_LARGE, SYSTEM_INSTRUCTION_HUMANIZER, prompt, { temperature: tone === 'ats-friendly' ? 0.3 : 0.7 });
-};
 
 // ── Verb-Saturation One-Click Fix ─────────────────────────────────────────────
 /**
