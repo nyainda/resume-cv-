@@ -139,7 +139,7 @@ export const generateProfileFromFileWithGroq = async (
         ${USER_PROFILE_SCHEMA}
     `;
 
-    const { workerProxyMultimodal } = await import('./cvEngineClient');
+    const { workerProxyMultimodal } = await import('../cvEngineClient');
     const raw = await workerProxyMultimodal(groqKey, base64Data, mimeType, prompt, {
         maxTokens: 8192,
         temperature: 0.1,

@@ -54,7 +54,7 @@ BULLETS:
 ${numbered}`;
 
     try {
-        const { purifiedCompletion } = await import('./purifiedLLMGateway');
+        const { purifiedCompletion } = await import('../purifiedLLMGateway');
         const raw = await groqChat(GROQ_FAST, systemInstruction, prompt, { temperature: 0.45, json: true, maxTokens: 2400 });
         const _stripped = (raw ?? '{}').trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
         const parsed = JSON.parse(_stripped || '{}') as { rewrites?: Record<string, string> };

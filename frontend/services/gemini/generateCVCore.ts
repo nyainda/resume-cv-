@@ -394,9 +394,9 @@ ${kwLines}
     // S1: Rule Registry — evaluate against cached registry configs (zero latency,
     // sync read from localStorage). Records the rule key and A/B group into the
     // generation trace so every generation is traceable to a specific rule version.
-    let _ruleEval: import('./ruleRegistryClient').EvaluateResult | null = null;
+    let _ruleEval: import('../ruleRegistryClient').EvaluateResult | null = null;
     try {
-        const { evaluateScenario: _evalScenario, getCachedRuleConfigsSync } = await import('./ruleRegistryClient');
+        const { evaluateScenario: _evalScenario, getCachedRuleConfigsSync } = await import('../ruleRegistryClient');
         const _ruleConfigs = getCachedRuleConfigsSync();
         const _totalMonths = (profile.workExperience || []).reduce((acc: number, exp: any) => {
             const start = new Date(exp.startDate);

@@ -36,7 +36,7 @@ export const extractProfileTextFromFile = async (base64Data: string, mimeType: s
         const groqKey = getGroqApiKey();
         if (!groqKey) throw new Error('No Groq API key configured. Go to Settings → AI Keys to add your Groq API key.');
         if (!isImage) throw new Error('Groq vision only supports images. For PDFs, paste your CV text instead.');
-        const { workerProxyMultimodal } = await import('./cvEngineClient');
+        const { workerProxyMultimodal } = await import('../cvEngineClient');
         const text = await workerProxyMultimodal(groqKey, base64Data, mimeType, prompt, { maxTokens: 4096, provider: 'groq' });
         if (!text || text.trim().length < 20) throw new Error('Groq returned an empty response. Please try again.');
         return text;

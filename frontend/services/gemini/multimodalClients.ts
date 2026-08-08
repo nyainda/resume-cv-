@@ -64,7 +64,7 @@ export function getClaudeApiKey(): string | null {
  * when the browser calls api.anthropic.com directly.
  * Falls back to a direct browser call only when the worker is unreachable.
  */
-export async export function claudeMultimodalCall(
+export async function claudeMultimodalCall(
     apiKey: string,
     base64Data: string,
     mimeType: string,
@@ -73,7 +73,7 @@ export async export function claudeMultimodalCall(
 ): Promise<string> {
     // ── Primary path: CF Worker proxy (no CORS issues) ────────────────────────
     try {
-        const { callProviderViaProxyMultimodal } = await import('./groqService');
+        const { callProviderViaProxyMultimodal } = await import('../groqService');
         const result = await callProviderViaProxyMultimodal(apiKey, base64Data, mimeType, textPrompt, opts);
         if (result && result.trim().length > 0) return result;
     } catch (proxyErr: any) {
@@ -118,7 +118,7 @@ export async export function claudeMultimodalCall(
 }
 
 // --- Gemini Retry Logic (for multimodal calls) ---
-export async export function retryGemini<T>(operation: () => Promise<T>, retries = 4, delayMs = 1500): Promise<T> {
+export async function retryGemini<T>(operation: () => Promise<T>, retries = 4, delayMs = 1500): Promise<T> {
     try {
         return await operation();
     } catch (error: any) {
