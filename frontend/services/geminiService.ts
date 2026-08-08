@@ -77,6 +77,42 @@ import {
     buildNarrativeAngleBlock,
     verifyNarrativeAngle,
 } from './narrativeAngle';
+
+// ── Carefully extracted modules (logic unchanged) ───────────────────────────
+import {
+    loadRules,
+    HUMANIZATION_RULES,
+    HUMANIZATION_CHECKLIST,
+    SYSTEM_INSTRUCTION_PROFESSIONAL,
+    SYSTEM_INSTRUCTION_PARSER,
+    SYSTEM_INSTRUCTION_HUMANIZER,
+    CV_DATA_SCHEMA,
+    _validatorSystem,
+    _auditSystem,
+    _scenarioA,
+    _scenarioB,
+    _scenarioC,
+    _scenarioD,
+    _scenarioModeOverride,
+    _pivotBlockTemplate,
+    _humanizationInstructionHeader,
+    _criticalRulesReminder,
+} from './pipelineRules';
+import {
+    compactProfile,
+    slimPromptProfile,
+    smartTruncateJD,
+    jdProfileSimilarity,
+} from './profilePromptUtils';
+
+export { loadRules } from './pipelineRules';
+export { compactProfile, smartTruncateJD, jdProfileSimilarity } from './profilePromptUtils';
+export {
+    generateCoverLetter,
+    generateThankYouLetter,
+    generateSmartCoverLetter,
+} from './coverLetterService';
+
 // Preserve the existing public helpers for callers that used the original
 // in-file implementation.
 export {
@@ -1398,74 +1434,6 @@ function applyBannedPhraseFilter(cvData: CVData): CVData {
 
 // --- System-Level Constants for AI Control ---
 
-// ─── Pipeline Rules — loaded from CF Worker at runtime (not bundled) ──────────
-// These variables are populated by loadRules() called from App.tsx at boot.
-// The actual strings live inside the compiled Cloudflare Worker (index.ts) and
-// are fetched once per session via rulesService.ts. This means DevTools will
-// never show the proprietary prompt engineering in the JS bundle or source map.
-// Until loadRules() resolves, these are empty — generation functions wait for
-// the rules to be ready before assembling any prompts.
-let HUMANIZATION_RULES = '';
-let HUMANIZATION_CHECKLIST = '';
-let SYSTEM_INSTRUCTION_PROFESSIONAL = '';
-let SYSTEM_INSTRUCTION_PARSER = '';
-let SYSTEM_INSTRUCTION_HUMANIZER = '';
-let _validatorSystem = '';
-let _auditSystem = '';
-// Generation IP — scenario blocks, pivot template, humanization header,
-// critical rules reminder, and CV data schema (all fetched from Worker).
-let _scenarioA = '';
-let _scenarioB = '';
-let _scenarioC = '';
-let _scenarioD = '';
-let _scenarioModeOverride = '';
-let _pivotBlockTemplate = '';
-let _humanizationInstructionHeader = '';
-let _criticalRulesReminder = '';
-
-/**
- * Fetches the CV pipeline rules from the CF Worker and populates the module-
- * level variables used by generateCV, humanizeCV, validateCV, etc.
- * Called once at app boot from App.tsx — safe to call multiple times (noop
- * after first successful load). Also exported so Settings modal can force a
- * reload after a worker URL change.
- */
-export async function loadRules(): Promise<void> {
-    const { fetchCVRules } = await import('./rulesService');
-    const rules = await fetchCVRules();
-    HUMANIZATION_RULES          = rules.humanizationRules;
-    HUMANIZATION_CHECKLIST      = rules.humanizationChecklist;
-    SYSTEM_INSTRUCTION_PROFESSIONAL = rules.systemProfessional;
-    SYSTEM_INSTRUCTION_PARSER   = rules.systemParser;
-    SYSTEM_INSTRUCTION_HUMANIZER = rules.systemHumanizer;
-
-    // Prompt Vault — register templates so proxyLLMCall sends only the key
-    // for Claude/Gemini calls instead of the full system prompt text.
-    const { registerSystemTemplate } = await import('./groqService');
-    registerSystemTemplate(rules.systemProfessional, 'professional');
-    registerSystemTemplate(rules.systemHumanizer,    'humanizer');
-    registerSystemTemplate(rules.systemParser,       'parser');
-    _validatorSystem             = rules.systemValidator;
-    _auditSystem                 = rules.systemAudit;
-    // Generation IP
-    _scenarioA                       = rules.scenarioA;
-    _scenarioB                       = rules.scenarioB;
-    _scenarioC                       = rules.scenarioC;
-    _scenarioD                       = rules.scenarioD;
-    _scenarioModeOverride            = rules.scenarioModeOverride;
-    _pivotBlockTemplate              = rules.pivotBlockTemplate;
-    _humanizationInstructionHeader   = rules.humanizationInstructionHeader;
-    _criticalRulesReminder           = rules.criticalRulesReminder;
-    _cvDataSchema                    = rules.cvDataSchema;
-    CV_DATA_SCHEMA                   = rules.cvDataSchema;
-
-    // Propagate humanization rules to cvDoctorService so every Doctor LLM
-    // fix call (rewriteAllFlaggedBullets, rewriteBulletOptions) enforces the
-    // same pipeline rules as CV generation — not ad-hoc prompts.
-    const { setDoctorRules } = await import('./cvDoctorService');
-    setDoctorRules(rules.humanizationRules);
-}
-
 // --- Gemini Client (multimodal only — PDF/image parsing) ---
 function getGeminiClient(): GoogleGenAI {
     // 1. In-memory decrypted key (primary — populated by KeyVault on app start)
@@ -1593,185 +1561,6 @@ async function retryGemini<T>(operation: () => Promise<T>, retries = 4, delayMs 
         }
         throw error;
     }
-}
-
-// --- Compact-serialize a profile for embedding in Groq prompts.
-//     Aggressively strips empty fields, redundant IDs, and oversized text to
-//     keep input tokens well under Groq's per-request limits while preserving
-//     all information the LLM actually needs.
-function compactProfile(profile: UserProfile, maxResponsibilityChars = 350): string {
-    // Remove undefined/null/empty-string/empty-array values recursively
-    function strip(obj: any): any {
-        if (Array.isArray(obj)) {
-            return obj.map(strip).filter(v => v !== null && v !== undefined && v !== '' && !(Array.isArray(v) && v.length === 0));
-        }
-        if (obj && typeof obj === 'object') {
-            const out: any = {};
-            for (const [k, v] of Object.entries(obj)) {
-                // Skip internal IDs — LLM doesn't need them in the prompt
-                if (k === 'id') continue;
-                const stripped = strip(v);
-                if (stripped !== null && stripped !== undefined && stripped !== '' && !(Array.isArray(stripped) && stripped.length === 0)) {
-                    out[k] = stripped;
-                }
-            }
-            return out;
-        }
-        return obj;
-    }
-
-    const p = strip({
-        personalInfo: profile.personalInfo,
-        // Cap skills to 20 most relevant — LLM doesn't benefit from 50+ skills
-        skills: (profile.skills || []).slice(0, 20),
-        // Cap projects to 6 most recent/relevant
-        projects: (profile.projects || []).slice(0, 6).map(pr => ({
-            name: pr.name,
-            description: typeof pr.description === 'string'
-                ? truncate(pr.description, 200) // LLM context budget; see textTruncate.ts for why display cap differs
-                : pr.description,
-            link: pr.link,
-            startDate: pr.startDate,
-            endDate: pr.endDate,
-        })),
-        workExperience: (profile.workExperience || []).map((exp, idx) => ({
-            _role: `ROLE_${idx + 1}`,
-            company: exp.company,
-            jobTitle: exp.jobTitle,
-            startDate: exp.startDate,
-            endDate: exp.endDate,
-            pointCount: exp.pointCount,
-            responsibilities: typeof exp.responsibilities === 'string'
-                ? exp.responsibilities.substring(0, maxResponsibilityChars)
-                : (Array.isArray(exp.responsibilities)
-                    ? (exp.responsibilities as string[]).slice(0, 6).join('\n').substring(0, maxResponsibilityChars)
-                    : ''),
-        })),
-        education: (profile.education || []).map(edu => ({
-            degree: edu.degree,
-            school: edu.school,
-            graduationYear: edu.graduationYear,
-            description: typeof (edu as any).description === 'string'
-                ? (edu as any).description.substring(0, 150)
-                : undefined,
-        })),
-        languages: profile.languages,
-        customSections: profile.customSections,
-        sectionOrder: profile.sectionOrder,
-    });
-
-    return JSON.stringify(p);
-}
-
-/**
- * Rebuilds a prompt that was assembled with `compactProfile(profile)` (default
- * 350 chars/role) by substituting a slimmer representation (120 chars/role).
- * Used as a second-chance retry when Groq returns 413 — the reduced profile
- * typically cuts 30–50 % off prompts for users with many detailed roles,
- * bringing the token count back inside Groq's 128K context window.
- *
- * Returns the original prompt unchanged when:
- * - the full-profile JSON is not found verbatim (safety guard)
- * - the slim version is identical (profile was already small)
- */
-function slimPromptProfile(prompt: string, profile: UserProfile): string {
-    const full = compactProfile(profile, 350);
-    const slim = compactProfile(profile, 120);
-    if (full === slim) return prompt;
-    const idx = prompt.indexOf(full);
-    if (idx === -1) return prompt;
-    return prompt.slice(0, idx) + slim + prompt.slice(idx + full.length);
-}
-
-/**
- * Smartly truncate a job description to a target character limit while
- * preserving as much keyword signal as possible.
- * Strategy: keep the first block (role summary), then keyword-dense middle,
- * then requirements/skills section — discarding boilerplate filler.
- */
-// Exported for the audit harness (`scripts/audit-jd-pipeline.ts`) — verifies
-// that short JDs pass through unchanged, that high-signal chunks beat
-// boilerplate when truncating, and that the safety-fallback head/tail keeps
-// the result under maxChars even on adversarial inputs.
-export function smartTruncateJD(jd: string, maxChars = 3200): string {
-    const clean = (jd || '').replace(/\r/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
-    if (!clean || clean.length <= maxChars) return clean;
-
-    // Break JD into meaningful chunks (headings, bullets, paragraphs).
-    const chunks = clean
-        .split(/\n+/)
-        .map(s => s.trim())
-        .filter(Boolean)
-        .flatMap(s => s.length > 420 ? s.split(/(?<=[.;])\s+/).map(x => x.trim()).filter(Boolean) : [s]);
-
-    const weakBoilerplate = /\b(equal opportunity|eeo|accommodation|background check|drug test|benefits|perks|about us|our culture|privacy policy|cookie|applicants with disabilities|all qualified applicants|do not discriminat\w*|authorized to work|protected status|veteran status|gender identity|sexual orientation|paid time off|pto\b|401k|401\(k\))\b/i;
-    const highSignal = /\b(requirements?|qualifications?|responsibilities?|must have|nice to have|key skills?|experience with|proficient|degree|certification|tools?|tech stack|kubernetes|python|java|sql|aws|gcp|azure)\b/i;
-
-    const scored = chunks.map((c, idx) => {
-        const lower = c.toLowerCase();
-        const wordCount = lower.split(/\s+/).length;
-        const keywordHits = (lower.match(/\b(requirements?|qualifications?|responsibilities?|must|experience|skills?|tools?|degree|certification)\b/g) || []).length;
-        const techHits = (lower.match(/\b(python|java|sql|aws|gcp|azure|kubernetes|docker|react|node|ci\/cd|terraform)\b/g) || []).length;
-        const numberHits = (lower.match(/\d+/g) || []).length;
-        const isWeak = weakBoilerplate.test(lower);
-        let score = keywordHits * 3 + techHits * 4 + numberHits;
-        if (highSignal.test(lower)) score += 8;
-        if (idx < 2) score += 6; // keep role-context intro
-        if (wordCount < 3) score -= 4;
-        if (isWeak) score -= 14;
-        return { idx, text: c, score };
-    });
-
-    // Keep highest-signal chunks, then restore original order.
-    const picked = scored
-        .sort((a, b) => b.score - a.score)
-        .slice(0, Math.max(8, Math.ceil(scored.length * 0.55)))
-        .sort((a, b) => a.idx - b.idx);
-
-    let out = '';
-    for (const p of picked) {
-        if ((out + '\n' + p.text).length > maxChars) continue;
-        out += (out ? '\n' : '') + p.text;
-    }
-
-    // Safety fallback if scoring discarded too much.
-    if (out.length < 800) {
-        const head = clean.substring(0, Math.floor(maxChars * 0.7));
-        const tail = clean.substring(clean.length - Math.floor(maxChars * 0.2));
-        return `${head}\n…\n${tail}`.slice(0, maxChars + 3);
-    }
-    return out;
-}
-
-// Exported for the audit harness (`scripts/audit-jd-pipeline.ts`) — verifies
-// that the routing similarity score correctly separates "rewrite from scratch"
-// (low overlap) from "preserve & polish" (high overlap) cases.
-export function jdProfileSimilarity(profile: UserProfile, jd: string): number {
-    if (!jd.trim()) return 0;
-    const jdTokens = new Set(
-        jd.toLowerCase()
-            .replace(/[^\w\s/+-]/g, ' ')
-            .split(/\s+/)
-            .filter(t => t.length >= 4)
-    );
-    if (jdTokens.size === 0) return 0;
-
-    const profileText = [
-        ...(profile.skills || []),
-        ...(profile.workExperience || []).flatMap(e => [e.jobTitle, e.company, ...(typeof e.responsibilities === 'string' ? e.responsibilities.split('\n') : (e.responsibilities || []))]),
-        ...(profile.education || []).flatMap(e => [e.degree, e.school]),
-    ].join(' ').toLowerCase();
-
-    const pTokens = new Set(
-        profileText.replace(/[^\w\s/+-]/g, ' ')
-            .split(/\s+/)
-            .filter(t => t.length >= 4)
-    );
-    if (pTokens.size === 0) return 0;
-
-    let overlap = 0;
-    for (const t of pTokens) if (jdTokens.has(t)) overlap++;
-    return overlap / Math.min(jdTokens.size, pTokens.size);
 }
 
 function buildStaleProfileRefreshInstruction(
@@ -2669,8 +2458,6 @@ EXTRACTION RULES — follow these precisely. This is a verbatim transcription ta
 `;
 
 // --- CVData JSON schema description for Groq prompts ---
-let CV_DATA_SCHEMA = ``; // populated by loadRules() — text lives in CF Worker
-
 // --- Humanize a block of plain text to remove AI patterns ---
 export const humanizeText = async (text: string): Promise<string> => {
     const prompt = `Rewrite the following professional text so it sounds naturally human-written. Preserve all facts, dates, names, and numbers. Only change phrasing and style.\n\nTEXT TO REWRITE:\n${text}`;
@@ -4862,103 +4649,6 @@ export const extractTextFromImage = async (base64Image: string, mimeType: string
     return response.text;
 };
 
-export const generateCoverLetter = async (
-    profileInput: UserProfile,
-    jobDescription: string,
-    onChunk?: (delta: string) => void,
-): Promise<string> => {
-    const profile = purifyProfile(profileInput);
-    const name = profile.personalInfo?.name || 'Applicant';
-
-    // 3.5 — Cover letter brief injection.
-    // Fire buildBrief in parallel with prompt construction (zero added latency on
-    // a miss). If the worker is unreachable, briefResult stays null and we fall
-    // back to the prompt-only path with no degradation.
-    const briefPromise = buildBrief({
-        jd: jobDescription,
-        profile: profile as unknown,
-        section: 'summary',
-    }).catch(() => null);
-
-    // Build the base prompt while the brief fetches concurrently.
-    const [brief] = await Promise.all([briefPromise]);
-
-    // Compose a voice block only when the brief resolved successfully.
-    let voiceBriefBlock = '';
-    if (brief?.voice?.primary) {
-        const v = brief.voice.primary;
-        const extraForbidden = (brief.forbidden_phrases || []).slice(0, 10).join(', ');
-        voiceBriefBlock = `
-### VOICE BRIEF (match this throughout the letter)
-- Voice profile: ${v.name} — ${v.tone}
-- Verbosity target: ${v.verbosity_level <= 2 ? 'terse and punchy' : v.verbosity_level >= 4 ? 'expansive and narrative' : 'balanced'} (level ${v.verbosity_level}/5)
-- Metric preference: ${v.metric_preference}${extraForbidden ? `\n- Additional banned phrases (same list used for the CV): ${extraForbidden}` : ''}
-
-This voice must be consistent with the candidate's CV — they should read like the same person wrote both documents.
-`;
-    }
-
-    const prompt = `
-You are a professional ghostwriter who writes winning cover letters for competitive roles. Your output is always polished, specific, and human — never generic or AI-sounding.
-
-### APPLICANT
-Name: ${name}
-${voiceBriefBlock}
-### PROFILE (for content and achievements only)
-${compactProfile(profile)}
-
-### JOB DESCRIPTION
-${jobDescription || 'General application — highlight the strongest transferable skills and most recent impactful achievement.'}
-
-### MANDATORY OUTPUT RULES — EVERY RULE IS NON-NEGOTIABLE
-
-1. **WORD COUNT**: Write EXACTLY 200–240 words for the ENTIRE letter body (from salutation to the applicant's name on the last line). Count every word carefully. This must fit on one A4 page — precision matters.
-
-2. **NO LETTERHEAD OR HEADERS**: Do NOT include name, address, date, or contact info. The template handles this. Start DIRECTLY with the salutation.
-
-3. **SALUTATION**: "Dear Hiring Manager," — use a specific name only if clearly stated in the JD.
-
-4. **FOUR TIGHT PARAGRAPHS**:
-   - **Opening** (~45 words): Lead with a bold hook — a specific result, a scoped claim, or a compelling value statement. Name the role and company. DO NOT open with "I", "I am writing", or any cliché.
-   - **Body 1** (~55 words): One specific achievement with a concrete metric (number, %, $ amount, team size, or measurable outcome) that directly addresses a top JD requirement.
-   - **Body 2** (~55 words): A second accomplishment or skill that demonstrates cultural or technical fit. Weave in JD keywords naturally — no forced stuffing.
-   - **Closing** (~45 words): One sentence restating fit, then a clear CTA: "I would welcome the opportunity to discuss how I can contribute to [Company/Team]." Never use "I look forward to hearing from you" as a standalone closer.
-
-5. **SIGN-OFF**: End with exactly:
-   Sincerely,
-   ${name}
-
-6. **BANNED — NEVER USE ANY OF THESE**:
-   "I am writing to apply", "I am passionate about", "excited to leverage", "team player", "self-starter", "results-driven", "detail-oriented", "dynamic professional", "proven track record", "fast learner", "go-getter", "synergize", "utilize", "delve", "please find attached", "to whom it may concern", "I look forward to hearing from you" (as a standalone sentence)
-
-7. **TONE**: Confident, direct, human. Vary sentence length. Maximum one "I" per sentence. No filler words. No sycophancy.
-
-8. **METRIC REQUIREMENT**: The letter MUST contain at least one specific number, percentage, dollar figure, or concrete measurable outcome in the body paragraphs.
-
-9. **RETURN FORMAT**: Plain text ONLY. No markdown, no bold, no bullet points, no headers, no commentary. Start with "Dear Hiring Manager," and end with the applicant's name.
-    `;
-
-    let letter: string | null = null;
-    if (getSelectedProvider() === 'workers-ai') {
-        try {
-            const cf = await workerTieredLLM('coverLetter', prompt, {
-                system: SYSTEM_INSTRUCTION_PROFESSIONAL,
-                temperature: 0.65,
-                maxTokens: 1200,
-            });
-            if (cf && cf.trim()) letter = cf;
-        } catch (cfErr) {
-            console.warn('[generateCoverLetter] Worker call failed, falling back to selected provider:', cfErr);
-        }
-    }
-    if (!letter) {
-        letter = onChunk
-            ? await groqChatStream(GROQ_LARGE, SYSTEM_INSTRUCTION_PROFESSIONAL, prompt, onChunk, { temperature: 0.65, maxTokens: 1200 })
-            : await groqChat(GROQ_LARGE, SYSTEM_INSTRUCTION_PROFESSIONAL, prompt, { temperature: 0.65, maxTokens: 1200 });
-    }
-    return purifyText(letter);
-};
-
 /**
  * Token-efficient targeted CV optimizer.
  * Rewrites only summary + skills + experience bullets to fill identified JD gaps.
@@ -5823,84 +5513,7 @@ export const checkCVAgainstJob = async (
 
 // ─── Thank-You Letter Generator ───────────────────────────────────────────────
 
-export const generateThankYouLetter = async (
-    profile: UserProfile,
-    jobDescription: string,
-    interviewerName?: string,
-    interviewType?: string
-): Promise<string> => {
-    const interviewer = interviewerName?.trim() || 'the hiring team';
-    const type = interviewType || 'interview';
-    const name = profile.personalInfo?.name || 'Candidate';
-
-    const prompt = `
-You are a top executive career coach. Write a compelling, human-sounding post-${type} thank-you letter that stands out and reinforces the candidate's candidacy.
-
-CANDIDATE NAME: ${name}
-INTERVIEWER: ${interviewer}
-
-CANDIDATE PROFILE:
-${compactProfile(profile)}
-
-JOB DESCRIPTION:
-${jobDescription.substring(0, 1500)}
-
-STRICT INSTRUCTIONS:
-1. Start DIRECTLY with "Dear ${interviewer}," — no header block.
-2. Opening (1 sentence): Thank them warmly and reference something specific from the ${type}.
-3. Reinforcement paragraph: Tie one specific thing discussed to a concrete achievement from the profile. Show you were listening and thinking.
-4. Value-add paragraph: Briefly mention one additional reason you are the right fit that didn't come up, or expand on something that was covered too briefly.
-5. Closing (1 sentence): Express genuine enthusiasm, confirm interest, offer next steps.
-6. Sign-off: "Warm regards," then the candidate's name on the next line: ${name}
-7. Length: 180-250 words. Concise, human, specific.
-8. Tone: Professional, warm, confident. NOT generic or gushing.
-9. NO AI clichés: no "excited", "thrilled", "leverage", "passionate".
-10. Return ONLY the letter text. No commentary.
-`;
-    return groqChat(GROQ_FAST, SYSTEM_INSTRUCTION_HUMANIZER, prompt, { temperature: 0.7 });
-};
-
 // ─── Smart Cover Letter: JD + Company Research ───────────────────────────────
-
-export const generateSmartCoverLetter = async (
-    profile: UserProfile,
-    jobDescription: string,
-    companyResearch: string = '',
-    onChunk?: (delta: string) => void,
-): Promise<string> => {
-    const companySection = companyResearch
-        ? `\n### COMPANY RESEARCH (use this to show you know the company)\n${companyResearch}\n`
-        : '';
-
-    const prompt = `
-        You are a world-class career coach writing a WINNING cover letter.
-
-        ### CV DATA
-        ${compactProfile(profile)}
-
-        ### JOB DESCRIPTION
-        ${jobDescription}
-        ${companySection}
-        ### COVER LETTER INSTRUCTIONS
-        1. **Opening**: Name the exact role. If company research is available, mention something specific about the company (recent news, values, product) that excites you.
-        2. **Body (2-3 paragraphs)**:
-           - Match your 2-3 strongest experiences to the JD's top requirements.
-           - Use STAR method briefly (Situation, Task, Action, Result) for at least one example.
-           - Include specific metrics/numbers from your CV where possible.
-           - If company research is available, connect your values/experience to the company's mission/culture.
-        3. **Closing**: Confident call-to-action. Express genuine enthusiasm.
-        4. **Tone**: Professional, warm, confident — NOT generic or sycophantic.
-        5. **Length**: 250-350 words. Concise is king.
-        6. **Format**: Plain text with proper letter formatting. Address to "Dear Hiring Manager" unless a name is known.
-
-        CRITICAL: This letter must feel unique to THIS job at THIS company. No generic templates.
-        Return ONLY the cover letter text. No commentary.
-    `;
-
-    return onChunk
-        ? groqChatStream(GROQ_LARGE, SYSTEM_INSTRUCTION_HUMANIZER, prompt, onChunk, { temperature: 0.7 })
-        : groqChat(GROQ_LARGE, SYSTEM_INSTRUCTION_HUMANIZER, prompt, { temperature: 0.7 });
-};
 
 // ─── Paraphrase: Rewrite text in different tones ──────────────────────────────
 
