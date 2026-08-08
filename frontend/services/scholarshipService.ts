@@ -27,6 +27,62 @@ export function detectScholarshipName(description: string): string | null {
     return null;
 }
 
+function compactProfileForScholarship(profile: UserProfile): string {
+    const awardItems = (profile.customSections ?? [])
+        .filter(s => /award|honor|honour|prize|scholar|recognit|certif/i.test(s.label))
+        .flatMap(s => s.items.slice(0, 6).map(i => (i as any).content || (i as any).title || '').filter(Boolean));
+
+    const volunteerItems = (profile.customSections ?? [])
+        .filter(s => /volunteer|community|civic|ngo|charity|service|social impact/i.test(s.label))
+        .flatMap(s => s.items.slice(0, 6).map(i => (i as any).content || (i as any).title || '').filter(Boolean));
+
+    const publicationItems = (profile.customSections ?? [])
+        .filter(s => /publicat|research|paper|journal|thesis|dissert|conference|proceedings/i.test(s.label))
+        .flatMap(s => s.items.slice(0, 8).map(i => (i as any).content || (i as any).title || '').filter(Boolean));
+
+    const p: Record<string, unknown> = {
+        personalInfo: profile.personalInfo,
+        summary: profile.summary || undefined,
+        education: (profile.education ?? []).map(edu => ({
+            degree: edu.degree,
+            school: edu.school,
+            graduationYear: edu.graduationYear,
+            // Extra room for thesis/dissertation titles
+            description: typeof (edu as any).description === 'string'
+                ? (edu as any).description.substring(0, 400) : undefined,
+        })),
+        workExperience: (profile.workExperience ?? []).map((exp, idx) => ({
+            _role: `ROLE_${idx + 1}`,
+            company: exp.company,
+            jobTitle: exp.jobTitle,
+            startDate: exp.startDate,
+            endDate: exp.endDate,
+            responsibilities: typeof exp.responsibilities === 'string'
+                ? exp.responsibilities.substring(0, 500)
+                : (Array.isArray(exp.responsibilities)
+                    ? (exp.responsibilities as string[]).slice(0, 8).join('\n').substring(0, 500)
+                    : ''),
+        })),
+        skills: (profile.skills ?? []).slice(0, 30),
+        projects: (profile.projects ?? []).slice(0, 8).map(pr => ({
+            name: pr.name,
+            description: typeof pr.description === 'string' ? pr.description.substring(0, 350) : pr.description,
+            link: pr.link,
+        })),
+        languages: profile.languages,
+        awardsAndHonors: awardItems.length ? awardItems : undefined,
+        publications: publicationItems.length ? publicationItems : undefined,
+        volunteerAndCommunity: volunteerItems.length ? volunteerItems : undefined,
+    };
+
+    const clean = Object.fromEntries(
+        Object.entries(p).filter(([, v]) => v !== undefined && v !== null && v !== ''
+            && !(Array.isArray(v) && v.length === 0))
+    );
+    return JSON.stringify(clean);
+}
+
+
 export const generateScholarshipEssay = async (params: {
     profile: UserProfile;
     essayType: string;
