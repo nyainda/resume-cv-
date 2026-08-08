@@ -451,15 +451,3 @@ Return ONLY a JSON object with exactly two keys: "summary" (string) and "experie
         return cvData;
     }
 }
-
-/**
- * PART 8 — Deterministic Banned-Phrase Filter.
- *
- * This is a pure JavaScript pass — no AI call, no network, cannot fail.
- * It runs as the absolute last step before the CV is returned to the user,
- * acting as a guaranteed backstop regardless of what any prior AI pass did.
- *
- * Two tiers:
- *   TIER 1 — Standalone adjectives/adverbs: safe to remove word-only (won't break grammar).
- *   TIER 2 — Opener phrases ("responsible for X"): remove the opener, keep the rest of the sentence.
- */

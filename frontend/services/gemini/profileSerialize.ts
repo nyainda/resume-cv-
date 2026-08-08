@@ -11,7 +11,7 @@ import { truncate } from '../../utils/textTruncate';
 //     all information the LLM actually needs.
 export function compactProfile(profile: UserProfile, maxResponsibilityChars = 350): string {
     // Remove undefined/null/empty-string/empty-array values recursively
-    export function strip(obj: any): any {
+    function strip(obj: any): any {
         if (Array.isArray(obj)) {
             return obj.map(strip).filter(v => v !== null && v !== undefined && v !== '' && !(Array.isArray(v) && v.length === 0));
         }
