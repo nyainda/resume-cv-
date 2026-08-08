@@ -9,8 +9,8 @@
  *   2. Semantic dedup — cluster using synonym map
  *   3. Evidence check — fuzzy-match JD skills against experience bullets
  *      (per-entry when experienceEntries provided, blob fallback otherwise)
- *   4. Rank — promoted (native+JD) first, then addedFromJD; in jdOnlyMode
- *      unpromoted native skills are excluded entirely
+ *   4. Rank — JD-relevant skills first; seniority-aware ordering is applied
+ *      only to non-JD native defaults, never to explicit JD matches
  *   5. Voice normalise — use user's own phrasing style
  */
 
@@ -43,6 +43,18 @@ export interface ReconciledSkills {
      *         or ['profile'] when the only evidence is profile.skills itself.
      */
     evidenceMap: Map<string, string[]>;
+}
+
+/** Career level used only for deterministic skill ordering. */
+export type SkillSeniority = 'intern' | 'junior' | 'mid' | 'senior' | 'lead' | 'executive' | 'exec';
+
+export interface SkillReconcileOptions {
+    /**
+     * When supplied, generic process/tool skills are moved below stronger
+     * senior-level signals for senior and executive candidates. This never
+     * removes a skill and never applies to JD-matched skills.
+     */
+    seniority?: SkillSeniority | string;
 }
 
 const MAX_SKILLS = 15;
@@ -125,6 +137,95 @@ function voiceNormalise(jdSkill: string, nativeSkills: string[]): string {
     return mapped ?? jdSkill;
 }
 
+// ─── Seniority-aware default ordering ─────────────────────────────────────────
+
+/**
+ * These are intentionally broad, low-signal skills that can make an otherwise
+ * senior CV read like a task-level profile when they lead the list. They are
+ * never forbidden: an explicit JD match is always kept ahead of this pass.
+ */
+const FOUNDATIONAL_SKILL_SIGNALS = [
+    /\bagile\b/i,
+    /\bscrum\b/i,
+    /\bkanban\b/i,
+    /\bjira\b/i,
+    /\btrello\b/i,
+    /\btime\s+management\b/i,
+    /\bteamwork\b/i,
+    /\bcommunication\b/i,
+    /\bcustomer\s+service\b/i,
+    /\bdata\s+entry\b/i,
+    /\bmicrosoft\s+office\b/i,
+    /\bms\s+office\b/i,
+];
+
+/**
+ * Signals that communicate scope, ownership, or technical depth. This list
+ * affects ordering only; it is not a claim that a candidate has the skill.
+ */
+const SENIOR_SCOPE_SIGNALS = [
+    /\barchitecture\b/i,
+    /\bsystems?\s+design\b/i,
+    /\btechnical\s+strategy\b/i,
+    /\bproduct\s+strategy\b/i,
+    /\broadmap\b/i,
+    /\bportfolio\b/i,
+    /\btransformation\b/i,
+    /\bscal(?:e|ing|ability)\b/i,
+    /\bgovernance\b/i,
+    /\b(?:people|line|team)\s+management\b/i,
+    /\bcross[-\s]functional\s+leadership\b/i,
+    /\bstakeholder\s+management\b/i,
+    /\bmentoring\b/i,
+    /\bcoaching\b/i,
+    /\bbudget\b/i,
+    /\bp&l\b/i,
+    /\b(?:go[-\s]?to[-\s]?market|gtm)\b/i,
+];
+
+function seniorityOrderScore(skill: string, seniority?: string): number {
+    const level = seniority?.trim().toLowerCase();
+    if (!level || !['senior', 'lead', 'executive', 'exec'].includes(level)) return 0;
+
+    const foundational = FOUNDATIONAL_SKILL_SIGNALS.some(pattern => pattern.test(skill));
+    const scope = SENIOR_SCOPE_SIGNALS.some(pattern => pattern.test(skill));
+    // Scope signals are useful at the top; generic signals are still retained
+    // but intentionally move down. Neutral technical/domain skills stay stable.
+    return (scope ? 2 : 0) - (foundational ? 2 : 0);
+}
+
+function sortNativeDefaults(skills: string[], seniority?: string): string[] {
+    if (!seniority) return skills;
+    return skills
+        .map((skill, index) => ({ skill, index, score: seniorityOrderScore(skill, seniority) }))
+        .sort((a, b) => b.score - a.score || a.index - b.index)
+        .map(item => item.skill);
+}
+
+/** Best-effort profile-level inference for the post-generation repair pass. */
+export function inferSkillSeniority(
+    workExperience: Array<{ jobTitle?: string; startDate?: string; endDate?: string }> = [],
+): SkillSeniority {
+    const totalYears = workExperience.reduce((sum, experience) => {
+        const start = experience.startDate ? new Date(experience.startDate) : null;
+        const end = experience.endDate && !/^present|current|now$/i.test(experience.endDate)
+            ? new Date(experience.endDate)
+            : new Date();
+        if (!start || Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return sum;
+        return sum + Math.max(0, end.getTime() - start.getTime()) / (365.25 * 24 * 60 * 60 * 1000);
+    }, 0);
+
+    const title = workExperience[0]?.jobTitle || '';
+    if (/\b(?:chief|vp|vice president|director|founder|partner)\b/i.test(title) && totalYears >= 7) {
+        return 'executive';
+    }
+    if (/\b(?:head|manager|lead)\b/i.test(title) && totalYears >= 4) return 'lead';
+    if (totalYears >= 7) return 'senior';
+    if (totalYears >= 3) return 'mid';
+    if (totalYears > 0 && /\b(?:intern|trainee|apprentice)\b/i.test(title)) return 'intern';
+    return 'junior';
+}
+
 // ─── Main reconciler ─────────────────────────────────────────────────────────
 
 /**
@@ -139,6 +240,7 @@ function voiceNormalise(jdSkill: string, nativeSkills: string[]): string {
  *                       JD-relevant skills (promoted + addedFromJD). Profile skills with
  *                       no JD relevance are excluded. When false (default), all native
  *                       profile skills are included with JD-confirmed ones promoted.
+ * @param options        Optional seniority ordering for non-JD native defaults.
  */
 export function reconcileSkills(
     profileSkills: string[],
@@ -146,6 +248,7 @@ export function reconcileSkills(
     experienceBullets: string[],
     experienceEntries?: Array<{ id: string; bullets: string[] }>,
     jdOnlyMode = false,
+    options: SkillReconcileOptions = {},
 ): ReconciledSkills {
     const blobText = experienceBullets.join(' ');
 
@@ -204,13 +307,14 @@ export function reconcileSkills(
         // Order: promoted (native + JD-confirmed) first → addedFromJD (bullets-only evidence).
         finalSkills = [...promoted, ...addedFromJD].slice(0, MAX_SKILLS);
     } else {
-        // No-JD or backward-compat: native skills first (promoted up front), then JD additions.
+        // Keep every JD-relevant skill ahead of unconfirmed defaults. This
+        // protects ATS coverage while leaving the profile's own skills intact.
         const promotedSet = new Set(promoted.map(s => canonicalise(s).toLowerCase()));
-        const nativeSorted = [
-            ...nativeRaw.filter(s => promotedSet.has(canonicalise(s).toLowerCase())),
-            ...nativeRaw.filter(s => !promotedSet.has(canonicalise(s).toLowerCase())),
-        ];
-        finalSkills = [...nativeSorted, ...addedFromJD].slice(0, MAX_SKILLS);
+        const nativeDefaults = sortNativeDefaults(
+            nativeRaw.filter(s => !promotedSet.has(canonicalise(s).toLowerCase())),
+            options.seniority,
+        );
+        finalSkills = [...promoted, ...addedFromJD, ...nativeDefaults].slice(0, MAX_SKILLS);
     }
 
     return {

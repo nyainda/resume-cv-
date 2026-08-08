@@ -3597,6 +3597,83 @@ export function enforceOpenerDiversity(cv: CVData): CVData {
 }
 
 // ────────────────────────────────────────────────────────────────────────────
+// Scope-anchor ordering
+//
+// Keep an existing scope-bearing bullet first when one is available. This is
+// deliberately a reorder-only pass: it never invents figures, rewrites text,
+// or removes an achievement. The generation prompt asks for scope first so
+// recruiters can understand responsibility level before reading outcomes.
+// ────────────────────────────────────────────────────────────────────────────
+
+const _SCOPE_ANCHOR_PATTERN = /(?:\b\d+\+?\s+(?:people|staff|engineers|reports?|clients?|customers?|accounts?|markets?|sites?|projects?|products?|offices?|countries?|regions?)\b|\b(?:team|staff|headcount|direct reports?|client|customer|account|market|site|project|product|office|country|regional|geographic)\b.{0,80}\b(?:\d+\+?|\bmultiple\b|\bglobal\b|\binternational\b|\bacross\b)|\b(?:budget|portfolio|book of business|p&l|geographic coverage|regional coverage)\b.{0,80}\b(?:[$£€]\s?\d|\d+\+?|\bmultiple\b|\bglobal\b|\binternational\b))/i;
+
+/**
+ * Ensures each experience role leads with scope when the CV already contains
+ * a scope-bearing bullet for that role. No content is created or deleted.
+ */
+export function enforceScopeAnchors(cv: CVData): CVData {
+    const experience = (cv.experience || []).map(role => {
+        const bullets = role.responsibilities || [];
+        if (bullets.length < 2 || _SCOPE_ANCHOR_PATTERN.test(bullets[0])) return role;
+
+        const scopeIndex = bullets.findIndex((bullet, index) =>
+            index > 0 && _SCOPE_ANCHOR_PATTERN.test(bullet),
+        );
+        if (scopeIndex < 0) return role;
+
+        const reordered = [...bullets];
+        const [scopeBullet] = reordered.splice(scopeIndex, 1);
+        reordered.unshift(scopeBullet);
+        return { ...role, responsibilities: reordered };
+    });
+
+    return { ...cv, experience };
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Rhythm balance
+//
+// Break up roles whose bullets all sit in the standard length band by reusing
+// the existing opener reshaper. This is intentionally conservative: if a
+// bullet has no safe phrase to move, it is left untouched.
+// ────────────────────────────────────────────────────────────────────────────
+
+function _bulletWordCount(bullet: string): number {
+    return bullet.trim().split(/\s+/).filter(Boolean).length;
+}
+
+/**
+ * Adds lightweight length/opening variety without generating text. At most two
+ * non-anchor bullets per role are reshaped, and only when a phrase already in
+ * the bullet can be moved safely.
+ */
+export function enforceRhythmBalance(cv: CVData): CVData {
+    const experience = (cv.experience || []).map(role => {
+        const bullets = role.responsibilities || [];
+        if (bullets.length < 3) return role;
+
+        const bands = bullets.map(_bulletWordCount);
+        const standardCount = bands.filter(words => words >= 15 && words <= 22).length;
+        if (standardCount < Math.max(3, bullets.length - 1)) return role;
+
+        let reshaped = 0;
+        const next = bullets.map((bullet, index) => {
+            if (index === 0 || reshaped >= 2) return bullet;
+            const transformed = _tryReshapeOpener(bullet);
+            if (transformed && transformed !== bullet) {
+                reshaped++;
+                return transformed;
+            }
+            return bullet;
+        });
+
+        return reshaped > 0 ? { ...role, responsibilities: next } : role;
+    });
+
+    return { ...cv, experience };
+}
+
+// ────────────────────────────────────────────────────────────────────────────
 // Bug 3 — Per-role variance enforcement
 //
 // Compares V2 (newly generated) role bullets against the matching V1 (previous)

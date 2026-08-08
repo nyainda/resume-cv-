@@ -14,7 +14,7 @@ import { runFinalCVGuard } from './cvFinalGuard';
 import { purifyCV } from './cvPurificationPipeline';
 import { classifyBullets } from './cvDoctorService';
 import { applyTier1Fixes } from './tier1Fixes';
-import { reconcileSkills } from './skillsReconciler';
+import { inferSkillSeniority, reconcileSkills } from './skillsReconciler';
 import { extractJdKeywords, scoreAtsCoverage } from './cvAtsKeywords';
 import type { CVBuildReport, PipelineEvent, ReviewItem, ManualFlag } from '../types/buildReport';
 
@@ -224,6 +224,9 @@ export async function runAutoRepair(
         profile.skills ?? [],
         jdSkills,
         bullets,
+        undefined,
+        false,
+        { seniority: inferSkillSeniority(profile.workExperience || []) },
       );
       // Apply reconciled skills to the CV if there's meaningful change
       if (reconciledSkills.finalSkills.length > 0) {

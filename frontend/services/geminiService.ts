@@ -3159,6 +3159,7 @@ export const generateCV = async (
                     flatBullets,
                     experienceEntries,
                     /* jdOnlyMode= */ true,
+                    { seniority },
                 );
                 console.log(
                     `[SkillsReconcile] JD-aware: ${_reconciledSkills.finalSkills.length} skills ` +
